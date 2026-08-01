@@ -1,0 +1,21 @@
+# Blue-green overlay for API (extend base docker-compose.yml)
+services:
+  api-blue:
+    extends:
+      file: docker-compose.yml
+      service: api
+    container_name: aicw-api-blue
+    ports:
+      - "3000:3000"
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+
+  api-green:
+    extends:
+      file: docker-compose.yml
+      service: api
+    container_name: aicw-api-green
+    ports:
+      - "3001:3000"
+    environment:
+      APP_VERSION: ${APP_VERSION:-0.1.0}

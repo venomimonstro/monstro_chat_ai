@@ -1,0 +1,367 @@
+import axios from 'axios';
+import type {
+  AuthResponse,
+  AuditLogDto,
+  AuditLogListQuery,
+  BackupSnapshotDto,
+  CreateSystemUpdateDto,
+  ImpersonateResponseDto,
+  PaginatedResponse,
+  ResetPasswordResponseDto,
+  SystemUpdateDto,
+  TariffDto,
+  TenantDetailDto,
+  TenantListItemDto,
+  TenantListQuery,
+  TenantMarginDto,
+  Verify2faRequest,
+} from '@ai-consultant/shared-types';
+
+function getCsrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|; )aicw_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+export const api = axios.create({
+  baseURL: '/api',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+api.interceptors.request.use((config) => {
+  const method = config.method?.toUpperCase();
+  if (method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = getCsrfToken();
+    if (csrf) {
+      config.headers['X-CSRF-Token'] = csrf;
+    }
+  }
+  return config;
+});
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = api
+      .post<{ success: boolean }>('/auth/refresh')
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (
+      error.response?.status === 401 &&
+      original &&
+      !original._retry &&
+      !original.url?.includes('/auth/login') &&
+      !original.url?.includes('/auth/2fa/verify') &&
+      !original.url?.includes('/auth/register') &&
+      !original.url?.includes('/auth/refresh')
+    ) {
+      original._retry = true;
+      const ok = await refreshSession();
+      if (ok) {
+        return api(original);
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
+export async function loginAdmin(email: string, password: string) {
+  const res = await api.post<AuthResponse>('/auth/login', {
+    email,
+    password,
+  });
+  return res.data;
+}
+
+export async function verifyAdmin2fa(data: Verify2faRequest) {
+  const res = await api.post<AuthResponse>('/auth/2fa/verify', data);
+  return res.data;
+}
+
+export async function logoutUser() {
+  await api.post('/auth/logout');
+}
+
+export async function fetchCurrentUser() {
+  const res = await api.post<{ user: AuthResponse['user'] }>('/auth/me');
+  return res.data.user;
+}
+
+export interface LlmProviderInfo {
+  name: string;
+  defaultModel: string;
+  available: boolean;
+  inChain: boolean;
+  enabled: boolean;
+  priority: number;
+  apiKeyMasked: string | null;
+}
+
+export interface AdminSystemHealth {
+  status: 'ok' | 'degraded' | 'error';
+  timestamp: string;
+  postgres: 'connected' | 'disconnected';
+  redis: 'connected' | 'disconnected';
+  queues: Array<{
+    name: string;
+    waiting: number;
+    active: number;
+    delayed: number;
+    failed: number;
+  }>;
+}
+
+export interface CreateTariffPayload {
+  name: string;
+  price: number;
+  period: 'month' | 'year';
+  currency?: string;
+  messageLimit: number;
+  sourceLimit: number;
+  kbLimitMb?: number;
+  overagePolicy?: 'block' | 'charge' | 'allow';
+  isActive?: boolean;
+}
+
+export type UpdateTariffPayload = Partial<CreateTariffPayload>;
+
+export async function fetchAdminProviders() {
+  const res = await api.get<LlmProviderInfo[]>('/admin/providers');
+  return res.data;
+}
+
+export async function updateAdminProviders(data: {
+  chain: string[];
+  disabled: string[];
+}) {
+  const res = await api.patch<LlmProviderInfo[]>('/admin/providers', data);
+  return res.data;
+}
+
+export async function fetchSystemHealth() {
+  const res = await api.get<AdminSystemHealth>('/admin/system/health');
+  return res.data;
+}
+
+export async function fetchAdminTenants(query: TenantListQuery = {}) {
+  const res = await api.get<PaginatedResponse<TenantListItemDto>>(
+    '/admin/tenants',
+    { params: query },
+  );
+  return res.data;
+}
+
+export async function fetchTenantDetail(tenantId: string) {
+  const res = await api.get<TenantDetailDto>(`/admin/tenants/${tenantId}`);
+  return res.data;
+}
+
+export async function fetchTenantMargin(
+  tenantId: string,
+  from?: string,
+  to?: string,
+) {
+  const res = await api.get<TenantMarginDto>(`/admin/tenants/${tenantId}/margin`, {
+    params: { from, to },
+  });
+  return res.data;
+}
+
+export async function blockTenant(tenantId: string, reason: string) {
+  const res = await api.patch<TenantDetailDto>(
+    `/admin/tenants/${tenantId}/block`,
+    { reason },
+  );
+  return res.data;
+}
+
+export async function unblockTenant(tenantId: string, reason: string) {
+  const res = await api.patch<TenantDetailDto>(
+    `/admin/tenants/${tenantId}/unblock`,
+    { reason },
+  );
+  return res.data;
+}
+
+export async function changeTenantTariff(
+  tenantId: string,
+  tariffId: string,
+  reason: string,
+) {
+  const res = await api.patch<TenantDetailDto>(
+    `/admin/tenants/${tenantId}/tariff`,
+    { tariffId, reason },
+  );
+  return res.data;
+}
+
+export async function adjustTenantBalance(
+  tenantId: string,
+  amount: number,
+  reason: string,
+) {
+  const res = await api.post<TenantDetailDto>(
+    `/admin/tenants/${tenantId}/balance-adjustment`,
+    { amount, reason },
+  );
+  return res.data;
+}
+
+export async function resetTenantPassword(tenantId: string, reason: string) {
+  const res = await api.post<ResetPasswordResponseDto>(
+    `/admin/tenants/${tenantId}/reset-password`,
+    { reason },
+  );
+  return res.data;
+}
+
+export async function impersonateTenant(tenantId: string, reason: string) {
+  const res = await api.post<ImpersonateResponseDto>(
+    `/admin/tenants/${tenantId}/impersonate`,
+    { reason },
+  );
+  return res.data;
+}
+
+export async function fetchAuditLogs(query: AuditLogListQuery = {}) {
+  const res = await api.get<PaginatedResponse<AuditLogDto>>(
+    '/admin/audit-logs',
+    { params: query },
+  );
+  return res.data;
+}
+
+export async function fetchAdminTariffs() {
+  const res = await api.get<TariffDto[]>('/billing/admin/tariffs');
+  return res.data;
+}
+
+export async function createAdminTariff(data: CreateTariffPayload) {
+  const res = await api.post<TariffDto>('/billing/admin/tariffs', data);
+  return res.data;
+}
+
+export async function updateAdminTariff(id: string, data: UpdateTariffPayload) {
+  const res = await api.patch<TariffDto>(`/billing/admin/tariffs/${id}`, data);
+  return res.data;
+}
+
+export async function deactivateAdminTariff(id: string) {
+  const res = await api.delete<TariffDto>(`/billing/admin/tariffs/${id}`);
+  return res.data;
+}
+
+export async function bulkBlockTenants(tenantIds: string[], reason: string) {
+  const res = await api.post<{ blocked: number; tenantIds: string[] }>(
+    '/admin/tenants/bulk-block',
+    { tenantIds, reason },
+  );
+  return res.data;
+}
+
+export async function downloadTenantsCsv(query: TenantListQuery = {}) {
+  const res = await api.get('/admin/tenants/export.csv', {
+    params: query,
+    responseType: 'blob',
+  });
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', 'tenants.csv');
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export async function fetchSystemUpdates() {
+  const res = await api.get<SystemUpdateDto[]>('/admin/updates');
+  return res.data;
+}
+
+export async function fetchSystemUpdate(id: string) {
+  const res = await api.get<SystemUpdateDto>(`/admin/updates/${id}`);
+  return res.data;
+}
+
+export async function createSystemUpdate(data: CreateSystemUpdateDto) {
+  const res = await api.post<SystemUpdateDto>('/admin/updates', data);
+  return res.data;
+}
+
+export async function startUpdateTest(id: string) {
+  const res = await api.post<SystemUpdateDto>(`/admin/updates/${id}/test`);
+  return res.data;
+}
+
+export async function approveUpdate(id: string) {
+  const res = await api.post<SystemUpdateDto>(`/admin/updates/${id}/approve`);
+  return res.data;
+}
+
+export async function fetchBackups() {
+  const res = await api.get<BackupSnapshotDto[]>('/admin/backups');
+  return res.data;
+}
+
+export async function createBackup(label?: string) {
+  const res = await api.post<BackupSnapshotDto>('/admin/backups', { label });
+  return res.data;
+}
+
+export async function restoreBackup(id: string) {
+  const res = await api.post(`/admin/backups/${id}/restore`);
+  return res.data;
+}
+
+export async function fetchAnalyticsQuery(params: {
+  metric: string;
+  dimension?: string;
+  from: string;
+  to: string;
+  tenantId?: string;
+}) {
+  const res = await api.get<import('@ai-consultant/shared-types').AnalyticsQueryResponse>(
+    '/admin/analytics/query',
+    { params },
+  );
+  return res.data;
+}
+
+export async function fetchAnalyticsDashboards() {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').AnalyticsDashboardDto[]
+  >('/admin/analytics/dashboards');
+  return res.data;
+}
+
+export async function createAnalyticsDashboard(
+  data: import('@ai-consultant/shared-types').SaveAnalyticsDashboardDto,
+) {
+  const res = await api.post<
+    import('@ai-consultant/shared-types').AnalyticsDashboardDto
+  >('/admin/analytics/dashboards', data);
+  return res.data;
+}
+
+export async function updateAnalyticsDashboard(
+  id: string,
+  data: import('@ai-consultant/shared-types').SaveAnalyticsDashboardDto,
+) {
+  const res = await api.patch<
+    import('@ai-consultant/shared-types').AnalyticsDashboardDto
+  >(`/admin/analytics/dashboards/${id}`, data);
+  return res.data;
+}

@@ -1,0 +1,51 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+:root {
+  color-scheme: light;
+  --brand-600: #0ea583;
+  --brand-700: #0c846d;
+  --brand-50: #f0fdf9;
+}
+
+body {
+  @apply bg-white text-slate-900 antialiased;
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+}
+
+.prose h2 {
+  @apply mt-8 text-xl font-semibold text-slate-900;
+}
+
+.prose p {
+  @apply mt-4 leading-7 text-slate-600;
+}
+
+.prose ul {
+  @apply mt-4 list-disc space-y-2 pl-6 text-slate-600;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent;
+}
+
+.hero-gradient {
+  background: linear-gradient(135deg, #f0fdf9 0%, #ffffff 50%, #e0f7f2 100%);
+}
+
+.btn-primary {
+  @apply rounded-full bg-brand-600 px-6 py-3 font-medium text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-xl hover:shadow-brand-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+}
+
+.btn-secondary {
+  @apply rounded-full border border-slate-200 bg-white px-6 py-3 font-medium text-slate-700 transition-all hover:border-brand-300 hover:text-brand-700 hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+}
+
+.section-title {
+  @apply text-3xl font-bold tracking-tight text-slate-900 md:text-4xl;
+}
+
+.section-subtitle {
+  @apply mt-4 text-lg text-slate-600;
+}

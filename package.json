@@ -1,0 +1,30 @@
+{
+  "name": "ai-consultant-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SaaS-платформа ИИ-агентов для консультирования посетителей сайта",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @ai-consultant/api",
+    "db:generate": "npm run db:generate -w @ai-consultant/api"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@11.13.0"
+}

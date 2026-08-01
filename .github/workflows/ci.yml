@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build shared-types
+        run: npm run build -w @ai-consultant/shared-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: API tests
+        working-directory: apps/api
+        run: |
+          npx prisma generate
+          npm test
+
+      - name: Build API
+        run: npm run build -w @ai-consultant/api
+
+      - name: Build web-client
+        run: npm run build -w @ai-consultant/web-client
+
+      - name: Build web-admin
+        run: npm run build -w @ai-consultant/web-admin
+
+      - name: Build public-site
+        run: npm run build -w @ai-consultant/public-site
+
+      - name: Build widget
+        run: npm run build -w @ai-consultant/widget
+
+      - name: E2E smoke
+        working-directory: e2e
+        run: npm install && npm test
+
+      - name: Install k6
+        run: |
+          curl -fsSL https://get.k6.io | sh
+          sudo cp k6 /usr/local/bin
+
+      - name: Load test smoke (background API)
+        run: |
+          cd apps/api
+          npm run build
+          node dist/main.js &
+          API_PID=$!
+          sleep 5
+          k6 run -u 10 -d 30s ../../load-tests/api-health.k6.js
+          kill $API_PID
