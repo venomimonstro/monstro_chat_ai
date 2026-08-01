@@ -31,8 +31,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-# Workspace package: copy as real files (symlinks break in runner)
-RUN mkdir -p node_modules/@ai-consultant
+# Replace workspace symlink with built package files
+RUN rm -rf node_modules/@ai-consultant
 COPY --from=builder --chown=nestjs:nodejs /app/packages/shared-types ./node_modules/@ai-consultant/shared-types
 
 USER nestjs

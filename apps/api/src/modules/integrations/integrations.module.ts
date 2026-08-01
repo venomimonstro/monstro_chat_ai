@@ -86,6 +86,7 @@ import { OutgoingWebhookService } from './outgoing-webhook/outgoing-webhook.serv
   exports: [
     IntegrationsService,
     ConversionTrackingService,
+    CredentialCryptoService,
     CrmSyncService,
     CrmStatusSyncQueueService,
     LeadDeliveryQueueService,
