@@ -35,7 +35,7 @@ rebuild_api() {
   cd "${INSTALL_DIR}"
   rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
   docker compose build api
-  docker compose up -d --no-build
+  docker compose up -d --force-recreate api
 }
 
 wait_for_api() {
@@ -53,34 +53,38 @@ wait_for_api() {
 }
 
 rebuild_admin() {
+  log "Пересобираю админку..."
+  cd "${INSTALL_DIR}"
+  if ! command -v node >/dev/null 2>&1; then
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+    apt-get install -y -qq nodejs
+  fi
+  npm install \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/web-admin \
+    --include-workspace-root
+  npm run build -w @ai-consultant/shared-types
+  npm run build -w @ai-consultant/web-admin
   if systemctl is-active --quiet monstro-web-admin 2>/dev/null; then
-    log "Пересобираю админку..."
-    cd "${INSTALL_DIR}"
-    npm install \
-      --workspace=@ai-consultant/shared-types \
-      --workspace=@ai-consultant/web-admin \
-      --include-workspace-root
-    npm run build -w @ai-consultant/shared-types
-    npm run build -w @ai-consultant/web-admin
     systemctl restart monstro-web-admin
   else
-    warn "monstro-web-admin не запущен — пропускаю (запустите: bash scripts/start-frontend.sh)"
+    bash "${INSTALL_DIR}/scripts/start-frontend.sh"
   fi
 }
 
 rebuild_public_site() {
+  log "Пересобираю публичный сайт..."
+  cd "${INSTALL_DIR}"
+  npm install \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/public-site \
+    --include-workspace-root
+  npm run build -w @ai-consultant/shared-types
+  npm run build -w @ai-consultant/public-site
   if systemctl is-active --quiet monstro-public-site 2>/dev/null; then
-    log "Пересобираю публичный сайт..."
-    cd "${INSTALL_DIR}"
-    npm install \
-      --workspace=@ai-consultant/shared-types \
-      --workspace=@ai-consultant/public-site \
-      --include-workspace-root
-    npm run build -w @ai-consultant/shared-types
-    npm run build -w @ai-consultant/public-site
     systemctl restart monstro-public-site
   else
-    warn "monstro-public-site не запущен — пропускаю (запустите: bash scripts/start-public-site.sh)"
+    bash "${INSTALL_DIR}/scripts/start-public-site.sh"
   fi
 }
 
