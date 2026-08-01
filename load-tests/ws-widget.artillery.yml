@@ -1,0 +1,35 @@
+# Load test: WebSocket widget connections
+#
+# Run (requires k6 v0.47+):
+#   k6 run load-tests/ws-widget.k6.js -e BASE_URL=http://localhost:3000 -e WIDGET_KEY=demo-key
+#
+# Target: 500+ parallel WS connections with p95 connect time < 2s
+
+config:
+  target: "http://localhost:3000"
+  phases:
+    - duration: 60
+      arrivalRate: 10
+      name: ramp
+    - duration: 120
+      arrivalRate: 25
+      name: sustained
+  engines:
+    socketio-v3: {}
+
+scenarios:
+  - name: widget join
+    engine: socketio-v3
+    flow:
+      - emit:
+          channel: join
+          data:
+            widgetKey: "{{ $processEnvironment.WIDGET_KEY }}"
+            visitorId: "load-{{ $randomString() }}"
+      - think: 5
+      - emit:
+          channel: message
+          data:
+            widgetKey: "{{ $processEnvironment.WIDGET_KEY }}"
+            visitorId: "load-{{ $randomString() }}"
+            content: "Привет"
