@@ -7,13 +7,15 @@ cd "${INSTALL_DIR}"
 
 echo "==> Создаю тестовые аккаунты..."
 
-if docker compose run --rm api test -f prisma/dist/seed.js; then
-  docker compose run --rm api node prisma/dist/seed.js
-elif docker compose run --rm api test -f prisma/seed.ts; then
-  docker compose run --rm api npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
+if docker compose exec -T api test -f prisma/seed-inline.cjs 2>/dev/null; then
+  docker compose exec -T api node prisma/seed-inline.cjs
+elif docker compose exec -T api test -f prisma/dist/seed.js 2>/dev/null; then
+  docker compose exec -T api node prisma/dist/seed.js
+elif docker compose exec -T api test -f prisma/seed.ts 2>/dev/null; then
+  docker compose exec -T api npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
 else
-  echo "ERROR: seed не найден — пересоберите API: docker compose build api"
-  exit 1
+  docker compose cp scripts/seed-inline.cjs api:/app/prisma/seed-inline.cjs
+  docker compose exec -T api node prisma/seed-inline.cjs
 fi
 
 echo ""

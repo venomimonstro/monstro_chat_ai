@@ -38,8 +38,8 @@ if ! curl -sf http://localhost:3000/api/health >/dev/null; then
 fi
 
 log "3/5 Создание тестовых пользователей..."
-docker compose cp scripts/seed-inline.cjs api:/tmp/seed-inline.cjs
-docker compose exec -T api node /tmp/seed-inline.cjs
+docker compose cp scripts/seed-inline.cjs api:/app/prisma/seed-inline.cjs
+docker compose exec -T api node prisma/seed-inline.cjs
 
 log "4/5 Проверка логина через API..."
 LOGIN=$(curl -s -X POST http://localhost:3000/api/auth/login \

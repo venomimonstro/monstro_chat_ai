@@ -26,8 +26,8 @@ docker compose up -d api
 sleep 12
 
 echo "==> Создание пользователей..."
-docker compose cp scripts/seed-inline.cjs api:/tmp/seed-inline.cjs
-docker compose exec -T api node /tmp/seed-inline.cjs
+docker compose cp scripts/seed-inline.cjs api:/app/prisma/seed-inline.cjs
+docker compose exec -T api node prisma/seed-inline.cjs
 
 echo "==> Проверка..."
 curl -s -X POST http://localhost:3000/api/auth/login \
