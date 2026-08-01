@@ -526,19 +526,20 @@ export class AuthService {
       secure: this.cookiesSecure(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/api',
+      path: '/',
     });
   }
 
   clearSessionCookies(res: Response) {
-    const base = {
+    const secure = this.cookiesSecure();
+    const apiBase = {
       path: '/api',
-      secure: this.cookiesSecure(),
+      secure,
       sameSite: 'lax' as const,
     };
-    res.clearCookie(ACCESS_COOKIE_CLIENT, base);
-    res.clearCookie(ACCESS_COOKIE_ADMIN, base);
-    res.clearCookie(CSRF_COOKIE, base);
+    res.clearCookie(ACCESS_COOKIE_CLIENT, apiBase);
+    res.clearCookie(ACCESS_COOKIE_ADMIN, apiBase);
+    res.clearCookie(CSRF_COOKIE, { path: '/', secure, sameSite: 'lax' });
     this.clearRefreshCookie(res);
   }
 

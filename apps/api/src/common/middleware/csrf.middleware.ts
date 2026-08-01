@@ -14,6 +14,8 @@ const CSRF_SKIP_PREFIXES = [
   '/api/auth/refresh',
   '/api/auth/logout',
   '/api/auth/2fa/verify',
+  '/api/auth/me',
+  '/api/auth/ws-token',
   '/api/auth/csrf',
   '/api/admin/impersonation/exchange',
   '/api/billing/webhook/',
