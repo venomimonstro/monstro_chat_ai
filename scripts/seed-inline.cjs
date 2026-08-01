@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// Создание тестовых пользователей — запуск: docker compose exec -T api node /tmp/seed-inline.cjs
+// Создание тестовых пользователей — запуск: docker compose exec -T api node prisma/seed-inline.cjs
 const { PrismaClient } = require('@prisma/client');
 const argon2 = require('argon2');
 const { randomBytes } = require('crypto');
