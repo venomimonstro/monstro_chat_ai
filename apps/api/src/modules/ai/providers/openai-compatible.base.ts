@@ -11,17 +11,25 @@ export abstract class BaseOpenAiCompatibleProvider
 {
   abstract readonly name: string;
   abstract readonly defaultModel: string;
-  protected abstract readonly apiKey: string | undefined;
+  protected _apiKey: string | undefined;
   protected abstract readonly baseUrl: string;
 
+  setApiKey(key: string | undefined) {
+    this._apiKey = key;
+  }
+
+  protected get apiKey(): string | undefined {
+    return this._apiKey;
+  }
+
   isAvailable(): boolean {
-    return Boolean(this.apiKey);
+    return Boolean(this._apiKey);
   }
 
   getMaskedApiKey(): string | null {
-    if (!this.apiKey) return null;
-    if (this.apiKey.length <= 8) return '••••••••';
-    return `${this.apiKey.slice(0, 4)}…${this.apiKey.slice(-4)}`;
+    if (!this._apiKey) return null;
+    if (this._apiKey.length <= 8) return '••••••••';
+    return `${this._apiKey.slice(0, 4)}…${this._apiKey.slice(-4)}`;
   }
 
   estimateTokens(text: string): number {

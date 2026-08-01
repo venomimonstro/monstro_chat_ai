@@ -150,6 +150,38 @@ export async function updateAdminProviders(data: {
   return res.data;
 }
 
+export async function setProviderCredentials(name: string, apiKey: string) {
+  const res = await api.put<LlmProviderInfo[]>(
+    `/admin/providers/${name}/credentials`,
+    { apiKey },
+  );
+  return res.data;
+}
+
+export async function clearProviderCredentials(name: string) {
+  const res = await api.delete<LlmProviderInfo[]>(
+    `/admin/providers/${name}/credentials`,
+  );
+  return res.data;
+}
+
+export async function fetchSiteSettings() {
+  const res = await api.get<import('@ai-consultant/shared-types').PublicSiteSettingsDto>(
+    '/admin/site-settings',
+  );
+  return res.data;
+}
+
+export async function updateSiteSettings(
+  data: import('@ai-consultant/shared-types').UpdatePublicSiteSettingsDto,
+) {
+  const res = await api.patch<import('@ai-consultant/shared-types').PublicSiteSettingsDto>(
+    '/admin/site-settings',
+    data,
+  );
+  return res.data;
+}
+
 export async function fetchSystemHealth() {
   const res = await api.get<AdminSystemHealth>('/admin/system/health');
   return res.data;

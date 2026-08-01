@@ -110,3 +110,34 @@ export interface AuditLogListQuery {
   to?: string;
   search?: string;
 }
+
+export interface LlmProviderInfoDto {
+  name: string;
+  defaultModel: string;
+  available: boolean;
+  enabled: boolean;
+  inChain: boolean;
+  priority: number;
+  apiKeyMasked: string | null;
+}
+
+export interface SetProviderCredentialsDto {
+  apiKey: string;
+}
+
+export interface PublicSiteSettingsDto {
+  demoWidgetKey: string;
+  chatEnabled: boolean;
+  welcomeTitle: string;
+  welcomeText: string;
+  apiUrl: string;
+  widgetUrl: string;
+  enabled: boolean;
+}
+
+export interface UpdatePublicSiteSettingsDto {
+  demoWidgetKey?: string;
+  chatEnabled?: boolean;
+  welcomeTitle?: string;
+  welcomeText?: string;
+}

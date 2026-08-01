@@ -12,24 +12,28 @@ import type {
 export class AnthropicProvider implements LLMProviderAdapter {
   readonly name = 'anthropic';
   readonly defaultModel: string;
-  private readonly apiKey: string | undefined;
+  private _apiKey: string | undefined;
 
   constructor(config: ConfigService) {
-    this.apiKey = config.get<string>('ANTHROPIC_API_KEY');
+    this._apiKey = config.get<string>('ANTHROPIC_API_KEY');
     this.defaultModel = config.get<string>(
       'ANTHROPIC_MODEL',
       'claude-3-5-haiku-20241022',
     );
   }
 
+  setApiKey(key: string | undefined) {
+    this._apiKey = key;
+  }
+
   isAvailable(): boolean {
-    return Boolean(this.apiKey);
+    return Boolean(this._apiKey);
   }
 
   getMaskedApiKey(): string | null {
-    if (!this.apiKey) return null;
-    if (this.apiKey.length <= 8) return '••••••••';
-    return `${this.apiKey.slice(0, 4)}…${this.apiKey.slice(-4)}`;
+    if (!this._apiKey) return null;
+    if (this._apiKey.length <= 8) return '••••••••';
+    return `${this._apiKey.slice(0, 4)}…${this._apiKey.slice(-4)}`;
   }
 
   estimateTokens(text: string): number {
@@ -40,7 +44,7 @@ export class AnthropicProvider implements LLMProviderAdapter {
     messages: ChatMessage[],
     opts?: StreamChatOptions,
   ): AsyncIterable<StreamToken> {
-    if (!this.apiKey) throw new Error('Anthropic API key not configured');
+    if (!this._apiKey) throw new Error('Anthropic API key not configured');
 
     const system = messages.find((m) => m.role === 'system')?.content;
     const chatMessages = messages
@@ -53,7 +57,7 @@ export class AnthropicProvider implements LLMProviderAdapter {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'x-api-key': this.apiKey,
+        'x-api-key': this._apiKey,
         'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json',
       },

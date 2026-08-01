@@ -34,6 +34,7 @@
 | 29 | Done | Админка v2: тарифы CRUD, LLM-провайдеры, bulk suspend, system health |
 | 30 | Done | MVP-essentials: forgot password, team invites, notifications, GDPR export, webhooks, clone source |
 | 31 | Done | Каналы VK/Telegram, A/B промптов, PWA менеджеров |
+| 32 | Done | Ключи LLM в админке, чат на публичном сайте, настройки виджета |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
