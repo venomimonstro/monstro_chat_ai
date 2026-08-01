@@ -101,7 +101,8 @@ services:
       S3_SECRET_KEY: aicw_minio_secret
       S3_BUCKET: aicw-files
       API_PORT: 3000
-      NODE_ENV: production
+      NODE_ENV: ${NODE_ENV:-production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "3000:3000"
     healthcheck:
