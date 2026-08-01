@@ -1,7 +1,9 @@
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 WORKDIR /app
 
 FROM base AS deps
+# argon2 compiles native bindings via node-gyp
+RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared-types/package.json ./packages/shared-types/
@@ -14,7 +16,7 @@ RUN npm run build -w @ai-consultant/shared-types
 RUN npm run db:generate -w @ai-consultant/api
 RUN npm run build -w @ai-consultant/api
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
