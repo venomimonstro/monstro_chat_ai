@@ -15,19 +15,24 @@ detect_ip() {
 }
 
 install_node() {
-  if command -v node >/dev/null 2>&1 && [[ "$(node -v | cut -d. -f1 | tr -d v)" -ge 20 ]]; then
+  if command -v node >/dev/null 2>&1 && [[ "$(node -v | cut -d. -f1 | tr -d v)" -ge 22 ]]; then
     log "Node.js уже установлен: $(node -v)"
     return
   fi
   log "Устанавливаю Node.js 22..."
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y -qq nodejs
+  log "Node.js: $(node -v)"
 }
 
 build_frontends() {
   log "Собираю фронтенд (3–5 мин)..."
-  rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
-  npm install
+  # Только фронтенд — без API (argon2 не нужен на хосте)
+  npm install \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/web-client \
+    --workspace=@ai-consultant/web-admin \
+    --include-workspace-root
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin
@@ -50,10 +55,11 @@ Wants=docker.service
 [Service]
 Type=simple
 WorkingDirectory=${workdir}
-ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port ${port}
+ExecStart=$(command -v npm) run preview -- --host 0.0.0.0 --port ${port}
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 [Install]
 WantedBy=multi-user.target
