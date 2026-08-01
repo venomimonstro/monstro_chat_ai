@@ -1,40 +1,40 @@
 #!/usr/bin/env bash
-# Быстрый фикс входа БЕЗ пересборки Docker (когда диск полон)
 set -euo pipefail
 
 INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
 cd "${INSTALL_DIR}"
 
-log() { echo -e "\n\033[1;32m==>\033[0m $*"; }
-
-log "Настраиваю .env для HTTP-логина..."
-grep -q '^COOKIE_SECURE=' .env 2>/dev/null && sed -i 's/^COOKIE_SECURE=.*/COOKIE_SECURE=false/' .env || echo 'COOKIE_SECURE=false' >> .env
-grep -q '^NODE_ENV=' .env 2>/dev/null && sed -i 's/^NODE_ENV=.*/NODE_ENV=development/' .env || echo 'NODE_ENV=development' >> .env
-
-log "Перезапускаю API (без пересборки)..."
-docker compose up -d api
-
-sleep 10
-
-log "Создаю тестовых пользователей..."
-if docker compose exec -T api test -f prisma/seed.ts 2>/dev/null; then
-  docker compose exec -T api npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
-elif docker compose exec -T api test -f prisma/dist/seed.js 2>/dev/null; then
-  docker compose exec -T api node prisma/dist/seed.js
-else
-  echo "Seed-файл не найден в контейнере. Сначала освободите диск и пересоберите API."
-  exit 1
-fi
-
 IP=$(curl -4 -s --max-time 3 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
 
+set_env() {
+  grep -v "^${1}=" .env > .env.tmp 2>/dev/null || true
+  echo "${1}=${2}" >> .env.tmp
+  mv .env.tmp .env
+}
+
+echo "==> Настройка .env..."
+set_env NODE_ENV development
+set_env COOKIE_SECURE false
+set_env SKIP_2FA_ENFORCEMENT true
+set_env WEB_CLIENT_URL "http://${IP}:5173"
+set_env WEB_ADMIN_URL "http://${IP}:5174"
+set_env PUBLIC_SITE_URL "http://${IP}:4321"
+set_env API_PUBLIC_URL "http://${IP}:3000/api"
+
+echo "==> Перезапуск API..."
+docker compose up -d api
+sleep 12
+
+echo "==> Создание пользователей..."
+docker compose cp scripts/seed-inline.cjs api:/tmp/seed-inline.cjs
+docker compose exec -T api node /tmp/seed-inline.cjs
+
+echo "==> Проверка..."
+curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"client@demo.local","password":"Test1234!"}' | grep -q email && echo "OK: логин работает"
+
 echo ""
-echo "=============================================="
-echo "  ГОТОВО"
-echo "=============================================="
-echo "  Кабинет:  http://${IP}:5173"
-echo "  Админка:  http://${IP}:5174"
-echo ""
+echo "Готово! Логины:"
 echo "  client@demo.local / Test1234!"
 echo "  admin@chat24ai.local / Test1234!"
-echo "=============================================="
