@@ -10,6 +10,7 @@ COPY packages/shared-types/package.json ./packages/shared-types/
 RUN npm ci --workspace=@ai-consultant/api --workspace=@ai-consultant/shared-types
 
 FROM base AS builder
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json turbo.json ./
 COPY packages ./packages

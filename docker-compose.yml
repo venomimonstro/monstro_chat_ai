@@ -64,9 +64,7 @@ services:
       "
 
   migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: monstro_chat_ai-api
     container_name: aicw-migrate
     depends_on:
       postgres:
@@ -83,6 +81,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    image: monstro_chat_ai-api
     container_name: aicw-api
     restart: unless-stopped
     depends_on:
