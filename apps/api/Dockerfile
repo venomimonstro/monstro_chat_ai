@@ -11,7 +11,9 @@ RUN npm ci --workspace=@ai-consultant/api --workspace=@ai-consultant/shared-type
 
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY package.json package-lock.json turbo.json ./
+COPY packages ./packages
+COPY apps/api ./apps/api
 RUN npm run build -w @ai-consultant/shared-types
 RUN npm run db:generate -w @ai-consultant/api
 RUN npm run build -w @ai-consultant/api
