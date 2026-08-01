@@ -105,6 +105,7 @@ WEB_ADMIN_URL=http://${ip}:5174
 WIDGET_URL=http://${ip}:5175
 PUBLIC_SITE_URL=http://${ip}:4321
 API_PUBLIC_URL=http://${ip}:3000/api
+COOKIE_SECURE=false
 EOF
 }
 
@@ -140,8 +141,15 @@ open_firewall() {
     log "Открываю порты в firewall..."
     ufw allow 22/tcp  >/dev/null 2>&1 || true
     ufw allow 3000/tcp >/dev/null 2>&1 || true
+    ufw allow 5173/tcp >/dev/null 2>&1 || true
+    ufw allow 5174/tcp >/dev/null 2>&1 || true
     ufw --force enable >/dev/null 2>&1 || true
   fi
+}
+
+seed_qa_accounts() {
+  log "Создаю тестовые аккаунты..."
+  bash "${INSTALL_DIR}/scripts/seed-qa.sh" || warn "Seed не выполнен — запустите вручную: bash scripts/seed-qa.sh"
 }
 
 print_success() {
@@ -153,6 +161,13 @@ print_success() {
   echo ""
   echo "  API health:  http://${ip}:3000/api/health"
   echo "  API:         http://${ip}:3000/api"
+  echo ""
+  echo "  Кабинет:     http://${ip}:5173"
+  echo "  Админка:     http://${ip}:5174"
+  echo ""
+  echo "  Тестовые логины (после seed):"
+  echo "    Клиент:  client@demo.local / Test1234!"
+  echo "    Админ:   admin@chat24ai.local / Test1234!"
   echo ""
   echo "  Логи:        cd ${INSTALL_DIR} && docker compose logs -f api"
   echo "  Статус:      cd ${INSTALL_DIR} && docker compose ps"
@@ -190,6 +205,7 @@ main() {
   open_firewall
 
   if wait_for_api; then
+    seed_qa_accounts
     print_success "${ip}"
   else
     print_failure

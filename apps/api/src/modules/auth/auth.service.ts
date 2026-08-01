@@ -487,11 +487,19 @@ export class AuthService {
     };
   }
 
+  /** Secure cookies require HTTPS; allow HTTP deploy via COOKIE_SECURE=false */
+  private cookiesSecure(): boolean {
+    const explicit = this.config.get<string>('COOKIE_SECURE');
+    if (explicit === 'true' || explicit === '1') return true;
+    if (explicit === 'false' || explicit === '0') return false;
+    const publicUrl = this.config.get<string>('API_PUBLIC_URL', '');
+    return publicUrl.startsWith('https://');
+  }
+
   setRefreshCookie(res: Response, tokenId: string) {
-    const isProduction = this.config.get('NODE_ENV') === 'production';
     res.cookie(REFRESH_COOKIE, tokenId, {
       httpOnly: true,
-      secure: isProduction,
+      secure: this.cookiesSecure(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/api/auth',
@@ -499,10 +507,9 @@ export class AuthService {
   }
 
   private setAccessCookie(res: Response, token: string, app: AppKind) {
-    const isProduction = this.config.get('NODE_ENV') === 'production';
     res.cookie(accessCookieName(app), token, {
       httpOnly: true,
-      secure: isProduction,
+      secure: this.cookiesSecure(),
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
       path: '/api',
@@ -510,11 +517,10 @@ export class AuthService {
   }
 
   private setCsrfCookie(res: Response) {
-    const isProduction = this.config.get('NODE_ENV') === 'production';
     const token = randomBytes(32).toString('hex');
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false,
-      secure: isProduction,
+      secure: this.cookiesSecure(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/api',
@@ -522,8 +528,11 @@ export class AuthService {
   }
 
   clearSessionCookies(res: Response) {
-    const isProduction = this.config.get('NODE_ENV') === 'production';
-    const base = { path: '/api', secure: isProduction, sameSite: 'lax' as const };
+    const base = {
+      path: '/api',
+      secure: this.cookiesSecure(),
+      sameSite: 'lax' as const,
+    };
     res.clearCookie(ACCESS_COOKIE_CLIENT, base);
     res.clearCookie(ACCESS_COOKIE_ADMIN, base);
     res.clearCookie(CSRF_COOKIE, base);
