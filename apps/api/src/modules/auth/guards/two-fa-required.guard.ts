@@ -4,6 +4,7 @@ import {
   ExecutionContext,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import {
   IS_PUBLIC_KEY,
@@ -14,9 +15,15 @@ import { AuthenticatedUser } from '../../../common/interfaces/jwt-payload.interf
 
 @Injectable()
 export class TwoFaRequiredGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private reflector: Reflector,
+    private config: ConfigService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
+    if (this.config.get<string>('SKIP_2FA_ENFORCEMENT') === 'true') {
+      return true;
+    }
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),

@@ -475,6 +475,9 @@ export class AuthService {
   }
 
   private requires2fa(user: User): boolean {
+    if (this.config.get<string>('SKIP_2FA_ENFORCEMENT') === 'true') {
+      return false;
+    }
     return ROLES_REQUIRING_2FA.includes(user.role as 'owner' | 'admin');
   }
 
