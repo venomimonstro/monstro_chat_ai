@@ -31,6 +31,8 @@ COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
+# npm workspace symlink: node_modules/@ai-consultant/shared-types -> ../../packages/shared-types
+COPY --from=builder --chown=nestjs:nodejs /app/packages/shared-types ./packages/shared-types
 
 USER nestjs
 
