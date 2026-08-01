@@ -20,6 +20,7 @@ import { AntiInjectionService } from './services/anti-injection.service';
 import { ModelRouterService } from './services/model-router.service';
 import { SemanticCacheService } from './services/semantic-cache.service';
 import { ProviderConfigService } from './services/provider-config.service';
+import { ProviderCredentialsService } from './services/provider-credentials.service';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
 
@@ -34,6 +35,7 @@ import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
     MockLLMProvider,
     ProviderRegistryService,
     ProviderConfigService,
+    ProviderCredentialsService,
     RetrievalService,
     DialogService,
     WidgetRateLimitService,

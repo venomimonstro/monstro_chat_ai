@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Put,
   Query,
   Req,
   Res,
@@ -31,8 +33,10 @@ import {
   TenantTariffChangeDto,
 } from './dto/admin-tenants.dto';
 import { CreateBackupDto, CreateSystemUpdateDto } from './dto/system-updates.dto';
-import { BulkBlockTenantsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
+import { BulkBlockTenantsDto, SetProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
+import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
+import { SiteSettingsService } from './services/site-settings.service';
 import type { AuditLogListQuery, TenantListQuery } from '@ai-consultant/shared-types';
 
 function requestMeta(req: Request) {
@@ -53,12 +57,13 @@ export class AdminController {
     private readonly authService: AuthService,
     private readonly providers: ProviderRegistryService,
     private readonly systemHealth: AdminSystemHealthService,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
 
   @Get('status')
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
   getStatus() {
-    return { status: 'ok', sprint: 29 };
+    return { status: 'ok', sprint: 32 };
   }
 
   @Get('system/health')
@@ -77,6 +82,33 @@ export class AdminController {
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
   updateProviders(@Body() dto: UpdateProvidersDto) {
     return this.providers.updateAdminConfig(dto);
+  }
+
+  @Put('providers/:name/credentials')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  setProviderCredentials(
+    @Param('name') name: string,
+    @Body() dto: SetProviderCredentialsDto,
+  ) {
+    return this.providers.setProviderCredentials(name, dto.apiKey);
+  }
+
+  @Delete('providers/:name/credentials')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  clearProviderCredentials(@Param('name') name: string) {
+    return this.providers.clearProviderCredentials(name);
+  }
+
+  @Get('site-settings')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
+  getSiteSettings() {
+    return this.siteSettings.getPublicConfig();
+  }
+
+  @Patch('site-settings')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  updateSiteSettings(@Body() dto: UpdateSiteSettingsDto) {
+    return this.siteSettings.update(dto);
   }
 
   @Get('tenants')

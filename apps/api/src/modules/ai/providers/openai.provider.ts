@@ -6,12 +6,11 @@ import { BaseOpenAiCompatibleProvider } from './openai-compatible.base';
 export class OpenAIProvider extends BaseOpenAiCompatibleProvider {
   readonly name = 'openai';
   readonly defaultModel: string;
-  protected readonly apiKey: string | undefined;
   protected readonly baseUrl = 'https://api.openai.com/v1';
 
   constructor(config: ConfigService) {
     super();
-    this.apiKey = config.get<string>('OPENAI_API_KEY');
+    this._apiKey = config.get<string>('OPENAI_API_KEY');
     this.defaultModel = config.get<string>('OPENAI_MODEL', 'gpt-4o-mini');
   }
 }

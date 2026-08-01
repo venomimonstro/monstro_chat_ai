@@ -18,15 +18,36 @@ export async function fetchDemoWidget() {
     const res = await fetch(`${siteConfig.apiUrl}/public/demo-widget`, {
       next: { revalidate: 60 },
     });
-    if (!res.ok) return { enabled: false, widgetKey: '', apiUrl: siteConfig.apiUrl };
+    if (!res.ok) {
+      return {
+        enabled: false,
+        demoWidgetKey: '',
+        chatEnabled: false,
+        welcomeTitle: '',
+        welcomeText: '',
+        apiUrl: siteConfig.apiUrl,
+        widgetUrl: siteConfig.widgetUrl,
+      };
+    }
     return res.json() as Promise<{
       enabled: boolean;
-      widgetKey: string;
+      demoWidgetKey: string;
+      chatEnabled: boolean;
+      welcomeTitle: string;
+      welcomeText: string;
       apiUrl: string;
       widgetUrl: string;
     }>;
   } catch {
-    return { enabled: false, widgetKey: '', apiUrl: siteConfig.apiUrl, widgetUrl: siteConfig.widgetUrl };
+    return {
+      enabled: false,
+      demoWidgetKey: '',
+      chatEnabled: false,
+      welcomeTitle: '',
+      welcomeText: '',
+      apiUrl: siteConfig.apiUrl,
+      widgetUrl: siteConfig.widgetUrl,
+    };
   }
 }
 

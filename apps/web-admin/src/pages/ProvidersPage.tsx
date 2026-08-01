@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
+  clearProviderCredentials,
   fetchAdminProviders,
+  setProviderCredentials,
   updateAdminProviders,
   type LlmProviderInfo,
 } from '../lib/api';
@@ -12,6 +14,8 @@ export function ProvidersPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
+  const [keySaving, setKeySaving] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -60,6 +64,37 @@ export function ProvidersPage() {
     persist(next);
   };
 
+  const saveKey = async (name: string) => {
+    const apiKey = keyInputs[name]?.trim();
+    if (!apiKey) return;
+    setKeySaving(name);
+    setMessage(null);
+    try {
+      const updated = await setProviderCredentials(name, apiKey);
+      setProviders(updated);
+      setKeyInputs((prev) => ({ ...prev, [name]: '' }));
+      setMessage(`Ключ ${name} сохранён`);
+    } catch {
+      setMessage(`Не удалось сохранить ключ ${name}`);
+    } finally {
+      setKeySaving(null);
+    }
+  };
+
+  const clearKey = async (name: string) => {
+    setKeySaving(name);
+    setMessage(null);
+    try {
+      const updated = await clearProviderCredentials(name);
+      setProviders(updated);
+      setMessage(`Ключ ${name} удалён (используется env, если задан)`);
+    } catch {
+      setMessage(`Не удалось удалить ключ ${name}`);
+    } finally {
+      setKeySaving(null);
+    }
+  };
+
   if (loading) return <LoadingState message="Загрузка провайдеров…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
 
@@ -68,7 +103,7 @@ export function ProvidersPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-100">LLM-провайдеры</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Приоритет fallback-цепочки, включение и статус ключей API
+          Приоритет fallback-цепочки, ключи API и включение провайдеров
         </p>
         {message && (
           <p className="mt-2 text-sm text-emerald-400">{message}</p>
@@ -78,7 +113,7 @@ export function ProvidersPage() {
       {providers.length === 0 ? (
         <EmptyState
           title="Провайдеры не настроены"
-          description="Проверьте переменные окружения API (OPENAI_API_KEY и др.)."
+          description="Проверьте конфигурацию API."
         />
       ) : (
         <div className="space-y-3">
@@ -113,6 +148,45 @@ export function ProvidersPage() {
                   />
                 </div>
               </div>
+
+              {provider.name !== 'mock' && (
+                <div className="mt-4 flex flex-wrap items-end gap-2">
+                  <label className="min-w-[240px] flex-1">
+                    <span className="text-xs text-slate-400">Новый API-ключ</span>
+                    <input
+                      type="password"
+                      value={keyInputs[provider.name] ?? ''}
+                      onChange={(e) =>
+                        setKeyInputs((prev) => ({
+                          ...prev,
+                          [provider.name]: e.target.value,
+                        }))
+                      }
+                      placeholder="sk-..."
+                      className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={keySaving === provider.name || !keyInputs[provider.name]?.trim()}
+                    onClick={() => saveKey(provider.name)}
+                    className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-500 disabled:opacity-40"
+                  >
+                    {keySaving === provider.name ? '…' : 'Сохранить ключ'}
+                  </button>
+                  {provider.apiKeyMasked && (
+                    <button
+                      type="button"
+                      disabled={keySaving === provider.name}
+                      onClick={() => clearKey(provider.name)}
+                      className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+                    >
+                      Удалить ключ
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"

@@ -14,6 +14,7 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TariffsPage } from './pages/TariffsPage';
 import { ProvidersPage } from './pages/ProvidersPage';
+import { SiteSettingsPage } from './pages/SiteSettingsPage';
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="/tenants/:id" element={<TenantDetailPage />} />
               <Route path="/tariffs" element={<TariffsPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
+              <Route path="/site-settings" element={<SiteSettingsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/updates" element={<UpdatesPage />} />
               <Route path="/backups" element={<BackupsPage />} />

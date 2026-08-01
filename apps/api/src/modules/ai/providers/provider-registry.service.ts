@@ -7,6 +7,7 @@ import { AnthropicProvider } from './anthropic.provider';
 import { MockLLMProvider } from './mock.provider';
 import type { ModelTier } from '../services/model-router.service';
 import { ProviderConfigService } from '../services/provider-config.service';
+import { ProviderCredentialsService } from '../services/provider-credentials.service';
 
 export interface AdminProviderDto {
   name: string;
@@ -32,6 +33,7 @@ export class ProviderRegistryService implements OnModuleInit {
     anthropic: AnthropicProvider,
     mock: MockLLMProvider,
     private readonly providerConfig: ProviderConfigService,
+    private readonly credentials: ProviderCredentialsService,
   ) {
     this.byName = {
       deepseek,
@@ -39,6 +41,12 @@ export class ProviderRegistryService implements OnModuleInit {
       anthropic,
       mock,
     };
+
+    this.credentials.registerProviders({
+      deepseek,
+      openai,
+      anthropic,
+    });
 
     const configured = config.get<string>(
       'LLM_PROVIDER_CHAIN',
@@ -112,6 +120,22 @@ export class ProviderRegistryService implements OnModuleInit {
 
   async updateAdminConfig(data: { chain: string[]; disabled: string[] }) {
     await this.providerConfig.saveConfig(data);
+    return this.listForAdmin();
+  }
+
+  async setProviderCredentials(name: string, apiKey: string) {
+    if (!this.byName[name] || name === 'mock') {
+      throw new Error(`Unknown provider: ${name}`);
+    }
+    await this.credentials.saveCredential(name, apiKey);
+    return this.listForAdmin();
+  }
+
+  async clearProviderCredentials(name: string) {
+    if (!this.byName[name] || name === 'mock') {
+      throw new Error(`Unknown provider: ${name}`);
+    }
+    await this.credentials.clearCredential(name);
     return this.listForAdmin();
   }
 }

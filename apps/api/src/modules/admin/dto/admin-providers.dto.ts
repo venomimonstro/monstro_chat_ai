@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsString, ArrayMinSize, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsString, ArrayMinSize, IsUUID, MinLength } from 'class-validator';
 
 export class UpdateProvidersDto {
   @IsArray()
@@ -23,4 +23,10 @@ export class BulkBlockTenantsDto {
 export class ToggleProviderDto {
   @IsBoolean()
   enabled!: boolean;
+}
+
+export class SetProviderCredentialsDto {
+  @IsString()
+  @MinLength(8)
+  apiKey!: string;
 }

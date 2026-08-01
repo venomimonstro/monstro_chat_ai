@@ -66,12 +66,19 @@ export default async function HomePage() {
                 <p>Уже используют 200+ компаний</p>
               </div>
             </div>
-            <div className="relative hidden md:block">
+            <div className="relative">
               <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-soft">
-                <WidgetDemo widgetKey={demo.widgetKey} apiUrl={demo.apiUrl} />
+                <WidgetDemo
+                  widgetKey={demo.demoWidgetKey}
+                  apiUrl={demo.apiUrl}
+                  widgetUrl={demo.widgetUrl}
+                  welcomeTitle={demo.welcomeTitle}
+                  welcomeText={demo.welcomeText}
+                  showEmbed={false}
+                />
               </div>
-              <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-brand-200/50 blur-2xl" />
-              <div className="absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-brand-300/30 blur-2xl" />
+              <div className="absolute -right-6 -top-6 hidden h-24 w-24 rounded-full bg-brand-200/50 blur-2xl md:block" />
+              <div className="absolute -bottom-6 -left-6 hidden h-24 w-24 rounded-full bg-brand-300/30 blur-2xl md:block" />
             </div>
           </div>
         </div>
@@ -199,9 +206,16 @@ export default async function HomePage() {
                   </Link>
                 </div>
               </div>
-              <div className="hidden md:block">
+              <div>
                 <div className="rounded-2xl bg-white/10 p-6 backdrop-blur">
-                  <WidgetDemo widgetKey={demo.widgetKey} apiUrl={demo.apiUrl} />
+                  <WidgetDemo
+                    widgetKey={demo.demoWidgetKey}
+                    apiUrl={demo.apiUrl}
+                    widgetUrl={demo.widgetUrl}
+                    welcomeTitle={demo.welcomeTitle}
+                    welcomeText={demo.welcomeText}
+                    showEmbed={false}
+                  />
                 </div>
               </div>
             </div>

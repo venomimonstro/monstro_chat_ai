@@ -6,12 +6,11 @@ import { BaseOpenAiCompatibleProvider } from './openai-compatible.base';
 export class DeepSeekProvider extends BaseOpenAiCompatibleProvider {
   readonly name = 'deepseek';
   readonly defaultModel: string;
-  protected readonly apiKey: string | undefined;
   protected readonly baseUrl = 'https://api.deepseek.com/v1';
 
   constructor(config: ConfigService) {
     super();
-    this.apiKey = config.get<string>('DEEPSEEK_API_KEY');
+    this._apiKey = config.get<string>('DEEPSEEK_API_KEY');
     this.defaultModel = config.get<string>(
       'DEEPSEEK_MODEL',
       'deepseek-chat',
