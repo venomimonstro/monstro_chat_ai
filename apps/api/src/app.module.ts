@@ -25,6 +25,7 @@ import { TeamModule } from './modules/team/team.module';
 import { ExportModule } from './modules/export/export.module';
 import { ChannelsModule } from './modules/channels/channels.module';
 import { PushModule } from './modules/push/push.module';
+import { RbacModule } from './common/rbac/rbac.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TwoFaRequiredGuard } from './modules/auth/guards/two-fa-required.guard';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
@@ -36,6 +37,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    RbacModule,
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: 60_000, limit: 120 }],
     }),
