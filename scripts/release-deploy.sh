@@ -9,6 +9,7 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 RELEASE_UPDATE_ID="${RELEASE_UPDATE_ID:-}"
 RELEASE_DEPLOY_TOKEN="${RELEASE_DEPLOY_TOKEN:-}"
+FORCE_DEPLOY="${FORCE_DEPLOY:-}"
 
 log()  { echo -e "\n\033[1;32m==>\033[0m $*"; }
 warn() { echo -e "\033[1;33m!!\033[0m $*"; }
@@ -37,7 +38,7 @@ else:
 " 2>/dev/null || echo '{}'
 }
 
-save_manifest() {
+build_manifest_json() {
   local git_sha
   git_sha=$(cd "${INSTALL_DIR}" && git rev-parse --short HEAD 2>/dev/null || echo "")
   python3 - <<PY
@@ -54,13 +55,57 @@ data = {
     "gitSha": "${git_sha}",
     "previousVersion": prev.get("version", "${VERSION}"),
     "previousSprint": prev.get("sprint", int("${SPRINT}")),
-    "deployedAt": datetime.datetime.utcnow().isoformat() + "Z",
+    "deployedAt": datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
 }
+print(json.dumps(data))
+PY
+}
+
+save_manifest() {
+  local manifest_json="$1"
+  python3 - <<PY
+import json, os
+data = json.loads('''${manifest_json}''')
+path = os.path.join("${INSTALL_DIR}", "releases", "manifest.json")
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, "w") as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
 print(json.dumps(data))
 PY
+}
+
+sync_manifest_to_api() {
+  local manifest_json="$1"
+  if [[ -z "${RELEASE_DEPLOY_TOKEN}" ]]; then
+    warn "RELEASE_DEPLOY_TOKEN не задан — версия в API не обновлена до проверки"
+    return 0
+  fi
+  curl -sf -X POST "${API_BASE}/admin/release/sync" \
+    -H "Content-Type: application/json" \
+    -H "X-Release-Token: ${RELEASE_DEPLOY_TOKEN}" \
+    -d "${manifest_json}" >/dev/null 2>&1 || warn "Не удалось синхронизировать manifest в API"
+}
+
+current_api_version() {
+  curl -sf "${API_BASE}/health" 2>/dev/null | python3 -c "
+import sys, json
+try:
+    print(json.load(sys.stdin).get('version', ''))
+except Exception:
+    print('')
+" 2>/dev/null || echo ""
+}
+
+version_gt() {
+  python3 -c "
+def parse(v):
+    parts = v.split('.')
+    return tuple(int(p) for p in parts[:3] if p.isdigit())
+try:
+    print('yes' if parse('$1') > parse('$2') else 'no')
+except Exception:
+    print('no')
+" 2>/dev/null || echo "no"
 }
 
 rollback_on_failure() {
@@ -85,6 +130,14 @@ main() {
   log "Деплой версии ${VERSION} (Sprint ${SPRINT})"
   report "deploy" "info" "Старт деплоя ${VERSION} (Sprint ${SPRINT})"
 
+  local running_version
+  running_version=$(current_api_version)
+  if [[ -n "${running_version}" && "${FORCE_DEPLOY}" != "1" ]]; then
+    if [[ "$(version_gt "${running_version}" "${VERSION}")" == "yes" ]]; then
+      fail "На сервере уже версия ${running_version}. Нельзя откатить код командой release-deploy.sh ${VERSION} ${SPRINT}. Используйте актуальную версию (например 0.33.0 33) или FORCE_DEPLOY=1 для принудительного выката."
+    fi
+  fi
+
   # Pre-deploy: сервис жив (старая версия допустима)
   log "Pre-deploy проверка..."
   bash "${INSTALL_DIR}/scripts/verify-release.sh" pre || fail "Pre-deploy: API/DB/Redis недоступны"
@@ -93,16 +146,17 @@ main() {
   export APP_VERSION="${VERSION}"
   export SPRINT_NUMBER="${SPRINT}"
   if [[ -f "${INSTALL_DIR}/scripts/remote-update.sh" ]]; then
-  report "deploy" "info" "Запуск remote-update.sh"
+    report "deploy" "info" "Запуск remote-update.sh"
     bash "${INSTALL_DIR}/scripts/remote-update.sh"
   else
     report "deploy" "info" "Запуск deploy-update.sh"
     bash "${INSTALL_DIR}/scripts/deploy-update.sh"
   fi
 
-  # Update manifest on disk
-  MANIFEST_JSON=$(save_manifest)
-  log "Manifest: ${MANIFEST_JSON}"
+  # Синхронизируем версию в API до post-verify (health читает manifest из Redis)
+  PENDING_MANIFEST=$(build_manifest_json)
+  log "Синхронизация версии ${VERSION} в API перед проверкой..."
+  sync_manifest_to_api "${PENDING_MANIFEST}"
 
   # Post-deploy verification
   log "Post-deploy проверка..."
@@ -110,13 +164,9 @@ main() {
     rollback_on_failure
   fi
 
-  # Sync to API
-  if [[ -n "${RELEASE_DEPLOY_TOKEN}" ]]; then
-    curl -sf -X POST "${API_BASE}/admin/release/sync" \
-      -H "Content-Type: application/json" \
-      -H "X-Release-Token: ${RELEASE_DEPLOY_TOKEN}" \
-      -d "${MANIFEST_JSON}" >/dev/null 2>&1 || warn "Не удалось синхронизировать manifest в API"
-  fi
+  # Сохраняем manifest на диск только после успешной проверки
+  MANIFEST_JSON=$(save_manifest "${PENDING_MANIFEST}")
+  log "Manifest: ${MANIFEST_JSON}"
 
   if [[ -n "${RELEASE_UPDATE_ID}" && -n "${RELEASE_DEPLOY_TOKEN}" ]]; then
     curl -sf -X POST "${API_BASE}/admin/release/complete" \

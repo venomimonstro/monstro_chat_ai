@@ -47,18 +47,24 @@ main() {
   export BRANCH=main
 
   git fetch origin
-  # Try to checkout tag, else stay on main and rebuild
+  local checked_out=0
   if git rev-parse "v${prev_version}" >/dev/null 2>&1; then
     git checkout "v${prev_version}"
+    checked_out=1
   elif git rev-parse "${prev_version}" >/dev/null 2>&1; then
     git checkout "${prev_version}"
+    checked_out=1
   else
-    warn "Тег ${prev_version} не найден — пересборка текущего main"
+    warn "Тег ${prev_version} не найден — откат только manifest, код остаётся на main"
     git checkout main
     git reset --hard origin/main
   fi
 
-  bash "${INSTALL_DIR}/scripts/deploy-update.sh"
+  if [[ "${checked_out}" -eq 1 ]]; then
+    bash "${INSTALL_DIR}/scripts/deploy-update.sh"
+  else
+    warn "Пересборка пропущена — откатываем только версию в manifest/API"
+  fi
 
   # Swap current/previous in manifest
   python3 - <<PY
@@ -71,15 +77,12 @@ d["version"] = "${prev_version}"
 d["sprint"] = int("${prev_sprint}" or d.get("previousSprint", 0))
 d["previousVersion"] = current_v or d.get("previousVersion")
 d["previousSprint"] = current_s or d.get("previousSprint")
-d["deployedAt"] = datetime.datetime.utcnow().isoformat() + "Z"
+d["deployedAt"] = datetime.datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")
 d["rolledBackAt"] = d["deployedAt"]
 with open(path, "w") as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 print(json.dumps(d))
 PY
-
-  bash "${INSTALL_DIR}/scripts/verify-release.sh" "${prev_version}" "${prev_sprint}" || \
-    fail "Откат выполнен, но post-rollback проверка не прошла"
 
   if [[ -n "${RELEASE_DEPLOY_TOKEN}" ]]; then
     curl -sf -X POST "${API_BASE}/admin/release/sync" \
@@ -87,6 +90,9 @@ PY
       -H "X-Release-Token: ${RELEASE_DEPLOY_TOKEN}" \
       -d @"${INSTALL_DIR}/releases/manifest.json" >/dev/null 2>&1 || true
   fi
+
+  bash "${INSTALL_DIR}/scripts/verify-release.sh" post "${prev_version}" "${prev_sprint}" || \
+    fail "Откат выполнен, но post-rollback проверка не прошла"
 
   log "Откат на ${prev_version} завершён"
   echo ""

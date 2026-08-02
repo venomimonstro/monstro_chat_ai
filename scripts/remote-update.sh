@@ -74,8 +74,10 @@ rebuild_api() {
   log "Пересобираю API (Docker, 5–15 мин)..."
   cd "${INSTALL_DIR}"
   rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
-  docker compose build api
-  docker compose up -d --force-recreate api
+  APP_VERSION="${APP_VERSION:-0.34.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-34}" \
+    docker compose build api
+  APP_VERSION="${APP_VERSION:-0.34.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-34}" \
+    docker compose up -d --force-recreate api
 }
 
 wait_for_api() {

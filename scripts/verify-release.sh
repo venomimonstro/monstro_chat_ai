@@ -37,7 +37,7 @@ check_health() {
     local ver
     ver=$(echo "${body}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
     if [[ -n "${ver}" && "${ver}" != "${EXPECTED_VERSION}" ]]; then
-      fail "Версия API ${ver} != ожидаемой ${EXPECTED_VERSION}"
+      fail "Версия API ${ver} != ожидаемой ${EXPECTED_VERSION}. Проверьте RELEASE_DEPLOY_TOKEN и sync manifest, либо не пытайтесь выкатить старую версию (0.32.0) поверх новой (0.33.0+)."
     fi
   fi
 }
