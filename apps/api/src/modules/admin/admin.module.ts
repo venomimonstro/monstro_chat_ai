@@ -15,6 +15,8 @@ import { SystemUpdateProcessor } from './processors/system-update.processor';
 import { UpdatesGateway } from './gateways/updates.gateway';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
 import { SiteSettingsService } from './services/site-settings.service';
+import { ReleaseController } from './release.controller';
+import { ReleaseModule } from '../release/release.module';
 import { QUEUE_SYSTEM_UPDATES } from './constants';
 import { QUEUE_CRM_EXPORT, QUEUE_CRM_STATUS_SYNC, QUEUE_LEAD_DELIVERY } from '../integrations/constants';
 import { QUEUE_CRAWL_SITE, QUEUE_INGEST_DOCUMENT } from '../knowledge/constants';
@@ -25,6 +27,7 @@ import { AiModule } from '../ai/ai.module';
     AiModule,
     AuthModule,
     RedisModule,
+    ReleaseModule,
     BullModule.registerQueue(
       { name: QUEUE_SYSTEM_UPDATES },
       { name: QUEUE_CRM_EXPORT },
@@ -41,7 +44,7 @@ import { AiModule } from '../ai/ai.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminController],
+  controllers: [AdminController, ReleaseController],
   providers: [
     MarginAnalyticsService,
     AdminTenantsService,

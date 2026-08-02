@@ -9,6 +9,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { TenantsPage } from './pages/TenantsPage';
 import { TenantDetailPage } from './pages/TenantDetailPage';
 import { UpdatesPage } from './pages/UpdatesPage';
+import { SprintsPage } from './pages/SprintsPage';
 import { BackupsPage } from './pages/BackupsPage';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
@@ -35,6 +36,7 @@ export default function App() {
               <Route path="/site-settings" element={<SiteSettingsPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/updates" element={<UpdatesPage />} />
+              <Route path="/sprints" element={<SprintsPage />} />
               <Route path="/backups" element={<BackupsPage />} />
               <Route path="/audit" element={<AuditLogPage />} />
             </Route>

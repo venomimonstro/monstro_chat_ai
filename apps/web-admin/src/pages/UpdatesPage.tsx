@@ -3,8 +3,11 @@ import type { SystemUpdateDto } from '@ai-consultant/shared-types';
 import {
   approveUpdate,
   createSystemUpdate,
+  fetchCurrentRelease,
+  fetchDeployInstructions,
   fetchSystemUpdate,
   fetchSystemUpdates,
+  rollbackUpdate,
   startUpdateTest,
 } from '../lib/api';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/UiState';
@@ -14,7 +17,7 @@ const statusLabels: Record<string, string> = {
   testing: 'Тестируется',
   test_passed: 'Тест пройден',
   test_failed: 'Тест провален',
-  awaiting_approval: 'Ожидает выкатки',
+  awaiting_approval: 'Одобрено — ждёт деплоя',
   deploying: 'Деплой',
   canary_monitoring: 'Canary',
   applied: 'Применено',
@@ -35,10 +38,17 @@ const statusColors: Record<string, string> = {
 
 export function UpdatesPage() {
   const [updates, setUpdates] = useState<SystemUpdateDto[]>([]);
+  const [currentRelease, setCurrentRelease] = useState<{
+    version: string;
+    sprint: number;
+  } | null>(null);
   const [version, setVersion] = useState('');
+  const [sprintNumber, setSprintNumber] = useState('');
   const [changelog, setChangelog] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDetail, setActiveDetail] = useState<SystemUpdateDto | null>(null);
+  const [deployCmd, setDeployCmd] = useState<string | null>(null);
+  const [rollbackCmd, setRollbackCmd] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,8 +56,12 @@ export function UpdatesPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await fetchSystemUpdates();
+      const [rows, release] = await Promise.all([
+        fetchSystemUpdates(),
+        fetchCurrentRelease(),
+      ]);
       setUpdates(rows);
+      setCurrentRelease({ version: release.version, sprint: release.sprint });
     } catch {
       setError('Не удалось загрузить обновления');
     } finally {
@@ -68,10 +82,27 @@ export function UpdatesPage() {
     return () => clearInterval(timer);
   }, [activeId]);
 
+  useEffect(() => {
+    if (!activeDetail || activeDetail.status !== 'awaiting_approval') {
+      setDeployCmd(null);
+      setRollbackCmd(null);
+      return;
+    }
+    fetchDeployInstructions(activeDetail.id).then((instr) => {
+      setDeployCmd(instr.command);
+      setRollbackCmd(instr.rollbackCommand);
+    });
+  }, [activeDetail?.id, activeDetail?.status]);
+
   const register = async () => {
     if (!version.trim()) return;
-    await createSystemUpdate({ version: version.trim(), changelog });
+    await createSystemUpdate({
+      version: version.trim(),
+      sprintNumber: sprintNumber ? Number(sprintNumber) : undefined,
+      changelog,
+    });
     setVersion('');
+    setSprintNumber('');
     setChangelog('');
     await load();
   };
@@ -88,6 +119,12 @@ export function UpdatesPage() {
     await load();
   };
 
+  const rollback = async (id: string, rollbackVersion?: string | null) => {
+    setActiveId(id);
+    await rollbackUpdate(id, rollbackVersion ?? undefined);
+    await load();
+  };
+
   if (loading) return <LoadingState message="Загрузка обновлений…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
 
@@ -95,13 +132,35 @@ export function UpdatesPage() {
     <div>
       <h1 className="text-2xl font-bold text-slate-100">Обновления системы</h1>
       <p className="mt-1 text-slate-400">
-        Staging-тесты, blue-green деплой и canary-мониторинг
+        Версионирование, проверки, деплой и откат
       </p>
+
+      {currentRelease && (
+        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+          Текущая версия:{' '}
+          <span className="font-semibold text-brand-400">
+            v{currentRelease.version}
+          </span>{' '}
+          · Sprint {currentRelease.sprint}
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap gap-2">
         <input
+          className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+          placeholder="Спринт"
+          type="number"
+          value={sprintNumber}
+          onChange={(e) => {
+            setSprintNumber(e.target.value);
+            if (e.target.value) {
+              setVersion(`0.${e.target.value}.0`);
+            }
+          }}
+        />
+        <input
           className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
-          placeholder="Версия (напр. 0.2.0)"
+          placeholder="Версия (0.33.0)"
           value={version}
           onChange={(e) => setVersion(e.target.value)}
         />
@@ -117,7 +176,7 @@ export function UpdatesPage() {
           disabled={!version.trim()}
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          Зарегистрировать версию
+          Зарегистрировать релиз
         </button>
       </div>
 
@@ -125,7 +184,7 @@ export function UpdatesPage() {
         <div className="mt-8">
           <EmptyState
             title="Нет обновлений"
-            description="Зарегистрируйте первую версию, чтобы начать тестирование и выкатку."
+            description="Зарегистрируйте релиз с номером спринта и версией."
           />
         </div>
       ) : (
@@ -137,23 +196,32 @@ export function UpdatesPage() {
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-slate-100">{item.version}</p>
+                  <p className="font-semibold text-slate-100">
+                    v{item.version}
+                    {item.sprintNumber != null && (
+                      <span className="ml-2 text-sm font-normal text-slate-400">
+                        Sprint {item.sprintNumber}
+                      </span>
+                    )}
+                  </p>
                   <p className="mt-1 flex items-center gap-2 text-sm text-slate-400">
                     <StatusBadge status={item.status} labels={statusLabels} colors={statusColors} />
-                    {item.imageTag ? `· ${item.imageTag}` : ''}
+                    {item.rollbackVersion && (
+                      <span>· откат → {item.rollbackVersion}</span>
+                    )}
                   </p>
                   {item.changelog && (
                     <p className="mt-1 text-sm text-slate-500">{item.changelog}</p>
                   )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {['pending', 'test_failed'].includes(item.status) && (
                     <button
                       type="button"
                       onClick={() => runTest(item.id)}
                       className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
                     >
-                      Запустить тестирование
+                      Проверить (staging)
                     </button>
                   )}
                   {item.status === 'test_passed' && (
@@ -162,7 +230,16 @@ export function UpdatesPage() {
                       onClick={() => approve(item.id)}
                       className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
                     >
-                      Разрешить выкатку на прод
+                      Одобрить выкатку
+                    </button>
+                  )}
+                  {['applied', 'deploying', 'canary_monitoring'].includes(item.status) && (
+                    <button
+                      type="button"
+                      onClick={() => rollback(item.id, item.rollbackVersion)}
+                      className="rounded-lg border border-red-700 px-3 py-2 text-sm text-red-300 hover:bg-red-950/30"
+                    >
+                      Откатить
                     </button>
                   )}
                 </div>
@@ -179,6 +256,27 @@ export function UpdatesPage() {
         </div>
       )}
 
+      {deployCmd && (
+        <div className="mt-8 rounded-xl border border-amber-800/50 bg-amber-950/20 p-4">
+          <h2 className="font-medium text-amber-200">Команда деплоя на сервере</h2>
+          <p className="mt-1 text-sm text-amber-100/80">
+            Выполните на сервере от root. Замените <code>&lt;token&gt;</code> на
+            RELEASE_DEPLOY_TOKEN из .env
+          </p>
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
+            {deployCmd}
+          </pre>
+          {rollbackCmd && (
+            <>
+              <p className="mt-4 text-sm text-amber-100/80">Откат:</p>
+              <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
+                {rollbackCmd}
+              </pre>
+            </>
+          )}
+        </div>
+      )}
+
       {activeDetail && (
         <div className="mt-8 rounded-xl border border-slate-700 bg-slate-950 p-4">
           <h2 className="font-medium text-slate-200">
@@ -188,13 +286,6 @@ export function UpdatesPage() {
             {activeDetail.deployLog.map((line) => `[${line.level}] ${line.message}`).join('\n') ||
               'Ожидание логов…'}
           </pre>
-          {activeDetail.canaryMetrics && (
-            <p className="mt-2 text-sm text-amber-300">
-              Canary: errorRate={activeDetail.canaryMetrics.errorRate}, p95=
-              {activeDetail.canaryMetrics.latencyP95Ms}ms —{' '}
-              {activeDetail.canaryMetrics.passed ? 'OK' : 'ROLLBACK'}
-            </p>
-          )}
         </div>
       )}
     </div>

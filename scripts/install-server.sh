@@ -106,6 +106,9 @@ WIDGET_URL=http://${ip}:5175
 PUBLIC_SITE_URL=http://${ip}:4321
 API_PUBLIC_URL=http://${ip}:3000/api
 COOKIE_SECURE=false
+RELEASE_DEPLOY_TOKEN=$(openssl rand -hex 24)
+APP_VERSION=0.33.0
+SPRINT_NUMBER=33
 EOF
 }
 

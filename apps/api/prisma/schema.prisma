@@ -882,6 +882,7 @@ model BackupSnapshot {
 model SystemUpdate {
   id                String             @id @default(uuid()) @db.Uuid
   version           String             @unique
+  sprintNumber      Int?               @map("sprint_number")
   changelog         String?
   gitSha            String?            @map("git_sha")
   imageTag          String?            @map("image_tag")

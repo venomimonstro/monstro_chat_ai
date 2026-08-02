@@ -60,10 +60,11 @@ export class DeploymentRunnerService {
     }
 
     const healthOk = await this.checkHealth(ctx);
+    const verifyOk = await this.runVerifyRelease(ctx);
     const e2e = await this.runE2eSuite(ctx);
 
     const finishedAt = new Date();
-    const passed = healthOk && e2e.passed;
+    const passed = healthOk && verifyOk && e2e.passed;
 
     return {
       passed,
@@ -74,6 +75,12 @@ export class DeploymentRunnerService {
           name: 'health-check',
           passed: healthOk ? 1 : 0,
           failed: healthOk ? 0 : 1,
+          durationMs: 500,
+        },
+        {
+          name: 'verify-release',
+          passed: verifyOk ? 1 : 0,
+          failed: verifyOk ? 0 : 1,
           durationMs: 500,
         },
         ...e2e.suites,
@@ -158,13 +165,46 @@ export class DeploymentRunnerService {
     });
 
     if (this.deployMode === 'script') {
-      await execFileAsync('bash', [
-        join(process.cwd(), 'scripts', 'rollback-version.sh'),
-        version,
-      ]);
+      const rollbackScript = process.env.HOST_INSTALL_DIR
+        ? join(process.env.HOST_INSTALL_DIR, 'scripts', 'release-rollback.sh')
+        : join(process.cwd(), 'scripts', 'release-rollback.sh');
+      await execFileAsync('bash', [rollbackScript, version]);
     } else {
       await this.sleep(1000);
     }
+  }
+
+  private async runVerifyRelease(ctx: DeployContext): Promise<boolean> {
+    const scriptPath = join(process.cwd(), 'scripts', 'verify-release.sh');
+    const hostScript = process.env.HOST_INSTALL_DIR
+      ? join(process.env.HOST_INSTALL_DIR, 'scripts', 'verify-release.sh')
+      : scriptPath;
+
+    if (this.deployMode === 'script') {
+      try {
+        await execFileAsync('bash', [hostScript], {
+          env: {
+            ...process.env,
+            API_BASE: this.healthUrl.replace(/\/health$/, ''),
+          },
+        });
+        await ctx.onLog({
+          at: new Date().toISOString(),
+          level: 'info',
+          message: 'verify-release.sh пройден',
+        });
+        return true;
+      } catch {
+        await ctx.onLog({
+          at: new Date().toISOString(),
+          level: 'error',
+          message: 'verify-release.sh провален',
+        });
+        return false;
+      }
+    }
+
+    return true;
   }
 
   private async checkHealth(ctx: DeployContext) {

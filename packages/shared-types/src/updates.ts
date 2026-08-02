@@ -40,6 +40,7 @@ export interface CanaryMetricsDto {
 export interface SystemUpdateDto {
   id: string;
   version: string;
+  sprintNumber: number | null;
   changelog: string | null;
   gitSha: string | null;
   imageTag: string | null;
@@ -56,9 +57,36 @@ export interface SystemUpdateDto {
 
 export interface CreateSystemUpdateDto {
   version: string;
+  sprintNumber?: number;
   changelog?: string;
   gitSha?: string;
   imageTag?: string;
+}
+
+export interface ReleaseManifestDto {
+  version: string;
+  sprint: number;
+  name?: string;
+  gitSha?: string;
+  previousVersion?: string;
+  previousSprint?: number;
+  deployedAt?: string | null;
+  rolledBackAt?: string | null;
+  deployTokenConfigured?: boolean;
+}
+
+export interface SprintInfoDto {
+  number: number;
+  status: string;
+  description: string;
+}
+
+export interface ReleaseDeployInstructionsDto {
+  updateId: string;
+  version: string;
+  sprintNumber: number | null;
+  command: string;
+  rollbackCommand: string;
 }
 
 export interface BackupSnapshotDto {
