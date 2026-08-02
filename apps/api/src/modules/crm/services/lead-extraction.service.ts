@@ -12,8 +12,12 @@ import { CrmGateway } from '../crm.gateway';
 import { PromptExperimentService } from '../../prompts/prompt-experiment.service';
 import { PushService } from '../../push/push.service';
 import { leadAttributionFromDialog } from '../../integrations/attribution.util';
-
-type LeadField = 'phone' | 'email' | 'name';
+import {
+  leadGoalInstruction,
+  missingLeadFields,
+  resolveLeadProfileMode,
+  type LeadField,
+} from '../utils/lead-profile.util';
 
 @Injectable()
 export class LeadExtractionService {
@@ -36,6 +40,49 @@ export class LeadExtractionService {
     this.dedupeDays = config.get<number>('LEAD_DEDUPE_DAYS', 30);
   }
 
+  async getLeadState(params: {
+    tenantId: string;
+    dialogId: string;
+    sourceConfig: SourceConfig;
+  }): Promise<{
+    mode: ReturnType<typeof resolveLeadProfileMode>;
+    missing: LeadField[];
+    hasLead: boolean;
+    instruction: string | null;
+  }> {
+    const config = params.sourceConfig.ai?.leadExtraction;
+    if (config?.enabled === false) {
+      return {
+        mode: 'phone',
+        missing: [],
+        hasLead: false,
+        instruction: null,
+      };
+    }
+
+    const mode = resolveLeadProfileMode(config);
+    const existing = await this.prisma.lead.findUnique({
+      where: { dialogId: params.dialogId },
+    });
+    if (existing) {
+      return { mode, missing: [], hasLead: true, instruction: null };
+    }
+
+    const accumulated = await this.accumulateFromHistory(
+      params.dialogId,
+      params.tenantId,
+      { phone: null, email: null, name: null },
+    );
+    const missing = missingLeadFields(mode, accumulated);
+
+    return {
+      mode,
+      missing,
+      hasLead: false,
+      instruction: leadGoalInstruction(mode, missing),
+    };
+  }
+
   async processMessage(params: {
     tenantId: string;
     sourceId: string;
@@ -52,9 +99,7 @@ export class LeadExtractionService {
       return { created: false };
     }
 
-    const required: LeadField[] = config?.requiredFields?.length
-      ? config.requiredFields
-      : ['phone'];
+    const mode = resolveLeadProfileMode(config);
 
     const existing = await this.prisma.lead.findUnique({
       where: { dialogId: params.dialogId },
@@ -70,8 +115,8 @@ export class LeadExtractionService {
       entities,
     );
 
-    const hasAll = required.every((field) => Boolean(accumulated[field]));
-    if (!hasAll) {
+    const missing = missingLeadFields(mode, accumulated);
+    if (missing.length > 0) {
       return { created: false };
     }
 
@@ -193,6 +238,9 @@ export class LeadExtractionService {
       if (!merged.phone && extracted.phone) merged.phone = extracted.phone;
       if (!merged.email && extracted.email) merged.email = extracted.email;
       if (!merged.name && extracted.name) merged.name = extracted.name;
+      if (merged.name && extracted.name && extracted.name.length > merged.name.length) {
+        merged.name = extracted.name;
+      }
     }
 
     return merged;

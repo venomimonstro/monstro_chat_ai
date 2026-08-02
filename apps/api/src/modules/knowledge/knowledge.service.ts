@@ -8,6 +8,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { IndexingPipelineService } from './services/indexing-pipeline.service';
 import {
   ALLOWED_UPLOAD_MIMES,
   DEFAULT_CRAWL_PAGE_LIMIT,
@@ -15,6 +16,8 @@ import {
   QUEUE_CRAWL_SITE,
   QUEUE_INGEST_DOCUMENT,
 } from './constants';
+
+export const MANUAL_TEXT_MIME = 'text/manual';
 
 export interface CrawlSiteJobPayload {
   jobId: string;
@@ -34,6 +37,7 @@ export interface IngestDocumentJobPayload {
 export class KnowledgeService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly pipeline: IndexingPipelineService,
     @InjectQueue(QUEUE_CRAWL_SITE) private readonly crawlQueue: Queue,
     @InjectQueue(QUEUE_INGEST_DOCUMENT) private readonly ingestQueue: Queue,
   ) {}
@@ -195,6 +199,115 @@ export class KnowledgeService {
     });
 
     return this.toDocumentDto(updated);
+  }
+
+  async addManualText(
+    tenantId: string,
+    sourceId: string,
+    title: string,
+    content: string,
+  ) {
+    await this.assertSource(tenantId, sourceId);
+    const trimmed = content.trim();
+    if (trimmed.length < 20) {
+      throw new BadRequestException('Текст знаний должен быть не короче 20 символов');
+    }
+
+    const document = await this.prisma.knowledgeDocument.create({
+      data: {
+        tenantId,
+        sourceId,
+        type: 'file',
+        status: 'processing',
+        title: title.trim() || 'Ручная запись',
+        mimeType: MANUAL_TEXT_MIME,
+      },
+    });
+
+    try {
+      await this.pipeline.indexDocumentContent(tenantId, document.id, trimmed, {
+        title: document.title,
+        type: 'manual_text',
+      });
+      const updated = await this.prisma.knowledgeDocument.update({
+        where: { id: document.id },
+        data: { status: 'completed', indexedAt: new Date() },
+      });
+      return this.toDocumentDto(updated);
+    } catch (error) {
+      await this.prisma.knowledgeDocument.update({
+        where: { id: document.id },
+        data: {
+          status: 'failed',
+          errorMessage: String(error),
+        },
+      });
+      throw error;
+    }
+  }
+
+  async updateManualText(
+    tenantId: string,
+    documentId: string,
+    title: string | undefined,
+    content: string,
+  ) {
+    const document = await this.prisma.knowledgeDocument.findFirst({
+      where: { id: documentId, tenantId },
+    });
+    if (!document) throw new NotFoundException('Документ не найден');
+    if (document.mimeType !== MANUAL_TEXT_MIME) {
+      throw new BadRequestException('Редактирование доступно только для ручных записей');
+    }
+
+    const trimmed = content.trim();
+    if (trimmed.length < 20) {
+      throw new BadRequestException('Текст знаний должен быть не короче 20 символов');
+    }
+
+    await this.prisma.knowledgeDocument.update({
+      where: { id: documentId },
+      data: {
+        title: title?.trim() || document.title,
+        status: 'processing',
+        errorMessage: null,
+      },
+    });
+
+    try {
+      await this.pipeline.indexDocumentContent(tenantId, documentId, trimmed, {
+        title: title?.trim() || document.title,
+        type: 'manual_text',
+      });
+      const updated = await this.prisma.knowledgeDocument.update({
+        where: { id: documentId },
+        data: { status: 'completed', indexedAt: new Date() },
+      });
+      return this.toDocumentDto(updated);
+    } catch (error) {
+      await this.prisma.knowledgeDocument.update({
+        where: { id: documentId },
+        data: { status: 'failed', errorMessage: String(error) },
+      });
+      throw error;
+    }
+  }
+
+  async getManualTextContent(tenantId: string, documentId: string) {
+    const document = await this.prisma.knowledgeDocument.findFirst({
+      where: { id: documentId, tenantId, mimeType: MANUAL_TEXT_MIME },
+    });
+    if (!document) throw new NotFoundException('Ручная запись не найдена');
+
+    const chunks = await this.prisma.knowledgeChunk.findMany({
+      where: { documentId },
+      orderBy: { chunkIndex: 'asc' },
+    });
+
+    return {
+      document: this.toDocumentDto(document),
+      content: chunks.map((c) => c.content).join('\n\n'),
+    };
   }
 
   async getPageLimit(tenantId: string): Promise<number> {

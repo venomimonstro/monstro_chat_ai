@@ -8,6 +8,9 @@ import {
   startCrawl,
   uploadDocument,
   deleteDocument,
+  addManualText,
+  getManualText,
+  updateManualText,
 } from '../lib/knowledge';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,8 +23,15 @@ const STATUS_LABELS: Record<string, string> = {
   running: 'Индексация',
 };
 
+function isManualText(doc: KnowledgeDocumentDto) {
+  return doc.mimeType === 'text/manual';
+}
+
 export function TrainingTab({ sourceId }: { sourceId: string }) {
   const [crawlUrl, setCrawlUrl] = useState('https://');
+  const [manualTitle, setManualTitle] = useState('');
+  const [manualContent, setManualContent] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocumentDto[]>([]);
   const [jobs, setJobs] = useState<IndexingJobDto[]>([]);
   const [activeJob, setActiveJob] = useState<IndexingJobDto | null>(null);
@@ -107,6 +117,44 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
     }
   };
 
+  const handleManualSave = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (editingId) {
+        await updateManualText(editingId, manualContent, manualTitle || undefined);
+        setEditingId(null);
+      } else {
+        await addManualText(sourceId, manualTitle || 'Знание агента', manualContent);
+      }
+      setManualTitle('');
+      setManualContent('');
+      await reload();
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? 'Не удалось сохранить текст';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startEditManual = async (doc: KnowledgeDocumentDto) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getManualText(doc.id);
+      setEditingId(doc.id);
+      setManualTitle(data.document.title ?? '');
+      setManualContent(data.content);
+    } catch {
+      setError('Не удалось загрузить текст для редактирования');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const progress =
     activeJob && activeJob.totalPages > 0
       ? Math.round((activeJob.processedPages / activeJob.totalPages) * 100)
@@ -119,7 +167,9 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
           Индексация сайта
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Укажите URL — агент обойдёт страницы (глубина 3) с учётом robots.txt
+          Укажите URL — агент обойдёт страницы (глубина 3) с учётом robots.txt.
+          Если API в Docker на том же сервере — используйте публичный URL, система
+          попробует внутренний адрес автоматически.
         </p>
         <div className="mt-3 flex gap-2">
           <input
@@ -160,6 +210,54 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
         {activeJob?.status === 'failed' && activeJob.errorMessage && (
           <p className="mt-2 text-sm text-red-600">{activeJob.errorMessage}</p>
         )}
+      </section>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-900">
+          Ручные знания
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Добавьте или отредактируйте текст, который агент будет использовать в ответах
+        </p>
+        <div className="mt-3 space-y-2">
+          <input
+            type="text"
+            value={manualTitle}
+            onChange={(e) => setManualTitle(e.target.value)}
+            placeholder="Заголовок (например: Цены и услуги)"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <textarea
+            value={manualContent}
+            onChange={(e) => setManualContent(e.target.value)}
+            rows={6}
+            placeholder="Опишите услуги, цены, условия, FAQ — всё, что должен знать агент..."
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleManualSave}
+              disabled={loading || manualContent.trim().length < 20}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {editingId ? 'Сохранить изменения' : 'Добавить знание'}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setManualTitle('');
+                  setManualContent('');
+                }}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+              >
+                Отмена
+              </button>
+            )}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
@@ -212,12 +310,36 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
                   {doc.title ?? doc.url ?? 'Документ'}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {doc.type === 'site_page' ? 'Страница' : 'Файл'} ·{' '}
-                  {STATUS_LABELS[doc.status] ?? doc.status}
+                  {isManualText(doc)
+                    ? 'Ручная запись'
+                    : doc.type === 'site_page'
+                      ? 'Страница'
+                      : 'Файл'}{' '}
+                  · {STATUS_LABELS[doc.status] ?? doc.status}
                   {doc.errorMessage ? ` — ${doc.errorMessage}` : ''}
                 </p>
               </div>
               <div className="flex shrink-0 gap-2">
+                {isManualText(doc) && doc.status === 'completed' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => startEditManual(doc)}
+                      className="text-xs text-brand-600 hover:underline"
+                    >
+                      Изменить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteDocument(doc.id).then(reload).catch(() => undefined)
+                      }
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Удалить
+                    </button>
+                  </>
+                )}
                 {doc.type === 'site_page' && doc.status === 'completed' && (
                   <button
                     type="button"
@@ -229,7 +351,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
                     Исключить
                   </button>
                 )}
-                {doc.type === 'file' && (
+                {doc.type === 'file' && !isManualText(doc) && (
                   <button
                     type="button"
                     onClick={() =>
@@ -257,6 +379,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
                 {job.rootUrl ?? 'Загрузка файла'} —{' '}
                 {STATUS_LABELS[job.status] ?? job.status} ({job.processedPages}/
                 {job.totalPages})
+                {job.errorMessage ? ` — ${job.errorMessage}` : ''}
               </li>
             ))}
           </ul>

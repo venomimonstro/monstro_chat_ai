@@ -125,9 +125,6 @@ export class AiOrchestratorService {
       content: input.content,
     });
 
-    const used = await this.usageLimit.recordMessage(input.tenantId);
-    await this.usageLimit.chargeOverage(input.tenantId, used);
-
     await this.leadExtraction.processMessage({
       tenantId: input.tenantId,
       sourceId: input.sourceId,
@@ -136,17 +133,41 @@ export class AiOrchestratorService {
       sourceConfig: input.sourceConfig,
     });
 
-    const { isSuspicious, instruction } = this.antiInjection.classify(
-      input.content,
-    );
-    if (isSuspicious) {
+    const injection = this.antiInjection.classify(input.content);
+    if (injection.isSuspicious) {
       this.logger.warn(`Suspicious message in dialog ${dialog.id}`);
+    }
+
+    if (injection.shouldBlock && injection.blockedReply) {
+      const blocked = injection.blockedReply;
+      const assistantMessage = await this.dialogService.addMessage({
+        dialogId: dialog.id,
+        tenantId: input.tenantId,
+        role: 'assistant',
+        content: blocked,
+        tokenCount: 0,
+        provider: 'safety',
+        model: 'blocked',
+      });
+
+      yield {
+        type: 'done',
+        dialogId: dialog.id,
+        messageId: assistantMessage.id,
+        content: blocked,
+        provider: 'safety',
+        model: 'blocked',
+      };
+      return;
     }
 
     const cacheHit = await this.semanticCache.lookup(
       input.tenantId,
       input.content,
     );
+
+    const used = await this.usageLimit.recordMessage(input.tenantId);
+    await this.usageLimit.chargeOverage(input.tenantId, used);
 
     if (cacheHit) {
       const fullResponse = cacheHit.answer;
@@ -209,6 +230,12 @@ export class AiOrchestratorService {
       dialog.id,
     );
 
+    const leadState = await this.leadExtraction.getLeadState({
+      tenantId: input.tenantId,
+      dialogId: dialog.id,
+      sourceConfig: input.sourceConfig,
+    });
+
     const assembled = await this.promptAssembly.assemble({
       tenantId: input.tenantId,
       dialogId: dialog.id,
@@ -216,7 +243,8 @@ export class AiOrchestratorService {
       dialogSummary: dialog.summary,
       fallbackClientPrompt: input.sourceConfig.ai?.clientPrompt,
       clientPromptOverride: experimentPrompt,
-      antiInjectionInstruction: instruction,
+      antiInjectionInstruction: injection.instruction,
+      leadGoalInstruction: leadState.instruction,
     });
 
     const history = await this.dialogService.getMessages(
@@ -240,7 +268,7 @@ export class AiOrchestratorService {
       tariff?.featuresJson as { allowedProviders?: string[] } | undefined
     )?.allowedProviders;
 
-    const tier = this.modelRouter.classify(input.content, false);
+    const tier = this.modelRouter.classify(input.content, Boolean(cacheHit));
     const chain = this.providers.getChainForTier(tier, allowedProviders);
     this.logger.debug(
       `Model router: tier=${tier}, chain=${chain.map((p) => p.name).join('→')}`,

@@ -18,6 +18,8 @@ export interface WidgetAppearanceConfig {
 
 export interface WidgetSecurityConfig {
   allowedOrigins?: string[];
+  rateLimitPerMinute?: number;
+  ipRateLimitPerMinute?: number;
 }
 
 export interface WidgetPersonalizationConfig {
@@ -37,9 +39,16 @@ export interface WidgetBehaviorConfig {
   lazyLoad?: boolean;
 }
 
+export type LeadProfileMode =
+  | 'phone'
+  | 'phone_name'
+  | 'phone_name_surname'
+  | 'phone_name_surname_email';
+
 export interface SourceLeadConfig {
   enabled?: boolean;
   requiredFields?: Array<'phone' | 'email' | 'name'>;
+  profileMode?: LeadProfileMode;
 }
 
 export interface SourceAiConfig {
@@ -80,6 +89,12 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   },
   security: {
     allowedOrigins: [],
+  },
+  ai: {
+    leadExtraction: {
+      enabled: true,
+      profileMode: 'phone',
+    },
   },
 };
 
