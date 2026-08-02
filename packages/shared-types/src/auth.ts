@@ -3,6 +3,7 @@ export interface AuthUser {
   email: string;
   role: string;
   tenantId: string | null;
+  permissions?: string[];
   impersonation?: ImpersonationInfo | null;
 }
 

@@ -37,6 +37,7 @@ import { BulkBlockTenantsDto, SetProviderCredentialsDto, UpdateProvidersDto } fr
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
 import { SiteSettingsService } from './services/site-settings.service';
+import { PlatformWorkspaceService } from './services/platform-workspace.service';
 import { ReleaseService } from '../release/release.service';
 import type { AuditLogListQuery, TenantListQuery } from '@ai-consultant/shared-types';
 
@@ -59,6 +60,7 @@ export class AdminController {
     private readonly providers: ProviderRegistryService,
     private readonly systemHealth: AdminSystemHealthService,
     private readonly siteSettings: SiteSettingsService,
+    private readonly platformWorkspace: PlatformWorkspaceService,
     private readonly release: ReleaseService,
   ) {}
 
@@ -104,6 +106,27 @@ export class AdminController {
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
   clearProviderCredentials(@Param('name') name: string) {
     return this.providers.clearProviderCredentials(name);
+  }
+
+  @Post('providers/:name/test')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  testProvider(@Param('name') name: string) {
+    return this.providers.testProvider(name);
+  }
+
+  @Get('platform-workspace')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
+  getPlatformWorkspace() {
+    return this.platformWorkspace.getWorkspace();
+  }
+
+  @Post('platform-workspace/open')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  openPlatformWorkspace(
+    @CurrentUser() user: AuthenticatedUser,
+    @Req() req: Request,
+  ) {
+    return this.platformWorkspace.openWorkspace(user, requestMeta(req));
   }
 
   @Get('site-settings')

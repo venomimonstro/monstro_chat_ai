@@ -98,15 +98,29 @@
 
 @media (max-width: 767px) {
   .aicw-panel.aicw-mobile {
-    width: 100vw;
-    height: 100dvh;
-    max-height: 100dvh;
-    border-radius: 0;
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+    width: min(100vw - 24px, 380px);
+    height: min(72dvh, 520px);
+    max-height: calc(100dvh - 88px);
+    border-radius: 18px;
     padding-bottom: env(safe-area-inset-bottom, 0);
-    padding-top: env(safe-area-inset-top, 0);
+  }
+
+  .aicw-panel.aicw-mobile.left {
+    left: 12px !important;
+    right: auto !important;
+  }
+
+  .aicw-panel.aicw-mobile.right {
+    right: 12px !important;
+    left: auto !important;
+  }
+
+  .aicw-button-wrap.left {
+    left: 12px;
+  }
+
+  .aicw-button-wrap.right {
+    right: 12px;
   }
 
   .aicw-panel.aicw-mobile .aicw-footer {

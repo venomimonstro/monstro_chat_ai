@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import type { BillingOverviewDto, TenantStatisticsDto } from '@ai-consultant/shared-types';
 import { fetchBillingOverview } from '../lib/billing';
 import { fetchTenantStatistics } from '../lib/analytics';
+import { useAuth } from '../lib/auth';
+import { getVisibleNavItems, hasPermission, PERMISSIONS } from '../lib/permissions';
 import { PageHeader } from '../components/PageHeader';
 import { SkeletonGrid } from '../components/Skeleton';
 import { ErrorState } from '../components/EmptyState';
@@ -67,10 +69,15 @@ function QuickAction({ to, label }: { to: string; label: string }) {
 }
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [overview, setOverview] = useState<BillingOverviewDto | null>(null);
   const [todayStats, setTodayStats] = useState<TenantStatisticsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const canViewBilling = hasPermission(user, PERMISSIONS.SETTINGS_MANAGE);
+  const canViewStats = hasPermission(user, PERMISSIONS.ANALYTICS_VIEW);
+  const visibleNav = getVisibleNavItems(user);
 
   const load = async () => {
     setLoading(true);
@@ -78,11 +85,19 @@ export function DashboardPage() {
     try {
       const { from, to } = todayRange();
       const [billing, stats] = await Promise.all([
-        fetchBillingOverview(),
-        fetchTenantStatistics(from, to).catch(() => null),
+        canViewBilling
+          ? fetchBillingOverview().catch(() => null)
+          : Promise.resolve(null),
+        canViewStats
+          ? fetchTenantStatistics(from, to).catch(() => null)
+          : Promise.resolve(null),
       ]);
       setOverview(billing);
       setTodayStats(stats);
+
+      if (!billing && !stats) {
+        setError('Не удалось загрузить обзор аккаунта');
+      }
     } catch {
       setError('Не удалось загрузить обзор аккаунта');
     } finally {
@@ -92,7 +107,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [canViewBilling, canViewStats]);
 
   if (loading) {
     return (
@@ -102,17 +117,39 @@ export function DashboardPage() {
       </div>
     );
   }
-  if (error) return <ErrorState message={error} onRetry={load} />;
-  if (!overview) return null;
+  if (error && !overview && !todayStats) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+
+  const quickActions = [
+    hasPermission(user, PERMISSIONS.SOURCES_MANAGE)
+      ? { to: '/sources', label: 'Настроить источники' }
+      : null,
+    hasPermission(user, PERMISSIONS.CRM_LEADS_VIEW)
+      ? { to: '/crm', label: 'Посмотреть CRM' }
+      : null,
+    hasPermission(user, PERMISSIONS.ANALYTICS_VIEW)
+      ? { to: '/statistics', label: 'Статистика' }
+      : null,
+    hasPermission(user, PERMISSIONS.SETTINGS_MANAGE)
+      ? { to: '/integrations', label: 'Подключить интеграции' }
+      : null,
+  ].filter(Boolean) as Array<{ to: string; label: string }>;
 
   return (
     <div>
       <PageHeader
         title="Добро пожаловать"
-        description="Обзор аккаунта, расход лимитов и быстрые действия"
+        description={
+          overview
+            ? 'Обзор аккаунта, расход лимитов и быстрые действия'
+            : 'Обзор активности и быстрые действия'
+        }
       />
 
-      {overview.trialDaysLeft !== null && overview.trialDaysLeft > 0 && (
+      {overview?.trialDaysLeft !== null &&
+        overview?.trialDaysLeft !== undefined &&
+        overview.trialDaysLeft > 0 && (
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
           Пробный период: осталось {overview.trialDaysLeft}{' '}
           {overview.trialDaysLeft === 1
@@ -126,7 +163,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {overview.tenantStatus === 'trial_expired' && (
+      {overview?.tenantStatus === 'trial_expired' && (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">
           Пробный период закончился.{' '}
           <Link to="/billing" className="font-medium underline">
@@ -150,52 +187,73 @@ export function DashboardPage() {
         </div>
       )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <UsageCard usage={overview.usage} />
-        <StatCard label="Баланс" value={formatCurrency(overview.balance, 'RUB')} href="/billing" />
-        <StatCard label="Подписка" value={overview.subscription?.tariff?.name ?? 'Пробный период'} href="/billing" />
-        <StatCard label="Статус" value={formatStatus(overview.tenantStatus)} />
-      </div>
-
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900">Быстрые действия</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <QuickAction to="/sources" label="Настроить источники" />
-          <QuickAction to="/crm" label="Посмотреть CRM" />
-          <QuickAction to="/statistics" label="Статистика" />
-          <QuickAction to="/integrations" label="Подключить интеграции" />
+      {overview && (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <UsageCard usage={overview.usage} />
+          <StatCard label="Баланс" value={formatCurrency(overview.balance, 'RUB')} href="/billing" />
+          <StatCard
+            label="Подписка"
+            value={overview.subscription?.tariff?.name ?? 'Пробный период'}
+            href="/billing"
+          />
+          <StatCard label="Статус" value={formatStatus(overview.tenantStatus)} />
         </div>
-      </div>
+      )}
 
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-900">Начало работы</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <OnboardingStep
-            number={1}
-            title="Добавьте источник"
-            description="Создайте чат для сайта и скопируйте код установки."
-            to="/sources"
-          />
-          <OnboardingStep
-            number={2}
-            title="Обучите агента"
-            description="Загрузите базу знаний и настройте промпт."
-            to="/sources"
-          />
-          <OnboardingStep
-            number={3}
-            title="Подключите CRM"
-            description="Настройте интеграцию с amoCRM или Bitrix24."
-            to="/integrations"
-          />
-          <OnboardingStep
-            number={4}
-            title="Следите за статистикой"
-            description="Анализируйте диалоги, лиды и конверсию."
-            to="/statistics"
-          />
+      {!overview && todayStats && (
+        <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Разделы тарифа и настроек доступны владельцу аккаунта. У вас есть доступ к CRM и статистике.
         </div>
-      </div>
+      )}
+
+      {quickActions.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-slate-900">Быстрые действия</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {quickActions.map((action) => (
+              <QuickAction key={action.to} to={action.to} label={action.label} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {hasPermission(user, PERMISSIONS.SOURCES_MANAGE) && (
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-slate-900">Начало работы</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <OnboardingStep
+              number={1}
+              title="Добавьте источник"
+              description="Создайте чат для сайта и скопируйте код установки."
+              to="/sources"
+            />
+            <OnboardingStep
+              number={2}
+              title="Обучите агента"
+              description="Загрузите базу знаний и настройте промпт."
+              to="/sources"
+            />
+            <OnboardingStep
+              number={3}
+              title="Подключите CRM"
+              description="Настройте интеграцию с amoCRM или Bitrix24."
+              to="/integrations"
+            />
+            <OnboardingStep
+              number={4}
+              title="Следите за статистикой"
+              description="Анализируйте диалоги, лиды и конверсию."
+              to="/statistics"
+            />
+          </div>
+        </div>
+      )}
+
+      {visibleNav.length <= 2 && !hasPermission(user, PERMISSIONS.SOURCES_MANAGE) && (
+        <div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
+          Используйте пункты меню слева для работы с лидами и статистикой.
+        </div>
+      )}
     </div>
   );
 }

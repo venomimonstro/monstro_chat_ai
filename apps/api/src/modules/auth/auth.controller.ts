@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { RbacService } from '../../common/rbac/rbac.service';
+import { UserRole } from '@prisma/client';
 import {
   RegisterDto,
   LoginDto,
@@ -27,7 +29,10 @@ import { CSRF_COOKIE } from '../../common/constants/cookies';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly rbac: RbacService,
+  ) {}
 
   @Public()
   @Get('csrf')
@@ -139,13 +144,17 @@ export class AuthController {
   @Allow2faSetup()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  me(@CurrentUser() user: AuthenticatedUser) {
+  async me(@CurrentUser() user: AuthenticatedUser) {
+    const permissions = await this.rbac.getPermissionsForRole(
+      user.role as UserRole,
+    );
     return {
       user: {
         id: user.id,
         email: user.email,
         role: user.role,
         tenantId: user.tenantId,
+        permissions,
         impersonation: user.impersonatedBy
           ? {
               actorUserId: user.impersonatedBy,

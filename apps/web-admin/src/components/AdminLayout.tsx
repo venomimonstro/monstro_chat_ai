@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { extractApiError, openPlatformWorkspace } from '../lib/api';
 
 const navItems = [
   { to: '/', label: 'Дашборд', end: true },
@@ -17,8 +18,24 @@ const navItems = [
 
 export function AdminLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  async function onOpenPlatformWorkspace() {
+    setOpeningWorkspace(true);
+    setWorkspaceError(null);
+    try {
+      const result = await openPlatformWorkspace();
+      const url = `${result.webClientUrl.replace(/\/$/, '')}/impersonate?code=${encodeURIComponent(result.exchangeCode)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setWorkspaceError(extractApiError(err, 'Не удалось открыть ЛК платформы'));
+    } finally {
+      setOpeningWorkspace(false);
+    }
+  }
 
   async function onLogout() {
     await logout();
@@ -56,6 +73,17 @@ export function AdminLayout() {
           ))}
         </nav>
         <div className="mt-auto border-t border-slate-800 p-4">
+          <button
+            type="button"
+            disabled={openingWorkspace}
+            onClick={onOpenPlatformWorkspace}
+            className="mb-3 w-full rounded-lg border border-brand-500/40 bg-brand-600/10 px-3 py-2 text-left text-sm font-medium text-brand-300 transition hover:bg-brand-600/20 disabled:opacity-50"
+          >
+            {openingWorkspace ? 'Открываем ЛК…' : 'ЛК платформы'}
+          </button>
+          {workspaceError && (
+            <p className="mb-2 text-xs text-red-400">{workspaceError}</p>
+          )}
           <p className="truncate text-sm text-slate-300">{user?.email}</p>
           <button
             type="button"

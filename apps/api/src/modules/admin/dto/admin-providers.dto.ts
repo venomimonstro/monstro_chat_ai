@@ -1,4 +1,5 @@
 import { IsArray, IsBoolean, IsString, ArrayMinSize, IsUUID, MinLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class UpdateProvidersDto {
   @IsArray()
@@ -26,6 +27,7 @@ export class ToggleProviderDto {
 }
 
 export class SetProviderCredentialsDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(8)
   apiKey!: string;

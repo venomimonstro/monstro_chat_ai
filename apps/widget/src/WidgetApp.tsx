@@ -445,10 +445,12 @@ export function WidgetApp() {
   };
 
   const panelStyle: React.CSSProperties = {
-    [isLeft ? 'left' : 'right']: appearance.offsetX,
-    bottom: isMobile ? 0 : appearance.offsetY + 68,
+    [isLeft ? 'left' : 'right']: isMobile ? 12 : appearance.offsetX,
+    bottom: isMobile ? appearance.offsetY + 68 : appearance.offsetY + 68,
     ...(isMobile && visualHeight
-      ? { height: `${visualHeight}px`, maxHeight: `${visualHeight}px` }
+      ? {
+          maxHeight: `${Math.min(visualHeight - appearance.offsetY - 80, 520)}px`,
+        }
       : {}),
   };
 

@@ -1,21 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../lib/auth';
+import { getVisibleNavItems } from '../lib/permissions';
 import { NotificationBell } from './NotificationBell';
 import { PwaInstallBanner } from './PwaInstallBanner';
 
-const navItems = [
-  { to: '/', label: 'Главная', short: '⌂', end: true },
-  { to: '/sources', label: 'Источники', short: '◎' },
-  { to: '/crm', label: 'CRM', short: '▦' },
-  { to: '/billing', label: 'Тариф', short: '₽' },
-  { to: '/integrations', label: 'Интеграции', short: '⚡' },
-  { to: '/statistics', label: 'Статистика', short: '📊' },
-  { to: '/settings', label: 'Настройки', short: '⚙' },
-];
-
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const navItems = getVisibleNavItems(user);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 

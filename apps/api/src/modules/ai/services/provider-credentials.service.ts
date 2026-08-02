@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  OnModuleInit,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../../redis/redis.service';
 import { CredentialCryptoService } from '../../integrations/services/credential-crypto.service';
@@ -15,6 +21,7 @@ export class ProviderCredentialsService implements OnModuleInit {
   private readonly logger = new Logger(ProviderCredentialsService.name);
   private readonly envKeys: Record<string, string | undefined>;
   private providers: Record<string, CredentialProvider> = {};
+  private storedInRedis = new Set<string>();
 
   constructor(
     private readonly redis: RedisService,
@@ -38,6 +45,7 @@ export class ProviderCredentialsService implements OnModuleInit {
 
   async loadAndApply(): Promise<void> {
     const stored = await this.loadStoredDecrypted();
+    this.storedInRedis = new Set(Object.keys(stored));
     for (const [name, provider] of Object.entries(this.providers)) {
       const key = stored[name] ?? this.envKeys[name];
       provider.setApiKey(key);
@@ -45,33 +53,52 @@ export class ProviderCredentialsService implements OnModuleInit {
   }
 
   async saveCredential(name: string, apiKey: string): Promise<void> {
+    const normalized = name.trim().toLowerCase();
+    const trimmed = apiKey.trim();
+    if (!trimmed || trimmed.length < 8) {
+      throw new BadRequestException('API-ключ должен содержать минимум 8 символов');
+    }
+
     const client = this.redis.getClient();
     if (!client) {
-      throw new Error('Redis unavailable');
+      throw new ServiceUnavailableException('Redis недоступен — сохранение ключей невозможно');
     }
+
     const stored = await this.loadStored();
-    stored[name] = this.crypto.encrypt(apiKey.trim());
+    stored[normalized] = this.crypto.encrypt(trimmed);
     await client.set(REDIS_KEY, JSON.stringify(stored));
-    const provider = this.providers[name];
+    this.storedInRedis.add(normalized);
+
+    const provider = this.providers[normalized];
     if (provider) {
-      provider.setApiKey(apiKey.trim());
+      provider.setApiKey(trimmed);
     }
-    this.logger.log(`API key saved for provider: ${name}`);
+    this.logger.log(`API key saved for provider: ${normalized}`);
   }
 
   async clearCredential(name: string): Promise<void> {
+    const normalized = name.trim().toLowerCase();
     const client = this.redis.getClient();
     if (!client) {
-      throw new Error('Redis unavailable');
+      throw new ServiceUnavailableException('Redis недоступен');
     }
     const stored = await this.loadStored();
-    delete stored[name];
+    delete stored[normalized];
     await client.set(REDIS_KEY, JSON.stringify(stored));
-    const provider = this.providers[name];
+    this.storedInRedis.delete(normalized);
+
+    const provider = this.providers[normalized];
     if (provider) {
-      provider.setApiKey(this.envKeys[name]);
+      provider.setApiKey(this.envKeys[normalized]);
     }
-    this.logger.log(`API key cleared for provider: ${name}`);
+    this.logger.log(`API key cleared for provider: ${normalized}`);
+  }
+
+  getKeySource(name: string): 'redis' | 'env' | 'none' {
+    const normalized = name.trim().toLowerCase();
+    if (this.storedInRedis.has(normalized)) return 'redis';
+    if (this.envKeys[normalized]) return 'env';
+    return 'none';
   }
 
   private async loadStored(): Promise<Record<string, string>> {
@@ -99,11 +126,9 @@ export class ProviderCredentialsService implements OnModuleInit {
   }
 
   private async loadStoredDecrypted(): Promise<Record<string, string>> {
-    return this.decryptStored(await this.loadStored());
-  }
-
-  async getEffectiveKey(name: string): Promise<string | undefined> {
-    const stored = await this.loadStoredDecrypted();
-    return stored[name] ?? this.envKeys[name];
+    const raw = await this.loadStored();
+    const decrypted = await this.decryptStored(raw);
+    this.storedInRedis = new Set(Object.keys(raw));
+    return decrypted;
   }
 }

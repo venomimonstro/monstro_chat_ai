@@ -107,6 +107,15 @@ export interface LlmProviderInfo {
   enabled: boolean;
   priority: number;
   apiKeyMasked: string | null;
+  keySource: 'redis' | 'env' | 'none';
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  error?: string;
 }
 
 export interface AdminSystemHealth {
@@ -164,6 +173,38 @@ export async function clearProviderCredentials(name: string) {
   );
   return res.data;
 }
+
+export async function testProviderCredentials(name: string) {
+  const res = await api.post<ProviderTestResult>(
+    `/admin/providers/${name}/test`,
+  );
+  return res.data;
+}
+
+export async function fetchPlatformWorkspace() {
+  const res = await api.get<import('@ai-consultant/shared-types').PlatformWorkspaceDto>(
+    '/admin/platform-workspace',
+  );
+  return res.data;
+}
+
+export async function openPlatformWorkspace() {
+  const res = await api.post<import('@ai-consultant/shared-types').ImpersonateResponseDto>(
+    '/admin/platform-workspace/open',
+  );
+  return res.data;
+}
+
+function extractApiError(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const data = (error as { response?: { data?: { message?: string | string[] } } }).response?.data;
+    if (Array.isArray(data?.message)) return data.message.join(', ');
+    if (typeof data?.message === 'string') return data.message;
+  }
+  return fallback;
+}
+
+export { extractApiError };
 
 export async function fetchSiteSettings() {
   const res = await api.get<import('@ai-consultant/shared-types').PublicSiteSettingsDto>(

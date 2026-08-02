@@ -1,12 +1,26 @@
 import { useEffect, useState } from 'react';
 import {
   clearProviderCredentials,
+  extractApiError,
   fetchAdminProviders,
   setProviderCredentials,
+  testProviderCredentials,
   updateAdminProviders,
   type LlmProviderInfo,
+  type ProviderTestResult,
 } from '../lib/api';
 import { EmptyState, ErrorState, LoadingState } from '../components/UiState';
+
+function keySourceLabel(source: LlmProviderInfo['keySource']) {
+  switch (source) {
+    case 'redis':
+      return 'Ключ в админке';
+    case 'env':
+      return 'Ключ из env';
+    default:
+      return 'Ключ не задан';
+  }
+}
 
 export function ProvidersPage() {
   const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
@@ -14,8 +28,16 @@ export function ProvidersPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<'ok' | 'error'>('ok');
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [keySaving, setKeySaving] = useState<string | null>(null);
+  const [keyTesting, setKeyTesting] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, ProviderTestResult>>({});
+
+  const notify = (text: string | null, tone: 'ok' | 'error' = 'ok') => {
+    setMessage(text);
+    setMessageTone(tone);
+  };
 
   const load = () => {
     setLoading(true);
@@ -32,15 +54,15 @@ export function ProvidersPage() {
 
   const persist = async (next: LlmProviderInfo[]) => {
     setSaving(true);
-    setMessage(null);
+    notify(null);
     try {
       const chain = next.map((p) => p.name);
       const disabled = next.filter((p) => !p.enabled).map((p) => p.name);
       const updated = await updateAdminProviders({ chain, disabled });
       setProviders(updated);
-      setMessage('Конфигурация сохранена');
-    } catch {
-      setMessage('Не удалось сохранить');
+      notify('Конфигурация сохранена');
+    } catch (err) {
+      notify(extractApiError(err, 'Не удалось сохранить'), 'error');
     } finally {
       setSaving(false);
     }
@@ -68,14 +90,19 @@ export function ProvidersPage() {
     const apiKey = keyInputs[name]?.trim();
     if (!apiKey) return;
     setKeySaving(name);
-    setMessage(null);
+    notify(null);
     try {
       const updated = await setProviderCredentials(name, apiKey);
       setProviders(updated);
       setKeyInputs((prev) => ({ ...prev, [name]: '' }));
-      setMessage(`Ключ ${name} сохранён`);
-    } catch {
-      setMessage(`Не удалось сохранить ключ ${name}`);
+      setTestResults((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      notify(`Ключ ${name} сохранён`);
+    } catch (err) {
+      notify(extractApiError(err, `Не удалось сохранить ключ ${name}`), 'error');
     } finally {
       setKeySaving(null);
     }
@@ -83,15 +110,40 @@ export function ProvidersPage() {
 
   const clearKey = async (name: string) => {
     setKeySaving(name);
-    setMessage(null);
+    notify(null);
     try {
       const updated = await clearProviderCredentials(name);
       setProviders(updated);
-      setMessage(`Ключ ${name} удалён (используется env, если задан)`);
-    } catch {
-      setMessage(`Не удалось удалить ключ ${name}`);
+      setTestResults((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+      notify(`Ключ ${name} удалён (используется env, если задан)`);
+    } catch (err) {
+      notify(extractApiError(err, `Не удалось удалить ключ ${name}`), 'error');
     } finally {
       setKeySaving(null);
+    }
+  };
+
+  const testKey = async (name: string) => {
+    setKeyTesting(name);
+    notify(null);
+    try {
+      const result = await testProviderCredentials(name);
+      setTestResults((prev) => ({ ...prev, [name]: result }));
+      if (result.ok) {
+        notify(
+          `${name}: ключ работает (${result.model}, ${result.latencyMs} мс)`,
+        );
+      } else {
+        notify(result.error ?? 'Провайдер вернул ошибку', 'error');
+      }
+    } catch (err) {
+      notify(extractApiError(err, `Не удалось проверить ключ ${name}`), 'error');
+    } finally {
+      setKeyTesting(null);
     }
   };
 
@@ -106,7 +158,13 @@ export function ProvidersPage() {
           Приоритет fallback-цепочки, ключи API и включение провайдеров
         </p>
         {message && (
-          <p className="mt-2 text-sm text-emerald-400">{message}</p>
+          <p
+            className={`mt-2 text-sm ${
+              messageTone === 'error' ? 'text-red-400' : 'text-emerald-400'
+            }`}
+          >
+            {message}
+          </p>
         )}
       </div>
 
@@ -136,10 +194,13 @@ export function ProvidersPage() {
                   <p className="mt-1 text-sm text-slate-400">
                     API key: {provider.apiKeyMasked ?? '—'}
                   </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Источник: {keySourceLabel(provider.keySource)}
+                  </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill
-                    label={provider.available ? 'Ключ OK' : 'Нет ключа'}
+                    label={provider.available ? 'Ключ задан' : 'Нет ключа'}
                     ok={provider.available}
                   />
                   <Pill
@@ -148,6 +209,18 @@ export function ProvidersPage() {
                   />
                 </div>
               </div>
+
+              {testResults[provider.name] && (
+                <p
+                  className={`mt-3 text-sm ${
+                    testResults[provider.name].ok ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  {testResults[provider.name].ok
+                    ? `Проверка OK — ${testResults[provider.name].model}, ${testResults[provider.name].latencyMs} мс`
+                    : `Ошибка: ${testResults[provider.name].error ?? 'неизвестная'}`}
+                </p>
+              )}
 
               {provider.name !== 'mock' && (
                 <div className="mt-4 flex flex-wrap items-end gap-2">
@@ -173,6 +246,18 @@ export function ProvidersPage() {
                     className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-medium text-white hover:bg-brand-500 disabled:opacity-40"
                   >
                     {keySaving === provider.name ? '…' : 'Сохранить ключ'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      keyTesting === provider.name ||
+                      !provider.available ||
+                      keySaving === provider.name
+                    }
+                    onClick={() => testKey(provider.name)}
+                    className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"
+                  >
+                    {keyTesting === provider.name ? 'Проверка…' : 'Проверить ключ'}
                   </button>
                   {provider.apiKeyMasked && (
                     <button

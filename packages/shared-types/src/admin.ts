@@ -141,3 +141,11 @@ export interface UpdatePublicSiteSettingsDto {
   welcomeTitle?: string;
   welcomeText?: string;
 }
+
+export interface PlatformWorkspaceDto {
+  tenantId: string;
+  tenantName: string;
+  sourceId: string;
+  widgetKey: string;
+  webClientUrl: string;
+}

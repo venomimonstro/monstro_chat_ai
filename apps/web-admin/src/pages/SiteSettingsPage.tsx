@@ -1,16 +1,21 @@
 import { useEffect, useState } from 'react';
 import {
+  extractApiError,
+  fetchPlatformWorkspace,
   fetchSiteSettings,
+  openPlatformWorkspace,
   updateSiteSettings,
 } from '../lib/api';
-import type { PublicSiteSettingsDto } from '@ai-consultant/shared-types';
+import type { PlatformWorkspaceDto, PublicSiteSettingsDto } from '@ai-consultant/shared-types';
 import { EmptyState, ErrorState, LoadingState } from '../components/UiState';
 
 export function SiteSettingsPage() {
   const [settings, setSettings] = useState<PublicSiteSettingsDto | null>(null);
+  const [workspace, setWorkspace] = useState<PlatformWorkspaceDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [openingWorkspace, setOpeningWorkspace] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const [demoWidgetKey, setDemoWidgetKey] = useState('');
@@ -21,9 +26,13 @@ export function SiteSettingsPage() {
   const load = () => {
     setLoading(true);
     setError(null);
-    fetchSiteSettings()
-      .then((data) => {
+    Promise.all([
+      fetchSiteSettings(),
+      fetchPlatformWorkspace().catch(() => null),
+    ])
+      .then(([data, ws]) => {
         setSettings(data);
+        setWorkspace(ws);
         setDemoWidgetKey(data.demoWidgetKey);
         setChatEnabled(data.chatEnabled);
         setWelcomeTitle(data.welcomeTitle);
@@ -56,6 +65,19 @@ export function SiteSettingsPage() {
     }
   };
 
+  const openWorkspace = async () => {
+    setOpeningWorkspace(true);
+    try {
+      const result = await openPlatformWorkspace();
+      const url = `${result.webClientUrl.replace(/\/$/, '')}/impersonate?code=${encodeURIComponent(result.exchangeCode)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setMessage(extractApiError(err, 'Не удалось открыть ЛК платформы'));
+    } finally {
+      setOpeningWorkspace(false);
+    }
+  };
+
   if (loading) return <LoadingState message="Загрузка настроек…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
   if (!settings) return <EmptyState title="Нет данных" />;
@@ -73,6 +95,27 @@ export function SiteSettingsPage() {
       </div>
 
       <div className="max-w-2xl space-y-6">
+        {workspace && (
+          <section className="rounded-xl border border-brand-500/30 bg-brand-950/20 p-5">
+            <h2 className="text-lg font-semibold text-slate-100">ЛК платформы</h2>
+            <p className="mt-1 text-sm text-slate-400">
+              Отдельный рабочий аккаунт для лидов с публичного сайта: CRM, источники,
+              статистика — как у клиентов.
+            </p>
+            <p className="mt-3 text-xs text-slate-500">
+              Тенант: {workspace.tenantName} · widget key: {workspace.widgetKey}
+            </p>
+            <button
+              type="button"
+              disabled={openingWorkspace}
+              onClick={openWorkspace}
+              className="mt-4 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500 disabled:opacity-50"
+            >
+              {openingWorkspace ? 'Открываем…' : 'Открыть ЛК платформы'}
+            </button>
+          </section>
+        )}
+
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
           <h2 className="text-lg font-semibold text-slate-100">Виджет чата</h2>
           <p className="mt-1 text-sm text-slate-400">

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { LLMProviderAdapter } from './llm-provider.interface';
 import { OpenAIProvider } from './openai.provider';
@@ -17,6 +17,7 @@ export interface AdminProviderDto {
   inChain: boolean;
   priority: number;
   apiKeyMasked: string | null;
+  keySource: 'redis' | 'env' | 'none';
 }
 
 @Injectable()
@@ -114,6 +115,7 @@ export class ProviderRegistryService implements OnModuleInit {
         inChain: chain.includes(name) && enabled,
         priority: index + 1,
         apiKeyMasked: provider.getMaskedApiKey?.() ?? null,
+        keySource: this.credentials.getKeySource(name),
       };
     });
   }
@@ -124,18 +126,58 @@ export class ProviderRegistryService implements OnModuleInit {
   }
 
   async setProviderCredentials(name: string, apiKey: string) {
-    if (!this.byName[name] || name === 'mock') {
-      throw new Error(`Unknown provider: ${name}`);
+    const normalized = name.trim().toLowerCase();
+    if (!this.byName[normalized] || normalized === 'mock') {
+      throw new NotFoundException(`Неизвестный провайдер: ${name}`);
     }
-    await this.credentials.saveCredential(name, apiKey);
+    await this.credentials.saveCredential(normalized, apiKey);
     return this.listForAdmin();
   }
 
   async clearProviderCredentials(name: string) {
-    if (!this.byName[name] || name === 'mock') {
-      throw new Error(`Unknown provider: ${name}`);
+    const normalized = name.trim().toLowerCase();
+    if (!this.byName[normalized] || normalized === 'mock') {
+      throw new NotFoundException(`Неизвестный провайдер: ${name}`);
     }
-    await this.credentials.clearCredential(name);
+    await this.credentials.clearCredential(normalized);
     return this.listForAdmin();
+  }
+
+  async testProvider(name: string) {
+    const normalized = name.trim().toLowerCase();
+    const provider = this.byName[normalized];
+    if (!provider || normalized === 'mock') {
+      throw new NotFoundException(`Неизвестный провайдер: ${name}`);
+    }
+    if (!provider.isAvailable()) {
+      throw new BadRequestException('API-ключ не задан');
+    }
+
+    const started = Date.now();
+    try {
+      let gotToken = false;
+      for await (const token of provider.streamChat(
+        [{ role: 'user', content: 'Reply with exactly: OK' }],
+        { maxTokens: 8, temperature: 0 },
+      )) {
+        if (token.content) gotToken = true;
+        if (token.done) break;
+      }
+      return {
+        ok: gotToken,
+        provider: provider.name,
+        model: provider.defaultModel,
+        latencyMs: Date.now() - started,
+        error: gotToken ? undefined : 'Пустой ответ от провайдера',
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: provider.name,
+        model: provider.defaultModel,
+        latencyMs: Date.now() - started,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 }
