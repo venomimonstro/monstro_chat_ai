@@ -533,7 +533,7 @@ export class AuthService {
       secure: this.cookiesSecure(),
       sameSite: 'lax',
       maxAge: 30 * 24 * 60 * 60 * 1000,
-      path: '/api/auth',
+      path: '/api',
     });
   }
 
@@ -573,6 +573,11 @@ export class AuthService {
   }
 
   clearRefreshCookie(res: Response) {
+    res.clearCookie(REFRESH_COOKIE, {
+      path: '/api',
+      secure: this.cookiesSecure(),
+      sameSite: 'lax',
+    });
     res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
   }
 
