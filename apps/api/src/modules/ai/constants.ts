@@ -3,8 +3,12 @@ export const MAX_HISTORY_MESSAGES = 12;
 export const HISTORY_SUMMARY_THRESHOLD = 15;
 export const KEEP_RECENT_MESSAGES = 8;
 
-export const WIDGET_RATE_LIMIT_MAX = 10;
+export const WIDGET_RATE_LIMIT_MAX = 8;
 export const WIDGET_RATE_LIMIT_WINDOW_MS = 60_000;
+export const WIDGET_IP_RATE_LIMIT_MAX = 40;
+export const WIDGET_MAX_MESSAGE_LENGTH = 2000;
+export const WIDGET_DUPLICATE_WINDOW_MS = 30_000;
+export const WIDGET_DUPLICATE_MAX = 3;
 
 export const PROVIDER_COST_PER_1K: Record<
   string,

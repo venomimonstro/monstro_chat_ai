@@ -9,13 +9,15 @@ export interface ExtractedEntities {
 const PHONE_PATTERNS = [
   /(?:\+7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}/,
   /\+?\d{1,3}[\s\-]?\(?\d{2,4}\)?[\s\-]?\d{3}[\s\-]?\d{2,4}[\s\-]?\d{0,4}/,
+  /\b9\d{9}\b/,
 ];
 
 const EMAIL_PATTERN = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
 const NAME_PATTERNS = [
-  /(?:меня\s+зовут|мое\s+имя|зовут\s+меня)[,:]?\s+([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+)?)/i,
-  /(?:my name is|i am|i'm)\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)/i,
+  /(?:меня\s+зовут|мое\s+имя|зовут\s+меня|я\s+)[,:]?\s*([А-ЯЁA-Z][а-яёa-z]+(?:\s+[А-ЯЁA-Z][а-яёa-z]+){0,2})/i,
+  /(?:my name is|i am|i'm)\s+([A-Za-z]+(?:\s+[A-Za-z]+){0,2})/i,
+  /(?:это|на\s+связи)\s+([А-ЯЁA-Z][а-яёa-z]+\s+[А-ЯЁA-Z][а-яёa-z]+)/i,
 ];
 
 @Injectable()
@@ -50,6 +52,16 @@ export class NerService {
         return match[1].trim();
       }
     }
+
+    const stripped = text.replace(PHONE_PATTERNS[0], '').replace(EMAIL_PATTERN, '').trim();
+    const words = stripped.split(/\s+/).filter((w) => /^[А-ЯЁA-Z][а-яёa-z]+$/.test(w));
+    if (words.length >= 2 && words.length <= 3) {
+      return words.join(' ');
+    }
+    if (words.length === 1 && stripped.length < 40) {
+      return words[0];
+    }
+
     return null;
   }
 

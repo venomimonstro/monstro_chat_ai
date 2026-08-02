@@ -69,6 +69,7 @@ export type {
   SourceType,
   SourceStatus,
   WidgetAppearanceConfig,
+  WidgetSecurityConfig,
   WidgetPersonalizationConfig,
   WidgetBehaviorConfig,
   SourceConfig,
@@ -77,6 +78,7 @@ export type {
   WidgetPingRequest,
   SourceAiConfig,
   SourceLeadConfig,
+  LeadProfileMode,
 } from './source';
 export type {
   PromptDto,

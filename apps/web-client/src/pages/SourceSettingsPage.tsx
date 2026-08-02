@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { SourceConfig, SourceDto } from '@ai-consultant/shared-types';
+import type { SourceConfig, SourceDto, LeadProfileMode } from '@ai-consultant/shared-types';
 import { DEFAULT_SOURCE_CONFIG } from '@ai-consultant/shared-types';
 import { api } from '../lib/api';
 import { updateSource } from '../lib/sources';
@@ -285,9 +285,98 @@ export function SourceSettingsPage() {
             </>
           )}
           {tab === 'general' && (
-            <p className="text-sm text-slate-500">
-              Widget key: <code className="text-xs">{source.widgetKey}</code>
-            </p>
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">
+                Widget key: <code className="text-xs">{source.widgetKey}</code>
+              </p>
+
+              <Field label="Сбор лидов в чате">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={config.ai?.leadExtraction?.enabled !== false}
+                    onChange={(e) =>
+                      patchAi({
+                        leadExtraction: {
+                          ...config.ai?.leadExtraction,
+                          enabled: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  Агент собирает контакты и создаёт лиды
+                </label>
+              </Field>
+
+              <Field label="Какие данные собирать">
+                <select
+                  value={config.ai?.leadExtraction?.profileMode ?? 'phone'}
+                  onChange={(e) =>
+                    patchAi({
+                      leadExtraction: {
+                        ...config.ai?.leadExtraction,
+                        enabled: config.ai?.leadExtraction?.enabled !== false,
+                        profileMode: e.target.value as LeadProfileMode,
+                      },
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="phone">Только телефон</option>
+                  <option value="phone_name">Телефон + имя</option>
+                  <option value="phone_name_surname">Телефон + имя + фамилия</option>
+                  <option value="phone_name_surname_email">
+                    Телефон + имя + фамилия + email
+                  </option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  Агент будет мягко запрашивать недостающие поля в диалоге
+                </p>
+              </Field>
+
+              <Field label="Защита от спама (сообщений в минуту)">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    type="number"
+                    min={3}
+                    max={60}
+                    placeholder="На посетителя (8)"
+                    value={config.security?.rateLimitPerMinute ?? ''}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        security: {
+                          ...c.security,
+                          rateLimitPerMinute: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        },
+                      }))
+                    }
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    min={10}
+                    max={200}
+                    placeholder="На IP (40)"
+                    value={config.security?.ipRateLimitPerMinute ?? ''}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        security: {
+                          ...c.security,
+                          ipRateLimitPerMinute: e.target.value
+                            ? Number(e.target.value)
+                            : undefined,
+                        },
+                      }))
+                    }
+                    className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </Field>
+            </div>
           )}
           <button
             type="button"
