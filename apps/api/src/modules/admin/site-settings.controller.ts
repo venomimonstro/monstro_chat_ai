@@ -5,6 +5,7 @@ import { RequirePermission } from '../../common/decorators/auth.decorators';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { SiteSettingsService } from './services/site-settings.service';
 import { DiagnosticsTokenService } from './services/diagnostics-token.service';
+import { PlatformWorkspaceService } from './services/platform-workspace.service';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 
 @Controller('admin/site-settings')
@@ -13,6 +14,7 @@ export class SiteSettingsController {
   constructor(
     private readonly siteSettings: SiteSettingsService,
     private readonly diagnostics: DiagnosticsTokenService,
+    private readonly platformWorkspace: PlatformWorkspaceService,
   ) {}
 
   @Get()
@@ -39,5 +41,15 @@ export class SiteSettingsController {
   async regenerateDiagnosticsLink() {
     const token = await this.diagnostics.regenerate();
     return { token, ...this.diagnostics.buildPublicUrls(token) };
+  }
+
+  @Post('sync-platform-widget')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  async syncPlatformWidget() {
+    const workspace = await this.platformWorkspace.getWorkspace();
+    return this.siteSettings.update({
+      demoWidgetKey: workspace.widgetKey,
+      chatEnabled: true,
+    });
   }
 }

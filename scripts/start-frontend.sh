@@ -27,6 +27,10 @@ install_node() {
 
 build_frontends() {
   log "Собираю фронтенд (3–5 мин)..."
+  local ip
+  ip=$(detect_ip)
+  export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
+  export VITE_WIDGET_URL="http://${ip}:5175"
   # Только фронтенд — без API (argon2 не нужен на хосте)
   npm install \
     --workspace=@ai-consultant/shared-types \

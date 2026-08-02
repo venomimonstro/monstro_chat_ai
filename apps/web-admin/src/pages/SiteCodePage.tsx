@@ -57,10 +57,10 @@ export function SiteCodePage() {
       )}
 
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-        <h2 className="text-lg font-semibold text-slate-100">Произвольный код</h2>
+        <h2 className="text-lg font-semibold text-slate-100">Дополнительный код</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Вставьте HTML/JS для чата (Jivo, Carrot quest), аналитики, пикселей и любых других
-          скриптов. Код применяется только к публичному сайту.
+          Метрика, пиксели, A/B-тесты и любой другой HTML/JS на публичном лендинге. AI-чат
+          подключается автоматически — здесь его настраивать не нужно.
         </p>
 
         <label className="mt-4 block">
@@ -111,8 +111,8 @@ export function SiteCodePage() {
       </section>
 
       <EmptyState
-        title="Пример: виджет Jivo"
-        description={'Вставьте в «Конец body» скрипт из личного кабинета Jivo. Наш виджет AI и внешний чат могут работать одновременно.'}
+        title="Пример: Яндекс.Метрика"
+        description="Вставьте счётчик в «head» или GTM noscript в начало body. AI-виджет чата работает отдельно — вкладка «Чат и виджет»."
       />
     </div>
   );

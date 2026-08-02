@@ -52,7 +52,7 @@ export default async function RootLayout({
         <SiteHeader />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
-        <SiteChatWidgetHost initial={demo.enabled ? demo : null} />
+        <SiteChatWidgetHost initial={demo} />
       </body>
     </html>
   );

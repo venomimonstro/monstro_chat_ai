@@ -45,7 +45,7 @@ export async function fetchDemoWidget() {
   const apiBase = getServerApiBase();
   try {
     const res = await fetch(`${apiBase}/public/demo-widget`, {
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
     if (!res.ok) {
       return {

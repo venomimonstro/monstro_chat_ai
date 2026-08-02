@@ -9,6 +9,7 @@
     "build": "npm run build:iframe && npm run build:embed",
     "build:iframe": "vite build",
     "build:embed": "node scripts/build-embed.mjs",
+    "start": "node scripts/serve-static.mjs",
     "lint": "tsc --noEmit",
     "test": "node scripts/check-embed-size.mjs"
   },

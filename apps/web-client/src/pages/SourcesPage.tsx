@@ -9,7 +9,7 @@ import { ChannelSetupPanel } from '../components/ChannelSetupPanel';
 import type { SourceType } from '@ai-consultant/shared-types';
 
 const WIDGET_SCRIPT_URL =
-  import.meta.env.VITE_WIDGET_SCRIPT_URL ?? 'http://localhost:5175/dist/embed.js';
+  import.meta.env.VITE_WIDGET_SCRIPT_URL ?? 'http://localhost:5175/embed.js';
 
 export function SourcesPage() {
   const [sources, setSources] = useState<SourceDto[]>([]);

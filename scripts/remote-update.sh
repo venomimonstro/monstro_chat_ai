@@ -100,10 +100,25 @@ wait_for_api() {
   return 1
 }
 
+rebuild_widget() {
+  log "Пересобираю AI-виджет (embed.js + iframe)..."
+  cd "${INSTALL_DIR}"
+  if systemctl is-active --quiet monstro-widget 2>/dev/null; then
+    bash "${INSTALL_DIR}/scripts/start-widget.sh"
+    return
+  fi
+  warn "Запускаю виджет через start-widget.sh..."
+  bash "${INSTALL_DIR}/scripts/start-widget.sh"
+}
+
 rebuild_frontends() {
   log "Пересобираю фронтенд (ЛК + админка)..."
   cd "${INSTALL_DIR}"
   ensure_node
+  local ip
+  ip=$(detect_ip)
+  export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
+  export VITE_WIDGET_URL="http://${ip}:5175"
   npm install \
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/web-client \
@@ -172,7 +187,8 @@ print_done() {
   echo "=============================================="
   echo ""
   echo "  API:       http://${ip}:3000/api/health"
-  echo "  Админка:   http://${ip}:5174  → Сайт / чат"
+  echo "  Виджет:    http://${ip}:5175/embed.js"
+  echo "  Админка:   http://${ip}:5174  → Настройки сайта"
   echo "  Сайт:      http://${ip}:4321"
   echo ""
   echo "  Проверка:  curl http://${ip}:3000/api/public/demo-widget"
@@ -190,6 +206,7 @@ main() {
     docker compose -f "${INSTALL_DIR}/docker-compose.yml" logs api --tail 40
     fail "API не поднялся"
   }
+  rebuild_widget
   rebuild_frontends
   rebuild_public_site
   verify_update || fail "Обновление не применилось — пришлите вывод этой команды"

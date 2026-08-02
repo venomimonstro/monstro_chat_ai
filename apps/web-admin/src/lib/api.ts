@@ -301,6 +301,14 @@ export async function regenerateDiagnosticsLink() {
   return res.data;
 }
 
+export async function syncPlatformWidget() {
+  await ensureCsrfToken();
+  const res = await api.post<import('@ai-consultant/shared-types').PublicSiteSettingsDto>(
+    '/admin/site-settings/sync-platform-widget',
+  );
+  return res.data;
+}
+
 export async function updateSiteSettings(
   data: import('@ai-consultant/shared-types').UpdatePublicSiteSettingsDto,
 ) {

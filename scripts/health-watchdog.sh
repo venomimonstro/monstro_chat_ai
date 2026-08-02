@@ -9,6 +9,7 @@ API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 CLIENT_PORT="${CLIENT_PORT:-5173}"
 ADMIN_PORT="${ADMIN_PORT:-5174}"
 PUBLIC_PORT="${PUBLIC_PORT:-4321}"
+WIDGET_PORT="${WIDGET_PORT:-5175}"
 
 log() { echo "[$(date -Iseconds)] $*"; }
 
@@ -71,6 +72,10 @@ main() {
   }
   check_url "Public site" "http://127.0.0.1:${PUBLIC_PORT}/" || {
     restart_service monstro-public-site
+    failed=1
+  }
+  check_url "AI widget" "http://127.0.0.1:${WIDGET_PORT}/health.txt" '^ok' || {
+    restart_service monstro-widget
     failed=1
   }
 

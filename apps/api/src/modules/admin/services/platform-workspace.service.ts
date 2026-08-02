@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { randomBytes } from 'crypto';
@@ -27,7 +27,7 @@ interface StoredWorkspace {
 }
 
 @Injectable()
-export class PlatformWorkspaceService {
+export class PlatformWorkspaceService implements OnModuleInit {
   private readonly logger = new Logger(PlatformWorkspaceService.name);
 
   constructor(
@@ -38,6 +38,21 @@ export class PlatformWorkspaceService {
     private readonly adminTenants: AdminTenantsService,
     private readonly config: ConfigService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    setImmediate(() => {
+      this.bootstrap().catch((error) => {
+        this.logger.warn(
+          `Platform workspace bootstrap deferred: ${error instanceof Error ? error.message : error}`,
+        );
+      });
+    });
+  }
+
+  /** Ensures platform tenant + widget key exist (public site AI chat). */
+  async bootstrap(): Promise<void> {
+    await this.ensureWorkspace();
+  }
 
   async getWorkspace(): Promise<PlatformWorkspaceDto> {
     const workspace = await this.ensureWorkspace();
@@ -180,9 +195,11 @@ export class PlatformWorkspaceService {
 
   private async syncDemoWidgetKey(widgetKey: string): Promise<void> {
     const current = this.siteSettings.getPublicConfig();
-    if (!current.demoWidgetKey?.trim()) {
-      await this.siteSettings.update({ demoWidgetKey: widgetKey });
-    }
+    if (current.demoWidgetKey?.trim()) return;
+    await this.siteSettings.update({
+      demoWidgetKey: widgetKey,
+      chatEnabled: true,
+    });
   }
 
   private async loadStored(): Promise<StoredWorkspace | null> {

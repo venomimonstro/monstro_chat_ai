@@ -48,7 +48,8 @@ LOGIN=$(curl -s -X POST http://localhost:3000/api/auth/login \
 echo "$LOGIN" | grep -q '"email"' || { echo "$LOGIN"; exit 1; }
 echo "OK: client login works"
 
-log "5/5 Запуск фронтенда и публичного сайта..."
+log "5/6 Запуск фронтенда, виджета и публичного сайта..."
+bash scripts/start-widget.sh || warn "Виджет не запустился"
 bash scripts/start-frontend.sh || warn "Фронтенд не запустился — проверьте место на диске"
 bash scripts/start-public-site.sh || warn "Публичный сайт не запустился"
 

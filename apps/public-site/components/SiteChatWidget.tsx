@@ -17,7 +17,7 @@ export function SiteChatWidget({
 }: SiteChatWidgetProps) {
   if (!widgetKey) return null;
 
-  const scriptSrc = `${widgetUrl ?? siteConfig.widgetUrl}/embed.js`;
+  const scriptSrc = `${(widgetUrl ?? siteConfig.widgetUrl).replace(/\/$/, '')}/embed.js`;
   const resolvedApiUrl = getBrowserApiBase(apiUrl);
   const resolvedWidgetUrl = widgetUrl ?? siteConfig.widgetUrl;
 

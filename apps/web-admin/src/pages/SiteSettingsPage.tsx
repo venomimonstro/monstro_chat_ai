@@ -4,6 +4,7 @@ import {
   fetchPlatformWorkspace,
   fetchSiteSettings,
   openPlatformWorkspace,
+  syncPlatformWidget,
   updateSiteSettings,
 } from '../lib/api';
 import type { PlatformWorkspaceDto, PublicSiteSettingsDto } from '@ai-consultant/shared-types';
@@ -16,6 +17,7 @@ export function SiteSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [openingWorkspace, setOpeningWorkspace] = useState(false);
+  const [syncingWidget, setSyncingWidget] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const [demoWidgetKey, setDemoWidgetKey] = useState('');
@@ -65,6 +67,22 @@ export function SiteSettingsPage() {
     }
   };
 
+  const syncWidget = async () => {
+    setSyncingWidget(true);
+    setMessage(null);
+    try {
+      const updated = await syncPlatformWidget();
+      setSettings(updated);
+      setDemoWidgetKey(updated.demoWidgetKey);
+      setChatEnabled(updated.chatEnabled);
+      setMessage('Ключ AI-виджета платформы применён — чат появится на публичном сайте');
+    } catch (err) {
+      setMessage(extractApiError(err, 'Не удалось синхронизировать виджет'));
+    } finally {
+      setSyncingWidget(false);
+    }
+  };
+
   const openWorkspace = async () => {
     setOpeningWorkspace(true);
     try {
@@ -111,14 +129,20 @@ export function SiteSettingsPage() {
         )}
 
         <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
-          <h2 className="text-lg font-semibold text-slate-100">Виджет чата</h2>
+          <h2 className="text-lg font-semibold text-slate-100">AI-чат на публичном сайте</h2>
           <p className="mt-1 text-sm text-slate-400">
-            Укажите ключ виджета (widget key) из источника клиента. Чат появится
-            на публичном сайте в правом нижнем углу.
+            Наш виджет AI-консультанта в правом нижнем углу — тот же, что клиенты ставят на свои
+            сайты после регистрации или покупки тарифа. Ключ создаётся автоматически для платформы.
           </p>
 
+          {workspace && demoWidgetKey !== workspace.widgetKey && (
+            <p className="mt-3 rounded-lg border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-200">
+              Ключ не совпадает с платформенным источником ({workspace.widgetKey.slice(0, 12)}…).
+            </p>
+          )}
+
           <label className="mt-4 block">
-            <span className="text-sm text-slate-300">Widget key</span>
+            <span className="text-sm text-slate-300">Widget key (источник «Публичный сайт»)</span>
             <input
               type="text"
               value={demoWidgetKey}
@@ -128,6 +152,19 @@ export function SiteSettingsPage() {
             />
           </label>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            {workspace && (
+              <button
+                type="button"
+                disabled={syncingWidget}
+                onClick={syncWidget}
+                className="rounded-lg border border-brand-600/50 px-3 py-2 text-sm text-brand-300 hover:bg-brand-950/30 disabled:opacity-50"
+              >
+                {syncingWidget ? 'Синхронизация…' : 'Применить ключ платформы'}
+              </button>
+            )}
+          </div>
+
           <label className="mt-4 flex items-center gap-2">
             <input
               type="checkbox"
@@ -135,7 +172,7 @@ export function SiteSettingsPage() {
               onChange={(e) => setChatEnabled(e.target.checked)}
               className="rounded border-slate-600"
             />
-            <span className="text-sm text-slate-300">Показывать чат на сайте</span>
+            <span className="text-sm text-slate-300">Показывать AI-чат на публичном сайте</span>
           </label>
 
           <div className="mt-4 rounded-lg bg-slate-800/50 p-3 text-xs text-slate-400">

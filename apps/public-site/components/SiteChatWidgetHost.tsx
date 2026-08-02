@@ -20,8 +20,11 @@ interface SiteChatWidgetHostProps {
 
 export function SiteChatWidgetHost({ initial }: SiteChatWidgetHostProps) {
   const [demo, setDemo] = useState<DemoWidgetConfig | null>(
-    initial?.enabled && initial.demoWidgetKey ? initial : null,
+    initial?.chatEnabled && initial.demoWidgetKey
+      ? { ...initial, apiUrl: getBrowserApiBase(initial.apiUrl) }
+      : null,
   );
+  const [loading, setLoading] = useState(!demo);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,32 +34,35 @@ export function SiteChatWidgetHost({ initial }: SiteChatWidgetHostProps) {
         const res = await fetch('/api/public/demo-widget', { cache: 'no-store' });
         if (!res.ok) return;
         const data = (await res.json()) as DemoWidgetConfig;
-        if (!cancelled && data.enabled && data.demoWidgetKey) {
+        if (cancelled) return;
+
+        if (data.chatEnabled && data.demoWidgetKey) {
           setDemo({
             ...data,
             apiUrl: getBrowserApiBase(data.apiUrl),
           });
+        } else {
+          setDemo(null);
         }
       } catch {
-        /* widget optional */
+        /* optional */
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
-    if (!demo) {
-      void load();
-    }
-
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [demo]);
+  }, []);
 
-  if (!demo?.demoWidgetKey) return null;
+  if (loading || !demo?.demoWidgetKey) return null;
 
   return (
     <SiteChatWidget
       widgetKey={demo.demoWidgetKey}
-      apiUrl={getBrowserApiBase(demo.apiUrl)}
+      apiUrl={demo.apiUrl}
       widgetUrl={demo.widgetUrl}
     />
   );

@@ -65,6 +65,10 @@ export class StabilityMonitorService {
       'STABILITY_PUBLIC_URL',
       this.config.get<string>('PUBLIC_SITE_URL', 'http://127.0.0.1:4321'),
     );
+    const widgetUrl = this.config.get<string>(
+      'STABILITY_WIDGET_URL',
+      this.config.get<string>('WIDGET_URL', 'http://127.0.0.1:5175'),
+    );
 
     return [
       {
@@ -107,6 +111,12 @@ export class StabilityMonitorService {
         component: 'public_site',
         label: 'Публичный сайт',
         url: publicUrl,
+      },
+      {
+        component: 'widget_embed',
+        label: 'AI-виджет',
+        url: `${widgetUrl.replace(/\/$/, '')}/health.txt`,
+        expect: /^ok$/m,
       },
     ];
   }
