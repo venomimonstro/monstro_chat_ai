@@ -294,13 +294,18 @@ export class AdminController {
     if (!user) {
       throw new NotFoundException('Пользователь не найден');
     }
-    await this.authService.attachRefreshSession(user, res, true);
+    const refreshTokenId = await this.authService.attachRefreshSession(
+      user,
+      res,
+      true,
+    );
     const csrfToken = this.authService.applyAccessSession(
       res,
       req,
       accessToken,
       'client',
     );
+    await this.authService.bindCsrfSession(refreshTokenId, csrfToken);
     return { success: true, csrfToken };
   }
 

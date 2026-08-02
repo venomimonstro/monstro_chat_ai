@@ -16,6 +16,7 @@ import { Request, Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../common/email/email.service';
 import { TokenService } from './token.service';
+import { CsrfTokenService } from './csrf-token.service';
 import { TwoFaCryptoService } from './two-fa-crypto.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 import { AccessTokenPayload } from '../../common/interfaces/jwt-payload.interface';
@@ -37,6 +38,7 @@ const TRIAL_DAYS = 7;
 
 export interface AuthTokensResponse {
   accessToken?: string;
+  csrfToken?: string;
   user: {
     id: string;
     email: string;
@@ -59,6 +61,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly emailService: EmailService,
     private readonly tokenService: TokenService,
+    private readonly csrfTokens: CsrfTokenService,
     private readonly twoFaCrypto: TwoFaCryptoService,
   ) {
     this.accessTtl = this.config.get<string>('JWT_ACCESS_TTL', '15m');
@@ -370,7 +373,7 @@ export class AuthService {
     refreshToken: string,
     res: Response,
     req: Request,
-  ): Promise<{ success: true }> {
+  ): Promise<{ success: true; csrfToken: string }> {
     if (!refreshToken) {
       throw new UnauthorizedException('Refresh token отсутствует');
     }
@@ -399,12 +402,14 @@ export class AuthService {
       user,
       data.twoFaVerified ?? false,
     );
-    this.applyAccessSession(res, req, accessToken);
-    return { success: true };
+    const csrfToken = this.applyAccessSession(res, req, accessToken);
+    await this.csrfTokens.bind(refreshToken, csrfToken);
+    return { success: true, csrfToken };
   }
 
   async logout(refreshToken: string, res: Response) {
     if (refreshToken) {
+      await this.csrfTokens.clear(refreshToken);
       await this.tokenService.revokeRefreshToken(refreshToken);
     }
     this.clearSessionCookies(res);
@@ -430,7 +435,7 @@ export class AuthService {
     user: User,
     res: Response,
     twoFaVerified = true,
-  ): Promise<void> {
+  ): Promise<string> {
     const tokenId = randomUUID();
     await this.tokenService.storeRefreshToken({
       userId: user.id,
@@ -440,6 +445,11 @@ export class AuthService {
       sessionVersion: user.sessionVersion,
     });
     this.setRefreshCookie(res, tokenId);
+    return tokenId;
+  }
+
+  async bindCsrfSession(refreshTokenId: string, csrfToken: string): Promise<void> {
+    await this.csrfTokens.bind(refreshTokenId, csrfToken);
   }
 
   private async issueTokens(
@@ -460,10 +470,12 @@ export class AuthService {
     this.setRefreshCookie(res, tokenId);
 
     const accessToken = this.signAccessToken(user, twoFaVerified);
-    this.applyAccessSession(res, req, accessToken);
+    const csrfToken = this.applyAccessSession(res, req, accessToken);
+    await this.csrfTokens.bind(tokenId, csrfToken);
 
     return {
       user: this.sanitizeUser(user),
+      csrfToken,
     };
   }
 

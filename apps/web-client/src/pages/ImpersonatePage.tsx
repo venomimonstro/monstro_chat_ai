@@ -17,6 +17,8 @@ export function ImpersonatePage() {
       return;
     }
 
+    setCsrfToken(null);
+
     api
       .post<{ success: boolean; csrfToken?: string }>(
         '/admin/impersonation/exchange',
@@ -27,7 +29,10 @@ export function ImpersonatePage() {
           setCsrfToken(res.data.csrfToken);
         }
         await ensureCsrfToken();
-        await refreshSession();
+        const ok = await refreshSession();
+        if (!ok) {
+          throw new Error('Не удалось установить сессию');
+        }
         navigate('/', { replace: true });
       })
       .catch((err) => {

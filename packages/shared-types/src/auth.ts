@@ -15,6 +15,7 @@ export interface ImpersonationInfo {
 
 export interface AuthResponse {
   accessToken?: string;
+  csrfToken?: string;
   user: AuthUser;
   requires2fa?: boolean;
   requires2faSetup?: boolean;

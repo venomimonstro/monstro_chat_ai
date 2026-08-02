@@ -66,6 +66,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     PushModule,
   ],
   providers: [
+    CsrfMiddleware,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TwoFaRequiredGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },

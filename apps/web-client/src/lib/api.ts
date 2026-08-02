@@ -29,6 +29,17 @@ export async function ensureCsrfToken(): Promise<string | null> {
   } catch {
     /* ignore */
   }
+  try {
+    const res = await api.post<{ success: boolean; csrfToken?: string }>(
+      '/auth/refresh',
+    );
+    if (res.data.csrfToken) {
+      setCsrfToken(res.data.csrfToken);
+      return res.data.csrfToken;
+    }
+  } catch {
+    /* ignore */
+  }
   return getCsrfToken();
 }
 
@@ -54,9 +65,13 @@ let refreshPromise: Promise<boolean> | null = null;
 async function refreshSession(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = api
-      .post<{ success: boolean }>('/auth/refresh')
-      .then(async () => {
-        await ensureCsrfToken();
+      .post<{ success: boolean; csrfToken?: string }>('/auth/refresh')
+      .then(async (res) => {
+        if (res.data.csrfToken) {
+          setCsrfToken(res.data.csrfToken);
+        } else {
+          await ensureCsrfToken();
+        }
         return true;
       })
       .catch(() => false)

@@ -17,9 +17,45 @@ import type {
   Verify2faRequest,
 } from '@ai-consultant/shared-types';
 
-function getCsrfToken(): string | null {
+function getCsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/(?:^|; )aicw_csrf=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+let csrfTokenMemory: string | null = null;
+
+export function setCsrfToken(token: string | null) {
+  csrfTokenMemory = token;
+}
+
+function getCsrfToken(): string | null {
+  return csrfTokenMemory ?? getCsrfTokenFromCookie();
+}
+
+export async function ensureCsrfToken(): Promise<string | null> {
+  const existing = getCsrfToken();
+  if (existing) return existing;
+  try {
+    const res = await api.get<{ token: string | null }>('/auth/csrf');
+    if (res.data.token) {
+      setCsrfToken(res.data.token);
+      return res.data.token;
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const res = await api.post<{ success: boolean; csrfToken?: string }>(
+      '/auth/refresh',
+    );
+    if (res.data.csrfToken) {
+      setCsrfToken(res.data.csrfToken);
+      return res.data.csrfToken;
+    }
+  } catch {
+    /* ignore */
+  }
+  return getCsrfToken();
 }
 
 export const api = axios.create({
@@ -28,10 +64,10 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const method = config.method?.toUpperCase();
   if (method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = getCsrfToken();
+    const csrf = getCsrfToken() ?? (await ensureCsrfToken());
     if (csrf) {
       config.headers['X-CSRF-Token'] = csrf;
     }
@@ -44,8 +80,15 @@ let refreshPromise: Promise<boolean> | null = null;
 async function refreshSession(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = api
-      .post<{ success: boolean }>('/auth/refresh')
-      .then(() => true)
+      .post<{ success: boolean; csrfToken?: string }>('/auth/refresh')
+      .then(async (res) => {
+        if (res.data.csrfToken) {
+          setCsrfToken(res.data.csrfToken);
+        } else {
+          await ensureCsrfToken();
+        }
+        return true;
+      })
       .catch(() => false)
       .finally(() => {
         refreshPromise = null;
@@ -58,6 +101,18 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (
+      error.response?.status === 403 &&
+      original &&
+      !original._csrfRetry &&
+      typeof error.response?.data?.message === 'string' &&
+      error.response.data.message.includes('CSRF')
+    ) {
+      original._csrfRetry = true;
+      setCsrfToken(null);
+      await ensureCsrfToken();
+      return api(original);
+    }
     if (
       error.response?.status === 401 &&
       original &&
@@ -82,11 +137,17 @@ export async function loginAdmin(email: string, password: string) {
     email,
     password,
   });
+  if (res.data.csrfToken) {
+    setCsrfToken(res.data.csrfToken);
+  }
   return res.data;
 }
 
 export async function verifyAdmin2fa(data: Verify2faRequest) {
   const res = await api.post<AuthResponse>('/auth/2fa/verify', data);
+  if (res.data.csrfToken) {
+    setCsrfToken(res.data.csrfToken);
+  }
   return res.data;
 }
 
@@ -189,6 +250,7 @@ export async function fetchPlatformWorkspace() {
 }
 
 export async function openPlatformWorkspace() {
+  await ensureCsrfToken();
   const res = await api.post<import('@ai-consultant/shared-types').ImpersonateResponseDto>(
     '/admin/platform-workspace/open',
   );

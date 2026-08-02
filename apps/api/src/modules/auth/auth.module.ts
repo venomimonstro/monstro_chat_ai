@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
 import { TwoFaCryptoService } from './two-fa-crypto.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { CsrfTokenService } from './csrf-token.service';
 import { RbacModule } from '../../common/rbac/rbac.module';
 
 @Module({
@@ -23,7 +24,7 @@ import { RbacModule } from '../../common/rbac/rbac.module';
     RbacModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, TokenService, TwoFaCryptoService, JwtStrategy],
-  exports: [AuthService, TokenService, TwoFaCryptoService, JwtModule],
+  providers: [AuthService, TokenService, TwoFaCryptoService, CsrfTokenService, JwtStrategy],
+  exports: [AuthService, TokenService, TwoFaCryptoService, CsrfTokenService, JwtModule],
 })
 export class AuthModule {}

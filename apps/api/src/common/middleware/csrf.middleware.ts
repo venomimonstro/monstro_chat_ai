@@ -3,8 +3,10 @@ import {
   Injectable,
   NestMiddleware,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
-import { CSRF_COOKIE } from '../constants/cookies';
+import { CSRF_COOKIE, REFRESH_COOKIE } from '../constants/cookies';
+import { CsrfTokenService } from '../../modules/auth/csrf-token.service';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -26,7 +28,12 @@ const CSRF_SKIP_PREFIXES = [
 
 @Injectable()
 export class CsrfMiddleware implements NestMiddleware {
-  use(req: Request, _res: Response, next: NextFunction) {
+  constructor(
+    private readonly csrfTokens: CsrfTokenService,
+    private readonly config: ConfigService,
+  ) {}
+
+  async use(req: Request, res: Response, next: NextFunction) {
     if (SAFE_METHODS.has(req.method)) {
       next();
       return;
@@ -40,11 +47,42 @@ export class CsrfMiddleware implements NestMiddleware {
 
     const cookieToken = req.cookies?.[CSRF_COOKIE] as string | undefined;
     const headerToken = req.headers['x-csrf-token'] as string | undefined;
+    const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
 
-    if (!cookieToken || !headerToken || cookieToken !== headerToken) {
-      throw new ForbiddenException('Недействительный CSRF-токен');
+    if (cookieToken && headerToken && cookieToken === headerToken) {
+      next();
+      return;
     }
 
-    next();
+    if (headerToken && refreshToken) {
+      const valid = await this.csrfTokens.validate(refreshToken, headerToken);
+      if (valid) {
+        if (!cookieToken) {
+          this.setCsrfCookie(res, headerToken);
+        }
+        next();
+        return;
+      }
+    }
+
+    throw new ForbiddenException('Недействительный CSRF-токен');
+  }
+
+  private setCsrfCookie(res: Response, token: string) {
+    res.cookie(CSRF_COOKIE, token, {
+      httpOnly: false,
+      secure: this.cookiesSecure(),
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
+
+  private cookiesSecure(): boolean {
+    const explicit = this.config.get<string>('COOKIE_SECURE');
+    if (explicit === 'true' || explicit === '1') return true;
+    if (explicit === 'false' || explicit === '0') return false;
+    const publicUrl = this.config.get<string>('API_PUBLIC_URL', '');
+    return publicUrl.startsWith('https://');
   }
 }
