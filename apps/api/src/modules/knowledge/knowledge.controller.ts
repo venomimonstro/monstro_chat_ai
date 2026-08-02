@@ -15,7 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeService } from './knowledge.service';
 import { StorageService } from './services/storage.service';
-import { StartCrawlDto } from './dto/knowledge.dto';
+import { StartCrawlDto, AddManualTextDto, UpdateManualTextDto } from './dto/knowledge.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../../common/decorators/auth.decorators';
@@ -121,5 +121,43 @@ export class KnowledgeController {
     @Param('id') id: string,
   ) {
     return this.knowledgeService.excludeDocument(user.tenantId!, id);
+  }
+
+  @Post('text')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  addManualText(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddManualTextDto,
+  ) {
+    return this.knowledgeService.addManualText(
+      user.tenantId!,
+      dto.sourceId,
+      dto.title,
+      dto.content,
+    );
+  }
+
+  @Get('text/:id')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  getManualText(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.knowledgeService.getManualTextContent(user.tenantId!, id);
+  }
+
+  @Patch('text/:id')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  updateManualText(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateManualTextDto,
+  ) {
+    return this.knowledgeService.updateManualText(
+      user.tenantId!,
+      id,
+      dto.title,
+      dto.content,
+    );
   }
 }

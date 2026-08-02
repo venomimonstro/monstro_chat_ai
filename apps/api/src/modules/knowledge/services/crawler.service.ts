@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
 import { CRAWL_MAX_DEPTH } from '../constants';
@@ -13,6 +14,8 @@ export interface CrawledPage {
 export class CrawlerService {
   private readonly logger = new Logger(CrawlerService.name);
   private readonly fetchTimeoutMs = 15_000;
+
+  constructor(private readonly config: ConfigService) {}
 
   async fetchRobots(rootUrl: string): Promise<ReturnType<typeof robotsParser>> {
     const origin = new URL(rootUrl).origin;
@@ -55,6 +58,7 @@ export class CrawlerService {
       { url: normalizedRoot, depth: 0 },
     ];
     const pages: CrawledPage[] = [];
+    let lastError: string | null = null;
 
     while (queue.length > 0 && pages.length < pageLimit) {
       const current = queue.shift()!;
@@ -75,6 +79,8 @@ export class CrawlerService {
           if (onPage) {
             await onPage(page, pages.length, Math.min(pageLimit, visited.size));
           }
+        } else {
+          lastError = `Страница ${canonical} не содержит текста для индексации`;
         }
 
         if (current.depth < CRAWL_MAX_DEPTH) {
@@ -86,8 +92,23 @@ export class CrawlerService {
           }
         }
       } catch (error) {
-        this.logger.warn(`Failed to crawl ${canonical}: ${String(error)}`);
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = message;
+        this.logger.warn(`Failed to crawl ${canonical}: ${message}`);
       }
+    }
+
+    if (pages.length === 0) {
+      const hint =
+        this.getInternalFallbackUrl(normalizedRoot) != null
+          ? ' API в Docker: попробуйте тот же путь через внутренний адрес или проверьте CRAWL_INTERNAL_ORIGIN.'
+          : '';
+      throw new Error(
+        (lastError
+          ? `Не удалось проиндексировать сайт: ${lastError}`
+          : 'Не удалось получить ни одной страницы. Проверьте URL и доступность сайта с сервера API.') +
+          hint,
+      );
     }
 
     return pages;
@@ -95,9 +116,21 @@ export class CrawlerService {
 
   extractTextFromHtml(html: string): { title: string; text: string; html: string } {
     const $ = cheerio.load(html);
-    $('script, style, noscript, iframe').remove();
+    $('script, style, noscript, iframe, svg').remove();
+    $('nav, footer, header, [role="navigation"], [aria-hidden="true"]').remove();
+
     const title = $('title').first().text().trim() || 'Без названия';
-    const text = $('body').text().replace(/\s+/g, ' ').trim();
+
+    const mainSelectors = ['main', 'article', '[role="main"]', '#content', '.content'];
+    let text = '';
+    for (const selector of mainSelectors) {
+      const chunk = $(selector).first().text().replace(/\s+/g, ' ').trim();
+      if (chunk.length > text.length) text = chunk;
+    }
+    if (text.length < 120) {
+      text = $('body').text().replace(/\s+/g, ' ').trim();
+    }
+
     return { title, text, html };
   }
 
@@ -152,11 +185,32 @@ export class CrawlerService {
     }
   }
 
+  private getInternalFallbackUrl(url: string): string | null {
+    const publicSite = this.config.get<string>('PUBLIC_SITE_URL');
+    const internal =
+      this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
+      'http://host.docker.internal:4321';
+    if (!publicSite) return null;
+
+    try {
+      const target = new URL(url);
+      const pub = new URL(publicSite);
+      if (target.host !== pub.host) return null;
+      const internalBase = new URL(internal);
+      target.protocol = internalBase.protocol;
+      target.host = internalBase.host;
+      return target.href;
+    } catch {
+      return null;
+    }
+  }
+
   private isPrivateAddress(url: string): boolean {
     try {
       const parsed = new URL(url);
       const hostname = parsed.hostname.toLowerCase();
       if (hostname === 'localhost' || hostname.endsWith('.local')) return true;
+      if (hostname === 'host.docker.internal') return false;
       if (hostname.startsWith('127.') || hostname === '0.0.0.0') return true;
       if (hostname.startsWith('10.') || hostname.startsWith('192.168.')) return true;
       if (hostname.startsWith('172.')) {
@@ -178,12 +232,37 @@ export class CrawlerService {
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
+    const headers = { 'User-Agent': 'AI-Consultant-Crawler/1.0' };
+
     try {
-      return await fetch(url, {
+      const response = await fetch(url, {
         signal: controller.signal,
-        headers: { 'User-Agent': 'AI-Consultant-Crawler/1.0' },
+        headers,
         redirect: 'follow',
       });
+      if (response.ok) return response;
+
+      const fallback = this.getInternalFallbackUrl(url);
+      if (fallback && fallback !== url) {
+        this.logger.log(`Retry crawl via internal origin: ${fallback}`);
+        return await fetch(fallback, {
+          signal: controller.signal,
+          headers,
+          redirect: 'follow',
+        });
+      }
+      return response;
+    } catch (error) {
+      const fallback = this.getInternalFallbackUrl(url);
+      if (fallback && fallback !== url) {
+        this.logger.log(`Retry crawl via internal origin after error: ${fallback}`);
+        return await fetch(fallback, {
+          signal: controller.signal,
+          headers,
+          redirect: 'follow',
+        });
+      }
+      throw error;
     } finally {
       clearTimeout(timer);
     }

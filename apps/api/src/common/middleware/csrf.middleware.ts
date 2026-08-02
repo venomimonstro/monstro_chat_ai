@@ -19,6 +19,8 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const CSRF_SKIP_PREFIXES = [
   '/api/auth/login',
   '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
   '/api/auth/refresh',
   '/api/auth/logout',
   '/api/auth/2fa/verify',
