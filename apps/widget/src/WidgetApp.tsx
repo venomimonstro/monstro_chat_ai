@@ -7,7 +7,7 @@ import {
 import { COMMON_EMOJIS } from './constants/emojis';
 import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
-import { useViewport, useVisualViewportHeight } from './hooks/useViewport';
+import { useViewport } from './hooks/useViewport';
 import { dedupeMessages } from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
@@ -101,9 +101,7 @@ export function WidgetApp() {
   const { widgetKey, apiUrl, preview, attribution, hostLauncher, deferSocket, autoOpen } =
     useMemo(getParams, []);
   const viewport = useViewport();
-  const visualHeight = useVisualViewportHeight();
   const isMobile = viewport === 'mobile';
-  const isDesktop = viewport === 'desktop';
 
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [open, setOpen] = useState(preview || autoOpen);
@@ -415,6 +413,23 @@ export function WidgetApp() {
   const quickReplies =
     behavior.quickReplies ?? DEFAULT_SOURCE_CONFIG.behavior?.quickReplies ?? [];
 
+  const quickReplyChips =
+    quickReplies.length > 0 ? (
+      <div className="aicw-quick-replies" role="list">
+        {quickReplies.map((reply) => (
+          <button
+            key={reply}
+            type="button"
+            className="aicw-chip"
+            onClick={() => sendMessage(reply)}
+            disabled={!connected || !pdConsent}
+          >
+            {reply}
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   const toggleOpen = () => {
     setOpen((v) => !v);
     setEmojiOpen(false);
@@ -459,15 +474,12 @@ export function WidgetApp() {
     inputRef.current?.focus();
   };
 
-  const panelStyle: React.CSSProperties = {
-    [isLeft ? 'left' : 'right']: isMobile ? 12 : appearance.offsetX,
-    bottom: isMobile ? appearance.offsetY + 68 : appearance.offsetY + 68,
-    ...(isMobile && visualHeight
-      ? {
-          maxHeight: `${Math.min(visualHeight - appearance.offsetY - 80, 520)}px`,
-        }
-      : {}),
-  };
+  const panelStyle: React.CSSProperties = isMobile
+    ? { left: 0, right: 0, bottom: 0 }
+    : {
+        [isLeft ? 'left' : 'right']: appearance.offsetX,
+        bottom: appearance.offsetY + 60,
+      };
 
   const header = (
     <div
@@ -510,27 +522,6 @@ export function WidgetApp() {
       </button>
     </div>
   );
-
-  const faqSidebar =
-    isDesktop && quickReplies.length > 0 ? (
-      <aside className={`aicw-faq-sidebar ${isDark ? 'dark' : ''}`} aria-label="Частые вопросы">
-        <p className="aicw-faq-title">Частые вопросы</p>
-        <ul className="aicw-faq-list">
-          {quickReplies.map((reply) => (
-            <li key={reply}>
-              <button
-                type="button"
-                className="aicw-faq-item"
-                onClick={() => sendMessage(reply)}
-                disabled={!connected || !pdConsent}
-              >
-                {reply}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </aside>
-    ) : null;
 
   const consentScreen = (
     <div className={`aicw-consent ${isDark ? 'dark' : ''}`}>
@@ -582,21 +573,7 @@ export function WidgetApp() {
         <div className={`aicw-welcome ${isDark ? 'dark' : ''}`}>
           {personalization.welcomeMessage}
         </div>
-        {!isDesktop && messages.length === 0 && quickReplies.length > 0 && (
-          <div className="aicw-quick-replies" role="list">
-            {quickReplies.map((reply) => (
-              <button
-                key={reply}
-                type="button"
-                className="aicw-chip"
-                onClick={() => sendMessage(reply)}
-                disabled={!connected || !pdConsent}
-              >
-                {reply}
-              </button>
-            ))}
-          </div>
-        )}
+        {messages.length === 0 && quickReplyChips}
         {messages.map((msg, i) => {
           const isUser = msg.role === 'user';
           const showAvatar = !isUser && (i === 0 || messages[i - 1]?.role === 'user');
@@ -739,7 +716,6 @@ export function WidgetApp() {
     >
       {header}
       <div className="aicw-panel-inner">
-        {faqSidebar}
         <div className="aicw-chat-main">
           <div
             ref={bodyRef}

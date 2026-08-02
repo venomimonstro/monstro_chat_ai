@@ -17,11 +17,11 @@ export default async function PricingPage() {
       <section className="hero-gradient border-b border-slate-100 py-16 md:py-24">
         <div className="mx-auto max-w-6xl px-4 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
-            Простые и прозрачные тарифы
+            Платите за сообщения, не за лиды
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-            Выберите подходящий план и начните с бесплатного триала на 7 дней.
-            Без скрытых платежей и обязательств.
+            Прозрачные тарифы с лимитом сообщений. 7 дней бесплатно — без карты и скрытых
+            комиссий за каждую заявку.
           </p>
         </div>
       </section>

@@ -1,15 +1,20 @@
 import Link from 'next/link';
-import { WidgetDemo } from '@/components/WidgetDemo';
 import { JsonLd } from '@/components/JsonLd';
 import { FeatureCard } from '@/components/FeatureCard';
 import { FaqAccordion } from '@/components/FaqAccordion';
-import { fetchDemoWidget } from '@/lib/tariffs';
+import { ChatMockup } from '@/components/ChatMockup';
+import { PricingComparison } from '@/components/PricingComparison';
 import { siteConfig } from '@/lib/site';
-import { ChatIcon, BrainIcon, CrmIcon, ChartIcon, ShieldIcon, SetupIcon } from '@/components/icons';
+import {
+  ChatIcon,
+  BrainIcon,
+  CrmIcon,
+  ChartIcon,
+  ShieldIcon,
+  SetupIcon,
+} from '@/components/icons';
 
-export default async function HomePage() {
-  const demo = await fetchDemoWidget();
-
+export default function HomePage() {
   return (
     <div>
       <JsonLd
@@ -27,77 +32,99 @@ export default async function HomePage() {
           },
           aggregateRating: {
             '@type': 'AggregateRating',
-            ratingValue: '4.8',
-            reviewCount: '120',
+            ratingValue: '4.9',
+            reviewCount: '200',
           },
         }}
       />
 
       {/* Hero */}
-      <section className="hero-gradient relative overflow-hidden">
-        <div className="mx-auto max-w-6xl px-4 py-20 md:py-28">
-          <div className="grid items-center gap-12 md:grid-cols-2">
+      <section className="hero-dark relative overflow-hidden">
+        <div className="hero-grid absolute inset-0 opacity-40" aria-hidden />
+        <div className="relative mx-auto max-w-6xl px-4 py-16 md:py-24 lg:py-28">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <div>
-              <span className="inline-flex items-center rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
-                7 дней бесплатного триала
+              <span className="badge-glow inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-500/10 px-4 py-1.5 text-xs font-medium text-brand-200">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                7 дней бесплатно · без карты
               </span>
-              <h1 className="mt-6 text-4xl font-bold leading-tight tracking-tight text-slate-900 md:text-5xl lg:text-6xl">
-                Умный чат, который{' '}
-                <span className="gradient-text">продаёт за вас</span>
+              <h1 className="mt-6 text-4xl font-bold leading-[1.1] tracking-tight text-white md:text-5xl lg:text-[3.25rem]">
+                AI-продавец на сайте,{' '}
+                <span className="gradient-text-light">который не съедает бюджет</span>
               </h1>
-              <p className="mt-6 text-lg leading-8 text-slate-600">
-                AI-Консультант отвечает посетителям 24/7, собирает контакты и передаёт
-                готовые лиды в amoCRM или Битрикс24 — пока вы занимаетесь бизнесом.
+              <p className="mt-6 text-lg leading-relaxed text-slate-300">
+                Отвечает посетителям 24/7, собирает лиды в CRM — а вы платите{' '}
+                <strong className="font-semibold text-white">за сообщения</strong>, а не за
+                каждую заявку как у конкурентов.
               </p>
-              <div className="mt-8 flex flex-wrap gap-4">
+              <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/register" className="btn-primary">
-                  Начать бесплатно
+                  Запустить за 5 минут
                 </Link>
-                <Link href="/pricing" className="btn-secondary">
-                  Смотреть тарифы
-                </Link>
+                <a href="#compare" className="btn-ghost">
+                  Почему мы дешевле →
+                </a>
               </div>
-              <div className="mt-8 flex items-center gap-4 text-sm text-slate-500">
-                <div className="flex -space-x-2">
-                  {['bg-blue-400', 'bg-emerald-400', 'bg-amber-400', 'bg-rose-400'].map((c, i) => (
-                    <div key={i} className={`h-8 w-8 rounded-full border-2 border-white ${c}`} />
-                  ))}
-                </div>
-                <p>Уже используют 200+ компаний</p>
-              </div>
+              <ul className="mt-10 grid gap-3 sm:grid-cols-2">
+                {[
+                  'В 10–50× дешевле оплаты за лиды',
+                  'Запуск за 5 минут — один скрипт',
+                  'amoCRM и Битрикс24 из коробки',
+                  '152-ФЗ, изоляция данных',
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-2 text-sm text-slate-400">
+                    <span className="mt-0.5 text-brand-400" aria-hidden>
+                      ✓
+                    </span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <div className="relative">
-              <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-soft">
-                <WidgetDemo
-                  widgetKey={demo.demoWidgetKey}
-                  apiUrl={demo.apiUrl}
-                  widgetUrl={demo.widgetUrl}
-                  welcomeTitle={demo.welcomeTitle}
-                  welcomeText={demo.welcomeText}
-                  showEmbed={false}
-                />
-              </div>
-              <div className="absolute -right-6 -top-6 hidden h-24 w-24 rounded-full bg-brand-200/50 blur-2xl md:block" />
-              <div className="absolute -bottom-6 -left-6 hidden h-24 w-24 rounded-full bg-brand-300/30 blur-2xl md:block" />
-            </div>
+            <ChatMockup />
           </div>
         </div>
       </section>
 
-      {/* Stats / trust bar */}
-      <section className="border-y border-slate-100 bg-white">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2 md:grid-cols-4">
+      {/* Social proof bar */}
+      <section className="border-b border-slate-100 bg-white">
+        <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:grid-cols-2 md:grid-cols-4">
           {[
-            { value: '24/7', label: 'Режим работы' },
-            { value: '5 мин', label: 'До запуска виджета' },
-            { value: '35%', label: 'Рост конверсии в среднем' },
-            { value: '2 CRM', label: 'Интеграции из коробки' },
+            { value: '24/7', label: 'Без выходных и праздников' },
+            { value: '5 мин', label: 'До первого ответа клиенту' },
+            { value: '×10', label: 'Дешевле модели «за лид»' },
+            { value: '2 CRM', label: 'Интеграции без разработки' },
           ].map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-3xl font-bold text-brand-600">{stat.value}</p>
+            <div key={stat.label} className="text-center md:text-left">
+              <p className="text-2xl font-bold text-brand-600 md:text-3xl">{stat.value}</p>
               <p className="mt-1 text-sm text-slate-500">{stat.label}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Comparison — key differentiator */}
+      <section id="compare" className="scroll-mt-20 bg-slate-50 py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="text-sm font-semibold uppercase tracking-wider text-brand-600">
+              Ваше преимущество
+            </p>
+            <h2 className="section-title mt-3">
+              Платите за диалог, а не за каждый лид
+            </h2>
+            <p className="section-subtitle">
+              Конкуренты берут деньги за заявку — даже если клиент передумал. У нас
+              прозрачная оплата за сообщения и токены: расходы под контролем, масштаб
+              без сюрпризов.
+            </p>
+          </div>
+          <div className="mt-12">
+            <PricingComparison />
+          </div>
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Попробуйте чат прямо сейчас — синяя кнопка в правом нижнем углу страницы
+          </p>
         </div>
       </section>
 
@@ -105,118 +132,120 @@ export default async function HomePage() {
       <section className="bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
-            <h2 className="section-title">Всё, что нужно для общения с клиентами</h2>
+            <h2 className="section-title">Всё для продаж на автопилоте</h2>
             <p className="section-subtitle">
-              Без сложной настройки и найма дополнительных менеджеров
+              Как у лидеров рынка — но с честной моделью оплаты и полным контролем
             </p>
           </div>
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+          <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <FeatureCard
               icon={<ChatIcon />}
-              title="Отвечает вместо менеджера"
-              description="Агент понимает вопросы посетителей, отвечает на основе вашей базы знаний и не путается в деталях."
+              title="Мгновенные ответы 24/7"
+              description="AI отвечает за секунды, пока менеджеры спят. Ни один посетитель не уйдёт без ответа."
             />
             <FeatureCard
               icon={<BrainIcon />}
-              title="Обучается на ваших материалах"
-              description="Загрузите сайт, FAQ и документы. RAG-технология гарантирует точные ответы без домысливания."
+              title="Знает ваш бизнес"
+              description="Обучение на сайте, FAQ и документах. RAG исключает выдуманные ответы."
             />
             <FeatureCard
               icon={<CrmIcon />}
-              title="Собирает лиды в CRM"
-              description="Автоматически извлекает имя, телефон и email, создаёт лид и передаёт в amoCRM или Битрикс24."
+              title="Лиды в CRM автоматически"
+              description="Имя, телефон, email — сразу в amoCRM или Битрикс24 с контекстом диалога."
             />
             <FeatureCard
               icon={<ChartIcon />}
-              title="Аналитика и прозрачность"
-              description="Смотрите диалоги, конверсию, популярные вопросы и эффективность источников в одном окне."
+              title="Аналитика и ROI"
+              description="Диалоги, конверсия, расход токенов — видите, сколько стоит каждый канал."
             />
             <FeatureCard
               icon={<ShieldIcon />}
-              title="Безопасность и 152-ФЗ"
-              description="Изоляция данных по клиентам, HTTPS, ролевая модель и готовые документы для compliance."
+              title="152-ФЗ и безопасность"
+              description="Изоляция данных, HTTPS, согласие на обработку ПД, ролевой доступ."
             />
             <FeatureCard
               icon={<SetupIcon />}
-              title="Установка за 5 минут"
-              description="Скопируйте один JS-скрипт на сайт — виджет сразу готов к работе."
+              title="Один скрипт — готово"
+              description="Вставьте embed-код на сайт. Виджет лёгкий и не тормозит загрузку страницы."
             />
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section className="bg-slate-50 py-20 md:py-28">
+      <section className="bg-slate-900 py-20 text-white md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
-            <h2 className="section-title">Как это работает</h2>
-            <p className="section-subtitle">От регистрации до первого лида — три простых шага</p>
+            <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+              Три шага до первых лидов
+            </h2>
+            <p className="mt-4 text-lg text-slate-400">
+              Быстрее, чем демо у конкурентов — без созвонов и ожидания
+            </p>
           </div>
-          <div className="mt-14 grid gap-8 md:grid-cols-3">
+          <div className="mt-14 grid gap-6 md:grid-cols-3">
             {[
               {
                 step: '01',
-                title: 'Создайте источник',
-                text: 'Укажите название сайта и получите уникальный код виджета.',
+                title: 'Регистрация и источник',
+                text: 'Создайте аккаунт, добавьте сайт — получите код виджета.',
               },
               {
                 step: '02',
                 title: 'Обучите агента',
-                text: 'Добавьте URL сайта или загрузите документы — база знаний создаётся автоматически.',
+                text: 'Укажите URL или загрузите материалы. AI готов за 5 минут.',
               },
               {
                 step: '03',
-                title: 'Получайте лиды',
-                text: 'Посетители задают вопросы, агент отвечает и сохраняет контакты в CRM.',
+                title: 'Лиды в CRM',
+                text: 'Посетители пишут в чат — вы получаете тёплые контакты с историей.',
               },
             ].map((item) => (
-              <div key={item.step} className="rounded-2xl bg-white p-8 shadow-card">
-                <span className="text-3xl font-bold text-brand-200">{item.step}</span>
-                <h3 className="mt-4 text-xl font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">{item.text}</p>
+              <div
+                key={item.step}
+                className="rounded-2xl border border-slate-700/50 bg-slate-800/50 p-8 backdrop-blur"
+              >
+                <span className="text-4xl font-bold text-brand-400/60">{item.step}</span>
+                <h3 className="mt-4 text-xl font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{item.text}</p>
               </div>
             ))}
+          </div>
+          <div className="mt-12 text-center">
+            <Link href="/register" className="btn-primary">
+              Начать бесплатный триал
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Demo / CTA */}
+      {/* CTA */}
       <section className="bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-8 text-white shadow-soft md:p-14">
-            <div className="grid items-center gap-10 md:grid-cols-2">
-              <div>
-                <h2 className="text-3xl font-bold md:text-4xl">Попробуйте бесплатно 7 дней</h2>
-                <p className="mt-4 text-brand-100">
-                  Не нужна карта и длительная настройка. Зарегистрируйтесь и запустите
-                  виджет на своём сайте сегодня.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-4">
-                  <Link
-                    href="/register"
-                    className="rounded-full bg-white px-6 py-3 font-medium text-brand-700 shadow-lg transition hover:bg-brand-50"
-                  >
-                    Создать аккаунт
-                  </Link>
-                  <Link
-                    href="/pricing"
-                    className="rounded-full border border-white/30 px-6 py-3 font-medium text-white transition hover:bg-white/10"
-                  >
-                    Тарифы
-                  </Link>
-                </div>
-              </div>
-              <div>
-                <div className="rounded-2xl bg-white/10 p-6 backdrop-blur">
-                  <WidgetDemo
-                    widgetKey={demo.demoWidgetKey}
-                    apiUrl={demo.apiUrl}
-                    widgetUrl={demo.widgetUrl}
-                    welcomeTitle={demo.welcomeTitle}
-                    welcomeText={demo.welcomeText}
-                    showEmbed={false}
-                  />
-                </div>
+          <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 via-brand-600 to-brand-800 px-8 py-14 text-center text-white shadow-soft md:px-16">
+            <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" aria-hidden />
+            <div className="absolute -bottom-20 -left-20 h-64 w-64 rounded-full bg-brand-400/20 blur-3xl" aria-hidden />
+            <div className="relative">
+              <h2 className="text-3xl font-bold md:text-4xl">
+                Готовы обойти конкурентов по цене и скорости?
+              </h2>
+              <p className="mx-auto mt-4 max-w-xl text-brand-100">
+                7 дней бесплатно. Платите только за реальные сообщения AI — не за
+                «воздушные» лиды.
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-4">
+                <Link
+                  href="/register"
+                  className="rounded-full bg-white px-8 py-3.5 font-semibold text-brand-700 shadow-lg transition hover:bg-brand-50"
+                >
+                  Создать аккаунт
+                </Link>
+                <Link
+                  href="/pricing"
+                  className="rounded-full border border-white/30 px-8 py-3.5 font-medium transition hover:bg-white/10"
+                >
+                  Тарифы от 2 990 ₽
+                </Link>
               </div>
             </div>
           </div>
@@ -228,7 +257,7 @@ export default async function HomePage() {
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <h2 className="section-title">Частые вопросы</h2>
-            <p className="section-subtitle">Ответы на самые популярные вопросы о сервисе</p>
+            <p className="section-subtitle">Всё, что спрашивают перед подключением</p>
           </div>
           <div className="mt-12">
             <FaqAccordion />

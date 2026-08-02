@@ -30,16 +30,39 @@ body {
   @apply bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent;
 }
 
+.gradient-text-light {
+  @apply bg-gradient-to-r from-brand-300 to-emerald-300 bg-clip-text text-transparent;
+}
+
 .hero-gradient {
   background: linear-gradient(135deg, #f0fdf9 0%, #ffffff 50%, #e0f7f2 100%);
 }
 
+.hero-dark {
+  background: linear-gradient(160deg, #0b1220 0%, #0f172a 40%, #0c2922 100%);
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(14, 165, 131, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14, 165, 131, 0.06) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.badge-glow {
+  box-shadow: 0 0 24px rgba(14, 165, 131, 0.15);
+}
+
 .btn-primary {
-  @apply rounded-full bg-brand-600 px-6 py-3 font-medium text-white shadow-lg shadow-brand-500/20 transition-all hover:bg-brand-700 hover:shadow-xl hover:shadow-brand-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+  @apply rounded-full bg-brand-600 px-6 py-3 font-semibold text-white shadow-lg shadow-brand-500/25 transition-all hover:bg-brand-500 hover:shadow-xl hover:shadow-brand-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400;
 }
 
 .btn-secondary {
   @apply rounded-full border border-slate-200 bg-white px-6 py-3 font-medium text-slate-700 transition-all hover:border-brand-300 hover:text-brand-700 hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600;
+}
+
+.btn-ghost {
+  @apply rounded-full border border-slate-600 bg-transparent px-6 py-3 font-medium text-slate-200 transition-all hover:border-slate-500 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400;
 }
 
 .section-title {
@@ -48,4 +71,8 @@ body {
 
 .section-subtitle {
   @apply mt-4 text-lg text-slate-600;
+}
+
+.card-hover {
+  @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft;
 }
