@@ -60,13 +60,13 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={submit} className="space-y-5">
-      {tariffId ? (
-        <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
-          Выбран тариф (ID: <strong>{tariffId}</strong>)
-        </div>
-      ) : tariffName ? (
+      {tariffName ? (
         <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
           Выбран тариф: <strong>{tariffName}</strong>
+        </div>
+      ) : tariffId ? (
+        <div className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          Выбран тариф с сайта — оформление продолжится после регистрации
         </div>
       ) : null}
       <div>
@@ -134,7 +134,7 @@ export function RegisterForm() {
         disabled={loading}
         className="w-full rounded-full bg-brand-600 px-4 py-3 font-medium text-white shadow-lg shadow-brand-500/20 transition hover:bg-brand-700 disabled:opacity-50"
       >
-        {loading ? 'Создание…' : 'Создать аккаунт'}
+        {loading ? 'Создание…' : 'Начать бесплатно — 7 дней триала'}
       </button>
       <p className="text-center text-xs text-slate-500">
         Уже есть аккаунт?{' '}

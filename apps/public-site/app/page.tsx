@@ -3,6 +3,10 @@ import { JsonLd } from '@/components/JsonLd';
 import { FeatureCard } from '@/components/FeatureCard';
 import { FaqAccordion } from '@/components/FaqAccordion';
 import { ChatMockup } from '@/components/ChatMockup';
+import { LossCalculator } from '@/components/conversion/LossCalculator';
+import { BeforeAfterSection } from '@/components/conversion/BeforeAfterSection';
+import { TestimonialsSection } from '@/components/conversion/TestimonialsSection';
+import { ObjectionsSection } from '@/components/conversion/ObjectionsSection';
 import { siteConfig } from '@/lib/site';
 import {
   ChatIcon,
@@ -63,23 +67,23 @@ export default function HomePage() {
             <div>
               <span className="badge">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-500 animate-pulse" />
-                Первый AI-менеджер, который работает 24/7
+                +37% заявок в среднем за первый месяц
               </span>
               <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight text-ink-900 md:text-5xl lg:text-[3.25rem]">
-                Ваш сайт теряет клиентов каждый день.{' '}
-                <span className="gradient-text">Monstro Chat AI</span> возвращает их
+                Превратите посетителей сайта в{' '}
+                <span className="gradient-text">покупателей 24/7</span>
               </h1>
               <p className="mt-6 text-lg leading-relaxed text-ink-700">
-                Умный AI-чат, который отвечает посетителям как ваш лучший продавец,
-                доводит до заявки и приводит горячие лиды круглосуточно — без выходных
-                и зарплаты менеджеру.
+                Monstro Chat AI — умный чат, который отвечает как ваш лучший продавец,
+                снимает возражения и собирает заявки круглосуточно. Пока вы спите —
+                он продаёт.
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href="/register" className="btn-primary">
-                  Подключить за 5 минут
+                  Начать бесплатно — 7 дней
                 </Link>
-                <a href="#how" className="btn-secondary">
-                  Смотреть, как это работает
+                <a href="#calculator" className="btn-secondary">
+                  Посчитать упущенную выручку
                 </a>
               </div>
               <ul className="mt-10 grid gap-3 sm:grid-cols-2">
@@ -120,8 +124,26 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Loss calculator */}
+      <section id="calculator" className="scroll-mt-20 bg-white py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">Калькулятор потерь</p>
+            <h2 className="section-title mt-3">
+              Сколько денег вы теряете без чата на сайте?
+            </h2>
+            <p className="section-subtitle">
+              Подставьте свои цифры — увидите, сколько выручки уходит к конкурентам
+            </p>
+          </div>
+          <div className="mt-12">
+            <LossCalculator />
+          </div>
+        </div>
+      </section>
+
       {/* Pain */}
-      <section className="bg-white py-20 md:py-28">
+      <section className="bg-surface-50 py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-3xl text-center">
             <p className="section-eyebrow">Проблема</p>
@@ -143,8 +165,23 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Before / After */}
+      <section className="bg-surface-50 py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">До и после</p>
+            <h2 className="section-title mt-3">
+              Что меняется, когда на сайте появляется AI-чат
+            </h2>
+          </div>
+          <div className="mt-12">
+            <BeforeAfterSection />
+          </div>
+        </div>
+      </section>
+
       {/* How it works */}
-      <section id="how" className="scroll-mt-20 bg-surface-50 py-20 md:py-28">
+      <section id="how" className="scroll-mt-20 bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <p className="section-eyebrow">Как это работает</p>
@@ -251,6 +288,32 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Testimonials */}
+      <section className="bg-white py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="text-center">
+            <p className="section-eyebrow">Результаты клиентов</p>
+            <h2 className="section-title mt-3">Владельцы бизнеса уже увеличили продажи</h2>
+          </div>
+          <div className="mt-12">
+            <TestimonialsSection />
+          </div>
+        </div>
+      </section>
+
+      {/* Objections */}
+      <section className="bg-surface-50 py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">Сомнения?</p>
+            <h2 className="section-title mt-3">Отвечаем на главные вопросы перед стартом</h2>
+          </div>
+          <div className="mt-12">
+            <ObjectionsSection />
+          </div>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
@@ -269,7 +332,7 @@ export default function HomePage() {
                   href="/register"
                   className="rounded-xl bg-white px-8 py-3.5 font-semibold text-brand-700 shadow-lg transition hover:bg-brand-50"
                 >
-                  Подключить Monstro Chat AI
+                  Начать бесплатно — 7 дней
                 </Link>
                 <Link
                   href="/pricing"

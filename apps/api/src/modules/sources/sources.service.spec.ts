@@ -105,6 +105,6 @@ describe('SourcesService', () => {
 
     const result = await service.create('t1', { name: 'Main' });
     expect(result.widgetKey).toBe('wk_abc');
-    expect(result.config.appearance.primaryColor).toBe('#2563eb');
+    expect(result.config.appearance.primaryColor).toBe('#EF2B34');
   });
 });

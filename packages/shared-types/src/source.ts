@@ -58,7 +58,7 @@ export interface SourceConfig {
 
 export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   appearance: {
-    primaryColor: '#2563eb',
+    primaryColor: '#EF2B34',
     textColor: '#ffffff',
     buttonShape: 'round',
     theme: 'light',

@@ -210,7 +210,7 @@
 }
 
 .aicw-faq-item:hover:not(:disabled) {
-  border-color: #0ea583;
+  border-color: #EF2B34;
   background: #f0fdf9;
 }
 
@@ -348,8 +348,8 @@
 }
 
 .aicw-chip:hover {
-  border-color: #0ea583;
-  color: #0ea583;
+  border-color: #EF2B34;
+  color: #EF2B34;
   background: #f0fdf9;
 }
 
@@ -664,11 +664,11 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
-  accent-color: #0ea583;
+  accent-color: #EF2B34;
 }
 
 .aicw-link {
-  color: #0ea583;
+  color: #EF2B34;
   text-decoration: underline;
 }
 
@@ -725,7 +725,7 @@
 .aicw-retry-link {
   background: transparent;
   border: none;
-  color: #0ea583;
+  color: #EF2B34;
   text-decoration: underline;
   cursor: pointer;
   font-size: inherit;
@@ -782,7 +782,7 @@
 .aicw-emoji-toggle:focus-visible,
 .aicw-scroll-down:focus-visible,
 .aicw-retry-link:focus-visible {
-  outline: 2px solid #0ea583;
+  outline: 2px solid #EF2B34;
   outline-offset: 2px;
 }
 
