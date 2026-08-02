@@ -20,12 +20,11 @@ export class HealthService {
   }
 
   getHealth() {
-    const current = this.release.getCurrent();
     return {
       status: 'ok' as const,
       timestamp: new Date().toISOString(),
-      version: current.version || this.appVersion,
-      sprint: current.sprint || this.sprintNumber,
+      version: this.appVersion,
+      sprint: this.sprintNumber,
     };
   }
 

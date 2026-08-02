@@ -201,6 +201,11 @@ export class SystemUpdatesService {
     sprintNumber: number | null;
   }) {
     const sprint = update.sprintNumber ?? 0;
+    const current = this.release.getCurrent();
+    const isStale = this.isOlderVersion(update.version, current.version);
+    const recommendedCommand =
+      'sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh';
+
     return {
       updateId: update.id,
       version: update.version,
@@ -208,7 +213,28 @@ export class SystemUpdatesService {
       command: `sudo RELEASE_UPDATE_ID=${update.id} RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-deploy.sh ${update.version} ${sprint}`,
       rollbackCommand:
         'sudo RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-rollback.sh',
+      recommendedCommand,
+      currentVersion: current.version,
+      currentSprint: current.sprint,
+      isStale,
+      warning: isStale
+        ? `Релиз v${update.version} устарел. На сервере v${current.version}. Используйте deploy-latest.sh, не копируйте старую команду.`
+        : undefined,
     };
+  }
+
+  private isOlderVersion(candidate: string, current: string): boolean {
+    const parse = (v: string) =>
+      v.split('.').map((p) => Number.parseInt(p, 10) || 0);
+    const a = parse(candidate);
+    const b = parse(current);
+    for (let i = 0; i < 3; i += 1) {
+      const av = a[i] ?? 0;
+      const bv = b[i] ?? 0;
+      if (av < bv) return true;
+      if (av > bv) return false;
+    }
+    return false;
   }
 
   async enqueueRollback(id: string, rollbackVersion: string) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SystemUpdateDto } from '@ai-consultant/shared-types';
+import type { ReleaseDeployInstructionsDto, SystemUpdateDto } from '@ai-consultant/shared-types';
 import {
   approveUpdate,
   createSystemUpdate,
@@ -47,8 +47,7 @@ export function UpdatesPage() {
   const [changelog, setChangelog] = useState('');
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDetail, setActiveDetail] = useState<SystemUpdateDto | null>(null);
-  const [deployCmd, setDeployCmd] = useState<string | null>(null);
-  const [rollbackCmd, setRollbackCmd] = useState<string | null>(null);
+  const [deployInstr, setDeployInstr] = useState<ReleaseDeployInstructionsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,14 +83,10 @@ export function UpdatesPage() {
 
   useEffect(() => {
     if (!activeDetail || activeDetail.status !== 'awaiting_approval') {
-      setDeployCmd(null);
-      setRollbackCmd(null);
+      setDeployInstr(null);
       return;
     }
-    fetchDeployInstructions(activeDetail.id).then((instr) => {
-      setDeployCmd(instr.command);
-      setRollbackCmd(instr.rollbackCommand);
-    });
+    fetchDeployInstructions(activeDetail.id).then(setDeployInstr);
   }, [activeDetail?.id, activeDetail?.status]);
 
   const register = async () => {
@@ -136,12 +131,23 @@ export function UpdatesPage() {
       </p>
 
       {currentRelease && (
-        <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-          Текущая версия:{' '}
-          <span className="font-semibold text-brand-400">
-            v{currentRelease.version}
-          </span>{' '}
-          · Sprint {currentRelease.sprint}
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
+            Текущая версия:{' '}
+            <span className="font-semibold text-brand-400">
+              v{currentRelease.version}
+            </span>{' '}
+            · Sprint {currentRelease.sprint}
+          </div>
+          <div className="rounded-xl border border-brand-500/40 bg-brand-950/20 px-4 py-3 text-sm">
+            <p className="font-medium text-brand-300">Рекомендуемая команда деплоя</p>
+            <p className="mt-1 text-slate-400">
+              Автоматически берёт последний спринт из SPRINTS.md — не нужно вводить версию вручную
+            </p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
+              sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh
+            </pre>
+          </div>
         </div>
       )}
 
@@ -256,24 +262,29 @@ export function UpdatesPage() {
         </div>
       )}
 
-      {deployCmd && (
+      {deployInstr && (
         <div className="mt-8 rounded-xl border border-amber-800/50 bg-amber-950/20 p-4">
           <h2 className="font-medium text-amber-200">Команда деплоя на сервере</h2>
-          <p className="mt-1 text-sm text-amber-100/80">
-            Выполните на сервере от root. Замените <code>&lt;token&gt;</code> на
-            RELEASE_DEPLOY_TOKEN из .env
-          </p>
-          <pre className="mt-3 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
-            {deployCmd}
-          </pre>
-          {rollbackCmd && (
-            <>
-              <p className="mt-4 text-sm text-amber-100/80">Откат:</p>
-              <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
-                {rollbackCmd}
-              </pre>
-            </>
+          {deployInstr.isStale && deployInstr.warning && (
+            <p className="mt-2 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-sm text-red-200">
+              {deployInstr.warning}
+            </p>
           )}
+          <p className="mt-3 text-sm font-medium text-emerald-300">✓ Используйте эту команду:</p>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-emerald-100">
+            {deployInstr.recommendedCommand}
+          </pre>
+          <p className="mt-4 text-sm text-amber-100/60">
+            Команда для конкретного релиза (только если версия совпадает с текущей на сервере v
+            {deployInstr.currentVersion}):
+          </p>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-400">
+            {deployInstr.command}
+          </pre>
+          <p className="mt-4 text-sm text-amber-100/80">Откат:</p>
+          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
+            {deployInstr.rollbackCommand}
+          </pre>
         </div>
       )}
 

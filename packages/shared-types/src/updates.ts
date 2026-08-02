@@ -87,6 +87,11 @@ export interface ReleaseDeployInstructionsDto {
   sprintNumber: number | null;
   command: string;
   rollbackCommand: string;
+  recommendedCommand: string;
+  currentVersion: string;
+  currentSprint: number;
+  isStale: boolean;
+  warning?: string;
 }
 
 export interface BackupSnapshotDto {

@@ -34,10 +34,19 @@ check_health() {
   echo "  ${body}"
 
   if [[ "${MODE}" == "post" && -n "${EXPECTED_VERSION}" ]]; then
-    local ver
+    local ver container_ver
     ver=$(echo "${body}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
+    container_ver=$(docker exec aicw-api printenv APP_VERSION 2>/dev/null || echo "")
+
+    if [[ -n "${ver}" && "${ver}" == "${EXPECTED_VERSION}" ]]; then
+      return 0
+    fi
+    if [[ -n "${container_ver}" && "${container_ver}" == "${EXPECTED_VERSION}" ]]; then
+      log "  Версия в health=${ver}, в контейнере APP_VERSION=${container_ver} — OK"
+      return 0
+    fi
     if [[ -n "${ver}" && "${ver}" != "${EXPECTED_VERSION}" ]]; then
-      fail "Версия API ${ver} != ожидаемой ${EXPECTED_VERSION}. Проверьте RELEASE_DEPLOY_TOKEN и sync manifest, либо не пытайтесь выкатить старую версию (0.32.0) поверх новой (0.33.0+)."
+      fail "Версия API ${ver} (контейнер: ${container_ver:-?}) != ожидаемой ${EXPECTED_VERSION}. НЕ используйте старые команды из админки. Запустите: sudo bash scripts/deploy-latest.sh"
     fi
   fi
 }

@@ -40,14 +40,43 @@ export class ReleaseService implements OnModuleInit {
 
   async onModuleInit() {
     await this.refreshFromRedis();
+    const envVersion = process.env.APP_VERSION ?? '0.1.0';
+    const envSprint = Number(process.env.SPRINT_NUMBER ?? 0);
+
     if (!this.cached.version) {
       this.cached = {
-        version: process.env.APP_VERSION ?? '0.1.0',
-        sprint: Number(process.env.SPRINT_NUMBER ?? 32),
+        version: envVersion,
+        sprint: envSprint || 32,
         deployedAt: null,
       };
+    } else if (this.isNewerVersion(envVersion, this.cached.version)) {
+      this.logger.log(
+        `Adopting APP_VERSION ${envVersion} over cached ${this.cached.version}`,
+      );
+      this.cached = {
+        ...this.cached,
+        previousVersion: this.cached.version,
+        previousSprint: this.cached.sprint,
+        version: envVersion,
+        sprint: envSprint || this.cached.sprint,
+      };
     }
+
     await this.persist();
+  }
+
+  private isNewerVersion(next: string, current: string): boolean {
+    const parse = (v: string) =>
+      v.split('.').map((p) => Number.parseInt(p, 10) || 0);
+    const a = parse(next);
+    const b = parse(current);
+    for (let i = 0; i < 3; i += 1) {
+      const av = a[i] ?? 0;
+      const bv = b[i] ?? 0;
+      if (av > bv) return true;
+      if (av < bv) return false;
+    }
+    return false;
   }
 
   validateDeployToken(token: string | undefined) {
@@ -63,8 +92,12 @@ export class ReleaseService implements OnModuleInit {
   }
 
   getCurrent(): ReleaseManifestDto {
+    const envVersion = process.env.APP_VERSION;
+    const envSprint = Number(process.env.SPRINT_NUMBER ?? 0);
     return {
       ...this.cached,
+      version: envVersion || this.cached.version,
+      sprint: envSprint || this.cached.sprint,
       deployTokenConfigured: Boolean(this.deployToken),
     };
   }

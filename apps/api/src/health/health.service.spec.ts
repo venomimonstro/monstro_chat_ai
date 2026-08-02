@@ -29,7 +29,13 @@ describe('HealthService', () => {
         { provide: ReleaseService, useValue: mockRelease },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('0.1.0') },
+          useValue: {
+            get: jest.fn((key: string, fallback?: string) => {
+              if (key === 'APP_VERSION') return '0.34.0';
+              if (key === 'SPRINT_NUMBER') return '34';
+              return fallback ?? '0.1.0';
+            }),
+          },
         },
       ],
     }).compile();
@@ -37,11 +43,11 @@ describe('HealthService', () => {
     service = module.get<HealthService>(HealthService);
   });
 
-  it('should return ok health status', () => {
+  it('should return ok health status from container env', () => {
     const result = service.getHealth();
     expect(result.status).toBe('ok');
-    expect(result.version).toBe('0.33.0');
-    expect(result.sprint).toBe(33);
+    expect(result.version).toBe('0.34.0');
+    expect(result.sprint).toBe(34);
   });
 
   it('should return connected database status', async () => {

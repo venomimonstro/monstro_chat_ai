@@ -11,13 +11,14 @@
 ## Команды на сервере
 
 ```bash
-# Полный деплой с проверками (рекомендуется)
-sudo RELEASE_DEPLOY_TOKEN=$(grep RELEASE_DEPLOY_TOKEN .env | cut -d= -f2) \
-  bash /opt/monstro_chat_ai/scripts/release-deploy.sh 0.33.0 33
+# РЕКОМЕНДУЕТСЯ — автоматически берёт последний спринт из SPRINTS.md
+sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh
 
-# Sprint 34 (после merge PR)
-sudo RELEASE_DEPLOY_TOKEN=$(grep RELEASE_DEPLOY_TOKEN .env | cut -d= -f2) \
-  bash /opt/monstro_chat_ai/scripts/release-deploy.sh 0.34.0 34
+# Или вручную с версией
+sudo bash /opt/monstro_chat_ai/scripts/release-deploy.sh 0.34.0 34
+```
+
+**Не используйте старые команды** из админки для Sprint 31/32 — они вызовут ошибку версии.
 
 # Откат на предыдущую версию
 sudo RELEASE_DEPLOY_TOKEN=$(grep RELEASE_DEPLOY_TOKEN .env | cut -d= -f2) \
