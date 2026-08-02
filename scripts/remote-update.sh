@@ -70,13 +70,19 @@ pull_code() {
   log "Коммит: $(git log -1 --oneline)"
 }
 
+ensure_disk_space() {
+  log "Проверяю свободное место на диске..."
+  if ! bash "${INSTALL_DIR}/scripts/free-disk.sh"; then
+    fail "Недостаточно места на диске. Увеличьте диск или выполните: du -sh /var/lib/docker/* | sort -h | tail -10"
+  fi
+}
+
 rebuild_api() {
   log "Пересобираю API (Docker, 5–15 мин)..."
   cd "${INSTALL_DIR}"
-  rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
-  APP_VERSION="${APP_VERSION:-0.34.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-34}" \
+  APP_VERSION="${APP_VERSION:-0.37.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-37}" \
     docker compose build api
-  APP_VERSION="${APP_VERSION:-0.34.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-34}" \
+  APP_VERSION="${APP_VERSION:-0.37.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-37}" \
     docker compose up -d --force-recreate api
 }
 
@@ -178,6 +184,7 @@ main() {
   log "Monstro Chat AI — remote update"
   ensure_swap
   pull_code
+  ensure_disk_space
   rebuild_api
   wait_for_api || {
     docker compose -f "${INSTALL_DIR}/docker-compose.yml" logs api --tail 40
