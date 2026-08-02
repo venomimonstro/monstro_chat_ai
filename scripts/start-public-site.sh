@@ -24,6 +24,7 @@ build_site() {
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/public-site \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/public-site
 }

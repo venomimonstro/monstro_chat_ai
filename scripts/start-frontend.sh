@@ -37,6 +37,7 @@ build_frontends() {
     --workspace=@ai-consultant/web-client \
     --workspace=@ai-consultant/web-admin \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin

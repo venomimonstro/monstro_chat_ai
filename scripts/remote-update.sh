@@ -124,6 +124,7 @@ rebuild_frontends() {
     --workspace=@ai-consultant/web-client \
     --workspace=@ai-consultant/web-admin \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin
@@ -162,6 +163,7 @@ rebuild_public_site() {
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/public-site \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/public-site
 

@@ -27,6 +27,7 @@ build_widget() {
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/widget \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/widget
 }

@@ -63,6 +63,7 @@ rebuild_admin() {
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/web-admin \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/web-admin
   if systemctl is-active --quiet monstro-web-admin 2>/dev/null; then
@@ -79,6 +80,7 @@ rebuild_public_site() {
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/public-site \
     --include-workspace-root
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/public-site
   if systemctl is-active --quiet monstro-public-site 2>/dev/null; then
