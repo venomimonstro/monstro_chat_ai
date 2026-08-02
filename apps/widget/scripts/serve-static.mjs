@@ -40,6 +40,11 @@ const server = http.createServer((req, res) => {
     pathname = '/iframe/index.html';
   }
 
+  // Legacy iframe builds referenced /assets/* while files live under /iframe/assets/*
+  if (pathname.startsWith('/assets/')) {
+    pathname = `/iframe${pathname}`;
+  }
+
   const filePath = path.normalize(path.join(root, pathname));
   if (!filePath.startsWith(root)) {
     res.writeHead(403).end('Forbidden');
