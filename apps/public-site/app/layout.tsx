@@ -8,6 +8,8 @@ import { siteConfig } from '@/lib/site';
 import { fetchDemoWidget, fetchSiteScripts } from '@/lib/tariffs';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
@@ -34,9 +36,9 @@ export default async function RootLayout({
     <html lang="ru">
       <body>
         <SiteInjectedScripts
-          headHtml={scripts.customHeadHtml}
-          bodyStartHtml={scripts.customBodyStartHtml}
-          bodyEndHtml={scripts.customBodyEndHtml}
+          customHeadHtml={scripts.customHeadHtml}
+          customBodyStartHtml={scripts.customBodyStartHtml}
+          customBodyEndHtml={scripts.customBodyEndHtml}
         />
         <JsonLd
           data={{

@@ -39,11 +39,13 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${widgetUrl}`,
-              `style-src 'self' 'unsafe-inline'`,
-              `img-src 'self' data: blob:`,
-              `font-src 'self'`,
-              `connect-src 'self' ${internalApiUrl} ${widgetUrl} ${clientUrl} ${publicApiUrl.startsWith('http') ? new URL(publicApiUrl).origin : ''}`.trim(),
+              // Third-party chat widgets (Jivo, Carrot, etc.) load scripts from external domains
+              `script-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: ${widgetUrl}`,
+              `style-src 'self' 'unsafe-inline' https:`,
+              `img-src 'self' data: blob: https: http:`,
+              `font-src 'self' https: data:`,
+              `connect-src 'self' https: wss: http: ${internalApiUrl} ${widgetUrl} ${clientUrl} ${publicApiUrl.startsWith('http') ? new URL(publicApiUrl).origin : ''}`.trim(),
+              `frame-src 'self' https: http:`,
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

@@ -37,7 +37,7 @@ export function SiteCodePage() {
         customBodyStartHtml: bodyStartHtml,
         customBodyEndHtml: bodyEndHtml,
       });
-      setMessage('Код сохранён — появится на публичном сайте после обновления');
+      setMessage('Код сохранён. Обновите публичный сайт (Ctrl+F5) — скрипты подключатся сразу');
     } catch {
       setMessage('Не удалось сохранить');
     } finally {

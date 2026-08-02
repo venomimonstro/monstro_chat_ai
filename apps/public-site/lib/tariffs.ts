@@ -18,7 +18,7 @@ export async function fetchSiteScripts() {
   const apiBase = getServerApiBase();
   try {
     const res = await fetch(`${apiBase}/public/site-scripts`, {
-      next: { revalidate: 60 },
+      cache: 'no-store',
     });
     if (!res.ok) {
       return {
