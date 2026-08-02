@@ -13,10 +13,11 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: siteConfig.name,
+    default: 'Monstro Chat AI — AI-чат для сайта, который приводит клиентов 24/7',
     template: `%s · ${siteConfig.name}`,
   },
-  description: siteConfig.description,
+  description:
+    'Monstro Chat AI — умный AI-чат для вашего сайта. Отвечает посетителям как лучший менеджер, приводит заявки круглосуточно. Настройка за 5 минут.',
   openGraph: {
     type: 'website',
     locale: 'ru_RU',

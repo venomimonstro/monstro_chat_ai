@@ -155,7 +155,7 @@ interface AicwApi {
 
   function createLauncher(opts: InitOptions) {
     if (launcherBtn) return;
-    const color = opts.primaryColor ?? '#2563eb';
+    const color = opts.primaryColor ?? '#EF2B34';
     const isLeft = opts.position === 'bottom-left';
     launcherBtn = document.createElement('button');
     launcherBtn.type = 'button';

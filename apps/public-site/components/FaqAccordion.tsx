@@ -9,34 +9,34 @@ interface FaqItem {
 
 const faqData: FaqItem[] = [
   {
-    question: 'Чем вы отличаетесь от Parasigma, B24U и других?',
+    question: 'Сложно ли подключить чат к сайту?',
     answer:
-      'У конкурентов часто оплата за каждый лид — даже если клиент не купил. У нас прозрачная модель: вы платите за сообщения и токены AI. Это в разы дешевле при том же трафике, а расходы легко прогнозировать в личном кабинете.',
+      'Нет, это займёт около 5 минут. Достаточно вставить одну строку кода на сайт — без программистов и технической возни с вашей стороны.',
   },
   {
-    question: 'Сколько времени занимает запуск виджета?',
+    question: 'Чат правда работает круглосуточно?',
     answer:
-      'Создание источника и вставка одного JS-скрипта занимает около 5 минут. Обучение агента на вашем сайте происходит автоматически.',
+      'Да. Monstro Chat AI отвечает посетителям 24/7 — ночью, в выходные и праздники. Вы получаете заявки даже тогда, когда менеджеры недоступны.',
   },
   {
-    question: 'Нужно ли платить сразу?',
+    question: 'AI действительно отвечает как живой человек?',
     answer:
-      'Нет. При регистрации вы получаете 7 дней бесплатного триала без привязки карты.',
+      'Да, он понимает смысл вопроса и общается естественно. Клиент получает вежливый и точный ответ по вашим услугам — будто пишет вашему лучшему менеджеру.',
   },
   {
-    question: 'Какие интеграции поддерживаются?',
+    question: 'Откуда чат знает информацию о моём бизнесе?',
     answer:
-      'amoCRM и Битрикс24 с двусторонней синхронизацией статусов, а также Яндекс.Метрика, GTM и Google Analytics 4.',
+      'Он обучается на данных о ваших услугах, ценах и условиях. Вы можете дополнять сведения в любой момент — чат сразу начнёт отвечать по-новому.',
   },
   {
-    question: 'Можно ли обучить агента на своих документах?',
+    question: 'Куда будут приходить заявки?',
     answer:
-      'Да. Загрузите сайт, FAQ или PDF — агент будет отвечать строго по вашей базе знаний с помощью RAG.',
+      'В amoCRM, Битрикс24, на почту или в удобный мессенджер. Все контакты сохраняются с контекстом диалога — ничего не теряется.',
   },
   {
-    question: 'Безопасны ли данные моих клиентов?',
+    question: 'А если AI не знает ответа на вопрос?',
     answer:
-      'Да. Данные изолированы по тенантам, передача идёт по HTTPS, а доступ ограничен ролевой моделью. Мы соответствуем требованиям 152-ФЗ.',
+      'Чат корректно возьмёт контакт клиента и передаст диалог вам — ни один потенциальный клиент не останется без внимания.',
   },
 ];
 
@@ -44,7 +44,7 @@ export function FaqAccordion() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="mx-auto max-w-3xl divide-y divide-slate-100">
+    <div className="mx-auto max-w-3xl divide-y divide-line-200 rounded-2xl border border-line-200 bg-white px-6">
       {faqData.map((item, index) => {
         const isOpen = open === index;
         return (
@@ -55,9 +55,9 @@ export function FaqAccordion() {
               className="flex w-full items-center justify-between text-left"
               aria-expanded={isOpen}
             >
-              <span className="text-base font-medium text-slate-900">{item.question}</span>
+              <span className="text-base font-medium text-ink-900">{item.question}</span>
               <span
-                className={`ml-4 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-transform ${
+                className={`ml-4 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 transition-transform ${
                   isOpen ? 'rotate-180' : ''
                 }`}
               >
@@ -67,7 +67,7 @@ export function FaqAccordion() {
               </span>
             </button>
             {isOpen && (
-              <p className="mt-3 text-sm leading-6 text-slate-600">{item.answer}</p>
+              <p className="mt-3 text-sm leading-6 text-ink-700">{item.answer}</p>
             )}
           </div>
         );

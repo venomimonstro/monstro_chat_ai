@@ -4,7 +4,7 @@ import { siteConfig } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Новый пароль',
-  description: 'Установка нового пароля в личном кабинете AI-Консультант',
+  description: 'Установка нового пароля в личном кабинете Monstro Chat AI',
 };
 
 export default function ResetPasswordPage({

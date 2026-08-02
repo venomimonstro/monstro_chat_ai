@@ -4,7 +4,7 @@ import { siteConfig } from '@/lib/site';
 
 export const metadata: Metadata = {
   title: 'Восстановление пароля',
-  description: 'Сброс пароля для личного кабинета AI-Консультант',
+  description: 'Сброс пароля для личного кабинета Monstro Chat AI',
 };
 
 export default function ForgotPasswordPage() {

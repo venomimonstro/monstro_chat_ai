@@ -5,7 +5,7 @@ import { CheckIcon } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Регистрация',
-  description: 'Создайте аккаунт AI-Консультант и получите 7 дней триала без привязки карты',
+  description: 'Создайте аккаунт Monstro Chat AI и получите 7 дней триала без привязки карты',
 };
 
 export default function RegisterPage() {
