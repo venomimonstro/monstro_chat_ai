@@ -12,6 +12,7 @@ describe('SystemUpdatesService', () => {
   };
   const mockBackups = { create: jest.fn() };
   const mockRunner = {};
+  const mockRelease = { syncManifest: jest.fn() };
   const mockGateway = { emitStatus: jest.fn(), emitLog: jest.fn(), emitCanary: jest.fn() };
   const mockQueue = { add: jest.fn() };
 
@@ -23,6 +24,7 @@ describe('SystemUpdatesService', () => {
       mockPrisma as never,
       mockBackups as never,
       mockRunner as never,
+      mockRelease as never,
       mockGateway as never,
       mockQueue as never,
     );
