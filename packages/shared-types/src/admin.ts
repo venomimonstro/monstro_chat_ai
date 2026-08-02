@@ -149,3 +149,40 @@ export interface PlatformWorkspaceDto {
   widgetKey: string;
   webClientUrl: string;
 }
+
+export interface DeploymentRecordDto {
+  id: string;
+  version: string;
+  sprint: number;
+  gitSha: string | null;
+  status: 'active' | 'superseded' | 'rolled_back';
+  appliedAt: string;
+  rolledBackAt: string | null;
+}
+
+export interface StabilityProbeDto {
+  component: string;
+  label: string;
+  status: 'ok' | 'degraded' | 'down';
+  message: string | null;
+  latencyMs: number | null;
+  checkedAt: string;
+}
+
+export interface StabilityStatusDto {
+  overall: 'ok' | 'degraded' | 'down';
+  timestamp: string;
+  probes: StabilityProbeDto[];
+  openIncidents: number;
+}
+
+export interface StabilityIncidentDto {
+  id: string;
+  component: string;
+  severity: string;
+  message: string;
+  autoFixAttempted: boolean;
+  autoFixSuccess: boolean | null;
+  resolvedAt: string | null;
+  createdAt: string;
+}

@@ -84,6 +84,8 @@ services:
     image: monstro_chat_ai-api
     container_name: aicw-api
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -107,6 +109,10 @@ services:
       APP_VERSION: ${APP_VERSION:-0.34.0}
       SPRINT_NUMBER: ${SPRINT_NUMBER:-34}
       RELEASE_DEPLOY_TOKEN: ${RELEASE_DEPLOY_TOKEN:-}
+      STABILITY_API_URL: ${STABILITY_API_URL:-http://127.0.0.1:3000/api}
+      STABILITY_CLIENT_URL: ${STABILITY_CLIENT_URL:-http://host.docker.internal:5173}
+      STABILITY_ADMIN_URL: ${STABILITY_ADMIN_URL:-http://host.docker.internal:5174}
+      STABILITY_PUBLIC_URL: ${STABILITY_PUBLIC_URL:-http://host.docker.internal:4321}
     ports:
       - "3000:3000"
     healthcheck:

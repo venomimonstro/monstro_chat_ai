@@ -420,10 +420,26 @@ export class AuthService {
     req: Request,
     accessToken: string,
     app?: AppKind,
-  ) {
+  ): string {
     const kind = app ?? resolveAppKind(req, this.config.get('WEB_ADMIN_URL'));
     this.setAccessCookie(res, accessToken, kind);
-    this.setCsrfCookie(res);
+    return this.setCsrfCookie(res);
+  }
+
+  async attachRefreshSession(
+    user: User,
+    res: Response,
+    twoFaVerified = true,
+  ): Promise<void> {
+    const tokenId = randomUUID();
+    await this.tokenService.storeRefreshToken({
+      userId: user.id,
+      tenantId: user.tenantId,
+      tokenId,
+      twoFaVerified,
+      sessionVersion: user.sessionVersion,
+    });
+    this.setRefreshCookie(res, tokenId);
   }
 
   private async issueTokens(
@@ -519,7 +535,7 @@ export class AuthService {
     });
   }
 
-  private setCsrfCookie(res: Response) {
+  private setCsrfCookie(res: Response): string {
     const token = randomBytes(32).toString('hex');
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false,
@@ -528,6 +544,7 @@ export class AuthService {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       path: '/',
     });
+    return token;
   }
 
   clearSessionCookies(res: Response) {

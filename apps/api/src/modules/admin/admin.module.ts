@@ -16,7 +16,9 @@ import { UpdatesGateway } from './gateways/updates.gateway';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
 import { SiteSettingsService } from './services/site-settings.service';
 import { PlatformWorkspaceService } from './services/platform-workspace.service';
-import { ReleaseController } from './release.controller';
+import { DeploymentRecordsService } from './services/deployment-records.service';
+import { StabilityMonitorService } from './services/stability-monitor.service';
+import { ReleaseController, StabilityController } from './release.controller';
 import { ReleaseModule } from '../release/release.module';
 import { QUEUE_SYSTEM_UPDATES } from './constants';
 import { QUEUE_CRM_EXPORT, QUEUE_CRM_STATUS_SYNC, QUEUE_LEAD_DELIVERY } from '../integrations/constants';
@@ -47,7 +49,7 @@ import { SourcesModule } from '../sources/sources.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminController, ReleaseController],
+  controllers: [AdminController, ReleaseController, StabilityController],
   providers: [
     MarginAnalyticsService,
     AdminTenantsService,
@@ -60,6 +62,8 @@ import { SourcesModule } from '../sources/sources.module';
     AdminSystemHealthService,
     SiteSettingsService,
     PlatformWorkspaceService,
+    DeploymentRecordsService,
+    StabilityMonitorService,
   ],
   exports: [SiteSettingsService],
 })

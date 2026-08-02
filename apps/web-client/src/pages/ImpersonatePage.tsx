@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { api } from '../lib/api';
+import { api, ensureCsrfToken, setCsrfToken } from '../lib/api';
 import { extractErrorMessage } from '../lib/errors';
 import { useAuth } from '../lib/auth';
 
@@ -18,15 +18,22 @@ export function ImpersonatePage() {
     }
 
     api
-      .post('/admin/impersonation/exchange', { exchangeCode: code })
-      .then(async () => {
+      .post<{ success: boolean; csrfToken?: string }>(
+        '/admin/impersonation/exchange',
+        { exchangeCode: code },
+      )
+      .then(async (res) => {
+        if (res.data.csrfToken) {
+          setCsrfToken(res.data.csrfToken);
+        }
+        await ensureCsrfToken();
         await refreshSession();
         navigate('/', { replace: true });
       })
       .catch((err) => {
         setError(extractErrorMessage(err));
       });
-  }, [searchParams, navigate]);
+  }, [searchParams, navigate, refreshSession]);
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4">

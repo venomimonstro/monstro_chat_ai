@@ -16,6 +16,7 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TariffsPage } from './pages/TariffsPage';
 import { ProvidersPage } from './pages/ProvidersPage';
 import { SiteSettingsPage } from './pages/SiteSettingsPage';
+import { StabilityPage } from './pages/StabilityPage';
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/updates" element={<UpdatesPage />} />
               <Route path="/sprints" element={<SprintsPage />} />
+              <Route path="/stability" element={<StabilityPage />} />
               <Route path="/backups" element={<BackupsPage />} />
               <Route path="/audit" element={<AuditLogPage />} />
             </Route>

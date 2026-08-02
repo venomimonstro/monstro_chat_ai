@@ -12,6 +12,7 @@ const navItems = [
   { to: '/analytics', label: 'Аналитика' },
   { to: '/updates', label: 'Обновления' },
   { to: '/sprints', label: 'Спринты' },
+  { to: '/stability', label: 'Стабильность' },
   { to: '/backups', label: 'Бэкапы' },
   { to: '/audit', label: 'Аудит' },
 ];

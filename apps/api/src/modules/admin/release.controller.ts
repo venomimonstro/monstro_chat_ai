@@ -13,6 +13,8 @@ import { Public, RequirePermission } from '../../common/decorators/auth.decorato
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { ReleaseService } from '../release/release.service';
 import { SystemUpdatesService } from './services/system-updates.service';
+import { DeploymentRecordsService } from './services/deployment-records.service';
+import { StabilityMonitorService } from './services/stability-monitor.service';
 import {
   ReleaseCompleteDto,
   ReleaseReportDto,
@@ -24,6 +26,8 @@ export class ReleaseController {
   constructor(
     private readonly release: ReleaseService,
     private readonly updates: SystemUpdatesService,
+    private readonly deployments: DeploymentRecordsService,
+    private readonly stability: StabilityMonitorService,
   ) {}
 
   @Get('current')
@@ -40,6 +44,13 @@ export class ReleaseController {
     return this.release.listSprints();
   }
 
+  @Get('deployments')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_VIEW)
+  listDeployments() {
+    return this.deployments.list();
+  }
+
   @Get('updates/:id/instructions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
@@ -50,12 +61,14 @@ export class ReleaseController {
 
   @Public()
   @Post('sync')
-  syncManifest(
+  async syncManifest(
     @Headers('x-release-token') token: string,
     @Body() dto: SyncReleaseManifestDto,
   ) {
     this.release.validateDeployToken(token);
-    return this.release.syncManifest(dto);
+    const manifest = await this.release.syncManifest(dto);
+    await this.deployments.recordDeployment(manifest);
+    return manifest;
   }
 
   @Public()
@@ -81,5 +94,53 @@ export class ReleaseController {
       dto.version,
       dto.sprint,
     );
+  }
+
+  @Post('rollback/:version')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  async rollbackToVersion(@Param('version') version: string) {
+    const record = await this.deployments.findByVersion(version);
+    if (!record) {
+      return {
+        ok: false,
+        message: `Деплой версии ${version} не найден в истории`,
+        command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
+      };
+    }
+    await this.deployments.markRolledBack(version);
+    return {
+      ok: true,
+      version: record.version,
+      sprint: record.sprint,
+      command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
+      message: `Выполните на сервере: release-rollback.sh ${version}`,
+    };
+  }
+}
+
+@Controller('admin/stability')
+export class StabilityController {
+  constructor(private readonly stability: StabilityMonitorService) {}
+
+  @Get('status')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_VIEW)
+  getStatus() {
+    return this.stability.getStatus();
+  }
+
+  @Get('incidents')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_VIEW)
+  listIncidents() {
+    return this.stability.listIncidents();
+  }
+
+  @Post('check')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  runCheck() {
+    return this.stability.runChecks();
   }
 }

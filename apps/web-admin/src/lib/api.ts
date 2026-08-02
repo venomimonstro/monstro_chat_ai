@@ -405,6 +405,45 @@ export async function fetchSprints() {
   return res.data;
 }
 
+export async function fetchDeploymentRecords() {
+  const res = await api.get<import('@ai-consultant/shared-types').DeploymentRecordDto[]>(
+    '/admin/release/deployments',
+  );
+  return res.data;
+}
+
+export async function requestRollbackToVersion(version: string) {
+  const res = await api.post<{
+    ok: boolean;
+    version?: string;
+    sprint?: number;
+    command: string;
+    message: string;
+  }>(`/admin/release/rollback/${encodeURIComponent(version)}`);
+  return res.data;
+}
+
+export async function fetchStabilityStatus() {
+  const res = await api.get<import('@ai-consultant/shared-types').StabilityStatusDto>(
+    '/admin/stability/status',
+  );
+  return res.data;
+}
+
+export async function fetchStabilityIncidents() {
+  const res = await api.get<import('@ai-consultant/shared-types').StabilityIncidentDto[]>(
+    '/admin/stability/incidents',
+  );
+  return res.data;
+}
+
+export async function runStabilityCheck() {
+  const res = await api.post<import('@ai-consultant/shared-types').StabilityStatusDto>(
+    '/admin/stability/check',
+  );
+  return res.data;
+}
+
 export async function fetchDeployInstructions(id: string) {
   const res = await api.get<
     import('@ai-consultant/shared-types').ReleaseDeployInstructionsDto

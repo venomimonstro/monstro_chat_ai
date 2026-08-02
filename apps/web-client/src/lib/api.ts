@@ -2,9 +2,34 @@ import axios from 'axios';
 import { withRetry } from './retry';
 import type { AuthResponse, RegisterRequest } from '@ai-consultant/shared-types';
 
-function getCsrfToken(): string | null {
+let csrfTokenMemory: string | null = null;
+
+export function setCsrfToken(token: string | null) {
+  csrfTokenMemory = token;
+}
+
+function getCsrfTokenFromCookie(): string | null {
   const match = document.cookie.match(/(?:^|; )aicw_csrf=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+export function getCsrfToken(): string | null {
+  return csrfTokenMemory ?? getCsrfTokenFromCookie();
+}
+
+export async function ensureCsrfToken(): Promise<string | null> {
+  const existing = getCsrfToken();
+  if (existing) return existing;
+  try {
+    const res = await api.get<{ token: string | null }>('/auth/csrf');
+    if (res.data.token) {
+      setCsrfToken(res.data.token);
+      return res.data.token;
+    }
+  } catch {
+    /* ignore */
+  }
+  return getCsrfToken();
 }
 
 export const api = axios.create({
@@ -13,10 +38,10 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const method = config.method?.toUpperCase();
   if (method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = getCsrfToken();
+    const csrf = getCsrfToken() ?? (await ensureCsrfToken());
     if (csrf) {
       config.headers['X-CSRF-Token'] = csrf;
     }
@@ -30,7 +55,10 @@ async function refreshSession(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = api
       .post<{ success: boolean }>('/auth/refresh')
-      .then(() => true)
+      .then(async () => {
+        await ensureCsrfToken();
+        return true;
+      })
       .catch(() => false)
       .finally(() => {
         refreshPromise = null;
@@ -43,6 +71,18 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const original = error.config;
+    if (
+      error.response?.status === 403 &&
+      original &&
+      !original._csrfRetry &&
+      typeof error.response?.data?.message === 'string' &&
+      error.response.data.message.includes('CSRF')
+    ) {
+      original._csrfRetry = true;
+      setCsrfToken(null);
+      await ensureCsrfToken();
+      return api(original);
+    }
     if (
       error.response?.status === 401 &&
       original &&

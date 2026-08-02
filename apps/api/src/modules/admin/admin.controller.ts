@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
@@ -19,7 +20,9 @@ import { RequirePermission, Public } from '../../common/decorators/auth.decorato
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
+import { AccessTokenPayload } from '../../common/interfaces/jwt-payload.interface';
 import { AuthService } from '../auth/auth.service';
+import { JwtService } from '@nestjs/jwt';
 import { ProviderRegistryService } from '../ai/providers/provider-registry.service';
 import { AdminTenantsService } from './services/admin-tenants.service';
 import { AuditLogService } from './services/audit-log.service';
@@ -62,6 +65,7 @@ export class AdminController {
     private readonly siteSettings: SiteSettingsService,
     private readonly platformWorkspace: PlatformWorkspaceService,
     private readonly release: ReleaseService,
+    private readonly jwtService: JwtService,
   ) {}
 
   @Get('status')
@@ -285,8 +289,19 @@ export class AdminController {
     const { accessToken } = await this.tenants.exchangeImpersonationCode(
       dto.exchangeCode,
     );
-    this.authService.applyAccessSession(res, req, accessToken, 'client');
-    return { success: true };
+    const payload = this.jwtService.verify<AccessTokenPayload>(accessToken);
+    const user = await this.authService.findUserById(payload.sub);
+    if (!user) {
+      throw new NotFoundException('Пользователь не найден');
+    }
+    await this.authService.attachRefreshSession(user, res, true);
+    const csrfToken = this.authService.applyAccessSession(
+      res,
+      req,
+      accessToken,
+      'client',
+    );
+    return { success: true, csrfToken };
   }
 
   @Get('audit-logs')
