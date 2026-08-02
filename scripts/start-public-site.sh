@@ -20,6 +20,11 @@ install_node() {
 
 build_site() {
   log "Собираю публичный сайт..."
+  export NEXT_PUBLIC_WIDGET_URL="http://${IP}:5175"
+  export NEXT_PUBLIC_CLIENT_URL="http://${IP}:5173"
+  export NEXT_PUBLIC_API_URL="http://${IP}:3000/api"
+  export NEXT_PUBLIC_SITE_URL="http://${IP}:4321"
+  export API_INTERNAL_URL="http://127.0.0.1:3000"
   npm install \
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/public-site \

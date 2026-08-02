@@ -159,6 +159,13 @@ rebuild_public_site() {
   log "Пересобираю публичный сайт..."
   cd "${INSTALL_DIR}"
   ensure_node
+  local ip
+  ip=$(detect_ip)
+  export NEXT_PUBLIC_WIDGET_URL="http://${ip}:5175"
+  export NEXT_PUBLIC_CLIENT_URL="http://${ip}:5173"
+  export NEXT_PUBLIC_API_URL="http://${ip}:3000/api"
+  export NEXT_PUBLIC_SITE_URL="http://${ip}:4321"
+  export API_INTERNAL_URL="http://127.0.0.1:3000"
   npm install \
     --workspace=@ai-consultant/shared-types \
     --workspace=@ai-consultant/public-site \

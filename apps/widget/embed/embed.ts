@@ -54,13 +54,14 @@ interface AicwApi {
   }
 
   function getWidgetUrl(opts: InitOptions): string {
-    return (opts.widgetUrl ?? baseUrl + '/iframe').replace(/\/$/, '');
+    const raw = (opts.widgetUrl ?? `${baseUrl}/iframe`).replace(/\/$/, '');
+    if (raw.endsWith('/iframe')) return raw;
+    return `${raw}/iframe`;
   }
 
   function deriveApiUrl(src: string): string {
     try {
       const url = new URL(src);
-      if (url.port === '5175') return 'http://localhost:3000/api';
       return `${url.protocol}//${url.hostname}:3000/api`;
     } catch {
       return '/api';

@@ -1,6 +1,6 @@
 'use client';
 
-import Script from 'next/script';
+import { useEffect, useRef } from 'react';
 import { siteConfig } from '@/lib/site';
 import { getBrowserApiBase } from '@/lib/api-url';
 
@@ -15,31 +15,50 @@ export function SiteChatWidget({
   apiUrl,
   widgetUrl,
 }: SiteChatWidgetProps) {
-  if (!widgetKey) return null;
+  const mounted = useRef(false);
 
-  const scriptSrc = `${(widgetUrl ?? siteConfig.widgetUrl).replace(/\/$/, '')}/embed.js`;
-  const resolvedApiUrl = getBrowserApiBase(apiUrl);
-  const resolvedWidgetUrl = widgetUrl ?? siteConfig.widgetUrl;
+  useEffect(() => {
+    if (!widgetKey || mounted.current) return;
+    mounted.current = true;
 
-  return (
-    <>
-      <Script id="aicw-site" strategy="afterInteractive">
-        {`window.aicw=window.aicw||function(){(window.aicw.q=window.aicw.q||[]).push(arguments)};`}
-      </Script>
-      <Script
-        id="aicw-site-embed"
-        src={scriptSrc}
-        strategy="afterInteractive"
-        onLoad={() => {
-          const api = (window as Window & { aicw?: (...args: unknown[]) => void }).aicw;
-          api?.('init', {
-            widgetKey,
-            apiUrl: resolvedApiUrl,
-            widgetUrl: resolvedWidgetUrl,
-            lazyLoad: false,
-          });
-        }}
-      />
-    </>
-  );
+    const scriptSrc = `${(widgetUrl ?? siteConfig.widgetUrl).replace(/\/$/, '')}/embed.js`;
+    const resolvedApiUrl = getBrowserApiBase(apiUrl);
+    const resolvedWidgetUrl = (widgetUrl ?? siteConfig.widgetUrl).replace(/\/$/, '');
+
+    const win = window as Window & {
+      aicw?: ((...args: unknown[]) => void) & { q?: unknown[][] };
+    };
+    if (!win.aicw) {
+      const stub = function (...args: unknown[]) {
+        stub.q = stub.q || [];
+        stub.q.push(args);
+      } as ((...args: unknown[]) => void) & { q?: unknown[][] };
+      win.aicw = stub;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'aicw-site-embed';
+    script.src = scriptSrc;
+    script.async = true;
+    script.onload = () => {
+      win.aicw?.('init', {
+        widgetKey,
+        apiUrl: resolvedApiUrl,
+        widgetUrl: resolvedWidgetUrl,
+        lazyLoad: true,
+      });
+    };
+    script.onerror = () => {
+      console.error('[AI-Consultant] Failed to load widget embed.js from', scriptSrc);
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      win.aicw?.('destroy');
+      document.getElementById('aicw-site-embed')?.remove();
+      mounted.current = false;
+    };
+  }, [widgetKey, apiUrl, widgetUrl]);
+
+  return null;
 }

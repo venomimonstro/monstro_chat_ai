@@ -43,6 +43,7 @@
 | 38 | Done | Fix вставки сторонних скриптов чата: выполнение script + CSP + без кэша |
 | 39 | Done | Деплой AI-виджета :5175, автоключ платформы, embed.js для клиентов |
 | 40 | Done | Блокировка дубля embed в «Код», автoочистка localhost-скрипта |
+| 41 | Done | Fix чат на сайте: CSP runtime + iframe /iframe/ + embed.js |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
