@@ -1,21 +1,31 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-
-const APP_VERSION = process.env.APP_VERSION ?? '0.1.0';
+import { ReleaseService } from '../modules/release/release.service';
 
 @Injectable()
 export class HealthService {
+  private readonly appVersion: string;
+  private readonly sprintNumber: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
-  ) {}
+    config: ConfigService,
+    private readonly release: ReleaseService,
+  ) {
+    this.appVersion = config.get<string>('APP_VERSION', '0.1.0');
+    this.sprintNumber = Number(config.get<string>('SPRINT_NUMBER', '0'));
+  }
 
   getHealth() {
+    const current = this.release.getCurrent();
     return {
       status: 'ok' as const,
       timestamp: new Date().toISOString(),
-      version: APP_VERSION,
+      version: current.version || this.appVersion,
+      sprint: current.sprint || this.sprintNumber,
     };
   }
 

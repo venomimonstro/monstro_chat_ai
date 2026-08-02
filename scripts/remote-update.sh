@@ -132,19 +132,7 @@ rebuild_public_site() {
 
 verify_update() {
   log "Проверяю версию..."
-  local response
-  response=$(curl -sf http://127.0.0.1:3000/api/public/demo-widget 2>/dev/null || echo '{}')
-
-  if echo "${response}" | grep -q 'demoWidgetKey'; then
-    log "OK: API обновлён (Sprint 32+)"
-    echo "  ${response}"
-    return 0
-  fi
-
-  warn "API всё ещё старая версия!"
-  echo "  Ответ: ${response}"
-  echo "  Ожидалось поле demoWidgetKey"
-  return 1
+  bash "${INSTALL_DIR}/scripts/verify-release.sh"
 }
 
 print_done() {

@@ -15,6 +15,7 @@ import type {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BackupSnapshotService } from './backup-snapshot.service';
 import { DeploymentRunnerService } from './deployment-runner.service';
+import { ReleaseService } from '../../release/release.service';
 import { UpdatesGateway } from '../gateways/updates.gateway';
 import { DEPLOY_LOG_MAX, QUEUE_SYSTEM_UPDATES } from '../constants';
 
@@ -34,6 +35,7 @@ export class SystemUpdatesService {
     private readonly prisma: PrismaService,
     private readonly backups: BackupSnapshotService,
     private readonly runner: DeploymentRunnerService,
+    private readonly release: ReleaseService,
     private readonly updatesGateway: UpdatesGateway,
     @InjectQueue(QUEUE_SYSTEM_UPDATES)
     private readonly queue: Queue<SystemUpdateJobPayload>,
@@ -54,12 +56,19 @@ export class SystemUpdatesService {
   }
 
   async create(dto: CreateSystemUpdateDto): Promise<SystemUpdateDto> {
+    const lastApplied = await this.prisma.systemUpdate.findFirst({
+      where: { status: 'applied' },
+      orderBy: { appliedAt: 'desc' },
+    });
+
     const row = await this.prisma.systemUpdate.create({
       data: {
         version: dto.version,
+        sprintNumber: dto.sprintNumber ?? null,
         changelog: dto.changelog,
         gitSha: dto.gitSha,
         imageTag: dto.imageTag ?? dto.version,
+        rollbackVersion: lastApplied?.version ?? null,
         deployLogJson: [] as Prisma.InputJsonValue,
       },
     });
@@ -100,19 +109,106 @@ export class SystemUpdatesService {
     await this.prisma.systemUpdate.update({
       where: { id },
       data: {
-        status: 'deploying',
+        status: 'awaiting_approval',
         backupSnapshotId: snapshot.id,
       },
     });
-    this.updatesGateway.emitStatus(id, 'deploying');
-
-    await this.queue.add(
-      'production-deploy',
-      { updateId: id, type: 'production_deploy' },
-      { jobId: `${id}:prod`, removeOnComplete: 50, removeOnFail: 20 },
-    );
+    this.updatesGateway.emitStatus(id, 'awaiting_approval');
 
     return this.get(id);
+  }
+
+  async startHostDeploy(id: string) {
+    const update = await this.requireUpdate(id);
+    if (update.status !== 'awaiting_approval') {
+      throw new BadRequestException('Деплой доступен только после одобрения');
+    }
+
+    await this.prisma.systemUpdate.update({
+      where: { id },
+      data: { status: 'deploying' },
+    });
+    this.updatesGateway.emitStatus(id, 'deploying');
+    await this.appendLog(id, {
+      at: new Date().toISOString(),
+      level: 'info',
+      message: 'Ожидание выполнения release-deploy.sh на сервере',
+    });
+    return this.get(id);
+  }
+
+  async completeHostDeploy(
+    updateId: string,
+    success: boolean,
+    version: string,
+    sprint: number,
+  ) {
+    await this.requireUpdate(updateId);
+    if (!success) {
+      await this.appendLog(updateId, {
+        at: new Date().toISOString(),
+        level: 'error',
+        message: 'Деплой провален, выполнен откат',
+      });
+      await this.prisma.systemUpdate.update({
+        where: { id: updateId },
+        data: { status: 'rolled_back' },
+      });
+      this.updatesGateway.emitStatus(updateId, 'rolled_back');
+      return this.get(updateId);
+    }
+
+    await this.release.syncManifest({
+      version,
+      sprint,
+      deployedAt: new Date().toISOString(),
+    });
+
+    await this.appendLog(updateId, {
+      at: new Date().toISOString(),
+      level: 'info',
+      message: `Деплой ${version} (Sprint ${sprint}) применён`,
+    });
+
+    await this.prisma.systemUpdate.update({
+      where: { id: updateId },
+      data: {
+        status: 'applied',
+        appliedAt: new Date(),
+        sprintNumber: sprint,
+      },
+    });
+    this.updatesGateway.emitStatus(updateId, 'applied');
+    return this.get(updateId);
+  }
+
+  async reportDeployLog(
+    updateId: string,
+    level: 'info' | 'warn' | 'error',
+    message: string,
+  ) {
+    await this.appendLog(updateId, {
+      at: new Date().toISOString(),
+      level,
+      message,
+    });
+    return { ok: true };
+  }
+
+  getDeployInstructions(update: {
+    id: string;
+    version: string;
+    sprintNumber: number | null;
+  }) {
+    const sprint = update.sprintNumber ?? 0;
+    return {
+      updateId: update.id,
+      version: update.version,
+      sprintNumber: update.sprintNumber,
+      command: `sudo RELEASE_UPDATE_ID=${update.id} RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-deploy.sh ${update.version} ${sprint}`,
+      rollbackCommand:
+        'sudo RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-rollback.sh',
+    };
   }
 
   async enqueueRollback(id: string, rollbackVersion: string) {
@@ -255,6 +351,7 @@ export class SystemUpdatesService {
   private toDto(row: {
     id: string;
     version: string;
+    sprintNumber: number | null;
     changelog: string | null;
     gitSha: string | null;
     imageTag: string | null;
@@ -271,6 +368,7 @@ export class SystemUpdatesService {
     return {
       id: row.id,
       version: row.version,
+      sprintNumber: row.sprintNumber,
       changelog: row.changelog,
       gitSha: row.gitSha,
       imageTag: row.imageTag,

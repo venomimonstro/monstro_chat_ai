@@ -36,8 +36,7 @@ import { CreateBackupDto, CreateSystemUpdateDto } from './dto/system-updates.dto
 import { BulkBlockTenantsDto, SetProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
-import { SiteSettingsService } from './services/site-settings.service';
-import type { AuditLogListQuery, TenantListQuery } from '@ai-consultant/shared-types';
+import { ReleaseService } from '../release/release.service';
 
 function requestMeta(req: Request) {
   return {
@@ -58,12 +57,18 @@ export class AdminController {
     private readonly providers: ProviderRegistryService,
     private readonly systemHealth: AdminSystemHealthService,
     private readonly siteSettings: SiteSettingsService,
+    private readonly release: ReleaseService,
   ) {}
 
   @Get('status')
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
   getStatus() {
-    return { status: 'ok', sprint: 32 };
+    const current = this.release.getCurrent();
+    return {
+      status: 'ok',
+      sprint: current.sprint,
+      version: current.version,
+    };
   }
 
   @Get('system/health')

@@ -343,6 +343,34 @@ export async function approveUpdate(id: string) {
   return res.data;
 }
 
+export async function rollbackUpdate(id: string, rollbackVersion?: string) {
+  const res = await api.post<SystemUpdateDto>(`/admin/updates/${id}/rollback`, {
+    rollbackVersion: rollbackVersion ?? 'previous',
+  });
+  return res.data;
+}
+
+export async function fetchCurrentRelease() {
+  const res = await api.get<import('@ai-consultant/shared-types').ReleaseManifestDto>(
+    '/admin/release/current',
+  );
+  return res.data;
+}
+
+export async function fetchSprints() {
+  const res = await api.get<import('@ai-consultant/shared-types').SprintInfoDto[]>(
+    '/admin/release/sprints',
+  );
+  return res.data;
+}
+
+export async function fetchDeployInstructions(id: string) {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').ReleaseDeployInstructionsDto
+  >(`/admin/release/updates/${id}/instructions`);
+  return res.data;
+}
+
 export async function fetchBackups() {
   const res = await api.get<BackupSnapshotDto[]>('/admin/backups');
   return res.data;

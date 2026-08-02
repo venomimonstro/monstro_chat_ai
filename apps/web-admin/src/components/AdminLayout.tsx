@@ -10,6 +10,7 @@ const navItems = [
   { to: '/site-settings', label: 'Сайт / чат' },
   { to: '/analytics', label: 'Аналитика' },
   { to: '/updates', label: 'Обновления' },
+  { to: '/sprints', label: 'Спринты' },
   { to: '/backups', label: 'Бэкапы' },
   { to: '/audit', label: 'Аудит' },
 ];

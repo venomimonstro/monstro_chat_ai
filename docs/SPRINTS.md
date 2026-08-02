@@ -35,6 +35,7 @@
 | 30 | Done | MVP-essentials: forgot password, team invites, notifications, GDPR export, webhooks, clone source |
 | 31 | Done | Каналы VK/Telegram, A/B промптов, PWA менеджеров |
 | 32 | Done | Ключи LLM в админке, чат на публичном сайте, настройки виджета |
+| 33 | Done | Release pipeline: версии, verify, деплой, откат, спринты в админке |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
@@ -63,3 +64,7 @@
 ### Фаза 6 — Расширение каналов (Sprint 31)
 
 VK/Telegram как входящие каналы, A/B промптов, PWA для менеджеров.
+
+### Фаза 7 — Release pipeline (Sprint 33)
+
+Версионированные релизы с pre/post проверками, откатом через админку и CLI, учёт спринтов.
