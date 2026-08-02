@@ -27,7 +27,7 @@ export class PublicController {
   @Public()
   @Get('demo-widget')
   getDemoWidget() {
-    return this.siteSettings.getPublicConfig();
+    return this.siteSettings.getDemoWidgetConfig();
   }
 
   @Public()

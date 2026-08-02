@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../../redis/redis.service';
 import type {
@@ -7,6 +7,23 @@ import type {
 } from '@ai-consultant/shared-types';
 
 const REDIS_KEY = 'admin:public-site-settings';
+
+const WIDGET_EMBED_MARKERS = [
+  /AIConsultantWidget/i,
+  /\baicw\s*\(\s*['"]init['"]/i,
+];
+
+function containsWidgetEmbed(html: string): boolean {
+  const value = html?.trim();
+  if (!value) return false;
+  if (WIDGET_EMBED_MARKERS.some((pattern) => pattern.test(value))) return true;
+  return /embed\.js/i.test(value) && /widgetKey/i.test(value);
+}
+
+function stripWidgetEmbed(html: string): string {
+  if (!containsWidgetEmbed(html)) return html ?? '';
+  return '';
+}
 
 export interface StoredSiteSettings {
   demoWidgetKey?: string;
@@ -20,6 +37,7 @@ export interface StoredSiteSettings {
 
 @Injectable()
 export class SiteSettingsService implements OnModuleInit {
+  private readonly logger = new Logger(SiteSettingsService.name);
   private cached: StoredSiteSettings = {};
 
   constructor(
@@ -29,6 +47,32 @@ export class SiteSettingsService implements OnModuleInit {
 
   async onModuleInit() {
     await this.refresh();
+    await this.purgeWidgetEmbedFromCustomCode();
+  }
+
+  private async purgeWidgetEmbedFromCustomCode(): Promise<void> {
+    const fields: Array<keyof Pick<StoredSiteSettings, 'customHeadHtml' | 'customBodyStartHtml' | 'customBodyEndHtml'>> = [
+      'customHeadHtml',
+      'customBodyStartHtml',
+      'customBodyEndHtml',
+    ];
+    let dirty = false;
+    const next = { ...this.cached };
+    for (const field of fields) {
+      const value = next[field];
+      if (value && containsWidgetEmbed(value)) {
+        this.logger.warn(
+          `Removed AI widget embed code from custom ${field} — use «Чат и виджет» in admin`,
+        );
+        next[field] = '';
+        dirty = true;
+      }
+    }
+    if (!dirty) return;
+    const client = this.redis.getClient();
+    if (!client) return;
+    await client.set(REDIS_KEY, JSON.stringify(next));
+    this.cached = next;
   }
 
   async refresh(): Promise<StoredSiteSettings> {
@@ -87,10 +131,31 @@ export class SiteSettingsService implements OnModuleInit {
   getPublicScripts() {
     const config = this.getPublicConfig();
     return {
-      customHeadHtml: config.customHeadHtml,
-      customBodyStartHtml: config.customBodyStartHtml,
-      customBodyEndHtml: config.customBodyEndHtml,
+      customHeadHtml: stripWidgetEmbed(config.customHeadHtml),
+      customBodyStartHtml: stripWidgetEmbed(config.customBodyStartHtml),
+      customBodyEndHtml: stripWidgetEmbed(config.customBodyEndHtml),
     };
+  }
+
+  getDemoWidgetConfig() {
+    const config = this.getPublicConfig();
+    return {
+      demoWidgetKey: config.demoWidgetKey,
+      chatEnabled: config.chatEnabled,
+      welcomeTitle: config.welcomeTitle,
+      welcomeText: config.welcomeText,
+      apiUrl: config.apiUrl,
+      widgetUrl: config.widgetUrl,
+      enabled: config.enabled,
+    };
+  }
+
+  private assertNoWidgetEmbed(field: string, html?: string): void {
+    if (html !== undefined && containsWidgetEmbed(html)) {
+      throw new BadRequestException(
+        `В поле «${field}» нельзя вставлять код AI-виджета. Настройте чат во вкладке «Настройки сайта → Чат и виджет».`,
+      );
+    }
   }
 
   async update(dto: UpdatePublicSiteSettingsDto): Promise<PublicSiteSettingsDto> {
@@ -98,6 +163,10 @@ export class SiteSettingsService implements OnModuleInit {
     if (!client) {
       throw new Error('Redis unavailable');
     }
+
+    this.assertNoWidgetEmbed('head', dto.customHeadHtml);
+    this.assertNoWidgetEmbed('body (начало)', dto.customBodyStartHtml);
+    this.assertNoWidgetEmbed('body (конец)', dto.customBodyEndHtml);
 
     const next: StoredSiteSettings = {
       ...this.cached,

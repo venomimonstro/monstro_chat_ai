@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchSiteSettings, updateSiteSettings } from '../lib/api';
+import { fetchSiteSettings, updateSiteSettings, extractApiError } from '../lib/api';
 import { EmptyState, ErrorState, LoadingState } from '../components/UiState';
 
 export function SiteCodePage() {
@@ -38,8 +38,8 @@ export function SiteCodePage() {
         customBodyEndHtml: bodyEndHtml,
       });
       setMessage('Код сохранён. Обновите публичный сайт (Ctrl+F5) — скрипты подключатся сразу');
-    } catch {
-      setMessage('Не удалось сохранить');
+    } catch (err) {
+      setMessage(extractApiError(err, 'Не удалось сохранить'));
     } finally {
       setSaving(false);
     }
@@ -59,9 +59,17 @@ export function SiteCodePage() {
       <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
         <h2 className="text-lg font-semibold text-slate-100">Дополнительный код</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Метрика, пиксели, A/B-тесты и любой другой HTML/JS на публичном лендинге. AI-чат
-          подключается автоматически — здесь его настраивать не нужно.
+          Метрика, пиксели и сторонняя аналитика.{' '}
+          <strong className="text-amber-300">Не вставляйте сюда код AI-виджета</strong> — он
+          подключается автоматически во вкладке «Чат и виджет».
         </p>
+
+        {(bodyEndHtml.includes('aicw') || bodyEndHtml.includes('embed.js') || bodyEndHtml.includes('widgetKey')) && (
+          <p className="mt-3 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+            В коде обнаружен embed AI-виджета — удалите его отсюда и сохраните пустым. Чат настраивается
+            только во вкладке «Чат и виджет».
+          </p>
+        )}
 
         <label className="mt-4 block">
           <span className="text-sm font-medium text-slate-300">&lt;head&gt; — перед закрытием</span>
