@@ -14,9 +14,10 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PushModule } from '../push/push.module';
 import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  imports: [JwtModule.register({}), EmailModule, IntegrationsModule, NotificationsModule, PushModule, PromptExperimentModule],
+  imports: [JwtModule.register({}), EmailModule, IntegrationsModule, NotificationsModule, PushModule, PromptExperimentModule, AnalyticsModule],
   controllers: [CrmController, PipelinesController, LeadsController],
   providers: [
     CrmService,

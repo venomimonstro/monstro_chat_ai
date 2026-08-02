@@ -34,4 +34,21 @@ export class AnalyticsCacheService {
     if (!client) return;
     await client.setex(this.key(payload), this.ttlSec, JSON.stringify(value));
   }
+
+  private tenantVersionKey(tenantId: string) {
+    return `analytics:tenant-ver:${tenantId}`;
+  }
+
+  async getTenantVersion(tenantId: string): Promise<number> {
+    const client = this.redis.getClient();
+    if (!client) return 0;
+    const raw = await client.get(this.tenantVersionKey(tenantId));
+    return raw ? Number(raw) || 0 : 0;
+  }
+
+  async invalidateTenant(tenantId: string): Promise<void> {
+    const client = this.redis.getClient();
+    if (!client) return;
+    await client.incr(this.tenantVersionKey(tenantId));
+  }
 }

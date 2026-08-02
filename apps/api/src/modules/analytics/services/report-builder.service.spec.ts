@@ -12,6 +12,8 @@ describe('ReportBuilderService', () => {
   const mockCache = {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn(),
+    getTenantVersion: jest.fn().mockResolvedValue(0),
+    invalidateTenant: jest.fn(),
   };
 
   let service: ReportBuilderService;
@@ -43,6 +45,27 @@ describe('ReportBuilderService', () => {
       { label: 'Start', value: 5000 },
     ]);
     expect(mockCache.set).toHaveBeenCalled();
+  });
+
+  it('counts leads for full calendar day when to is date-only', async () => {
+    mockPrisma.dialog.count.mockResolvedValue(2);
+    mockPrisma.lead.count.mockResolvedValue(1);
+    mockPrisma.message.count.mockResolvedValue(5);
+    mockPrisma.$queryRaw.mockResolvedValue([]);
+    mockCache.get.mockResolvedValue(null);
+
+    await service.getTenantStatistics('tenant-1', '2026-08-02', '2026-08-02');
+
+    expect(mockPrisma.lead.count).toHaveBeenCalledWith({
+      where: {
+        tenantId: 'tenant-1',
+        archived: false,
+        createdAt: {
+          gte: new Date('2026-08-02T00:00:00.000Z'),
+          lte: new Date('2026-08-02T23:59:59.999Z'),
+        },
+      },
+    });
   });
 
   it('returns cached tenant statistics when available', async () => {

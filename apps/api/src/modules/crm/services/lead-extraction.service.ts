@@ -18,6 +18,7 @@ import {
   resolveLeadProfileMode,
   type LeadField,
 } from '../utils/lead-profile.util';
+import { AnalyticsCacheService } from '../../analytics/services/analytics-cache.service';
 
 @Injectable()
 export class LeadExtractionService {
@@ -35,6 +36,7 @@ export class LeadExtractionService {
     private readonly crmGateway: CrmGateway,
     private readonly promptExperiments: PromptExperimentService,
     private readonly push: PushService,
+    private readonly analyticsCache: AnalyticsCacheService,
     config: ConfigService,
   ) {
     this.dedupeDays = config.get<number>('LEAD_DEDUPE_DAYS', 30);
@@ -172,6 +174,7 @@ export class LeadExtractionService {
       }
 
       this.logger.log(`Lead created for dialog ${params.dialogId}`);
+      void this.analyticsCache.invalidateTenant(params.tenantId);
       void this.conversionTracking.trackLeadCreated(params.tenantId, lead.id);
       void this.leadDelivery.enqueueForLead(params.tenantId, lead.id);
 

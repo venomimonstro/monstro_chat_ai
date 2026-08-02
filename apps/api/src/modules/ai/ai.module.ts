@@ -24,9 +24,10 @@ import { ProviderConfigService } from './services/provider-config.service';
 import { ProviderCredentialsService } from './services/provider-credentials.service';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  imports: [KnowledgeModule, CrmModule, BillingModule, RedisModule, IntegrationsModule, PromptExperimentModule],
+  imports: [KnowledgeModule, CrmModule, BillingModule, RedisModule, IntegrationsModule, PromptExperimentModule, AnalyticsModule],
   controllers: [AiController],
   providers: [
     AiService,

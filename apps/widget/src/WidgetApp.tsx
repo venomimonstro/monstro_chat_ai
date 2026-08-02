@@ -9,6 +9,7 @@ import { COMMON_EMOJIS } from './constants/emojis';
 import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport } from './hooks/useViewport';
+import { MessageBubble } from './components/MessageBubble';
 import { dedupeMessages } from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
@@ -177,13 +178,20 @@ export function WidgetApp() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
+  const isStreaming = messages.some((m) => m.streaming);
+
   const {
     bodyRef,
+    contentRef,
     endRef,
     showScrollDown,
     scrollToBottom,
     handleScroll,
-  } = useChatScroll([messages, isTyping, open]);
+  } = useChatScroll({
+    open,
+    messageCount: messages.length,
+    streaming: isStreaming || isTyping,
+  });
 
   const closePanel = useCallback(() => setOpen(false), []);
   const swipeHandlers = useSwipeToClose(closePanel, isMobile && open);
@@ -647,6 +655,7 @@ export function WidgetApp() {
 
     return (
       <>
+        <div ref={contentRef} className="aicw-messages-flow">
         <div className={`aicw-welcome ${isDark ? 'dark' : ''}`}>
           {personalization.welcomeMessage}
         </div>
@@ -673,17 +682,14 @@ export function WidgetApp() {
                 </div>
               )}
               <div className="aicw-message-content">
-                <div
-                  className="aicw-bubble"
-                  style={
-                    isUser
-                      ? { background: appearance.primaryColor, color: appearance.textColor }
-                      : undefined
-                  }
-                >
-                  {msg.content}
-                  {msg.streaming && <span className="aicw-cursor" aria-hidden>▍</span>}
-                </div>
+                <MessageBubble
+                  content={msg.content}
+                  streaming={msg.streaming}
+                  isUser={isUser}
+                  isDark={isDark}
+                  primaryColor={appearance.primaryColor}
+                  textColor={appearance.textColor}
+                />
                 {time && <div className="aicw-message-time">{time}</div>}
               </div>
             </div>
@@ -712,6 +718,7 @@ export function WidgetApp() {
             </button>
           </div>
         )}
+        </div>
         <div ref={endRef} />
       </>
     );

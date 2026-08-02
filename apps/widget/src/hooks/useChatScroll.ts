@@ -1,40 +1,85 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const SCROLL_THRESHOLD = 80;
+const SCROLL_THRESHOLD = 96;
 
-export function useChatScroll(deps: unknown[]) {
+interface UseChatScrollOptions {
+  open: boolean;
+  messageCount: number;
+  streaming: boolean;
+}
+
+export function useChatScroll({
+  open,
+  messageCount,
+  streaming,
+}: UseChatScrollOptions) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const pinnedRef = useRef(true);
+  const prevMessageCountRef = useRef(messageCount);
   const [showScrollDown, setShowScrollDown] = useState(false);
-  const userScrolledUpRef = useRef(false);
+
+  const isNearBottom = useCallback(() => {
+    const el = bodyRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_THRESHOLD;
+  }, []);
 
   const scrollToBottom = useCallback((smooth = true) => {
-    endRef.current?.scrollIntoView({
+    const el = bodyRef.current;
+    if (!el) return;
+    el.scrollTo({
+      top: el.scrollHeight,
       behavior: smooth ? 'smooth' : 'auto',
-      block: 'end',
     });
-    userScrolledUpRef.current = false;
+    pinnedRef.current = true;
     setShowScrollDown(false);
   }, []);
 
   const handleScroll = useCallback(() => {
-    const el = bodyRef.current;
-    if (!el) return;
-    const atBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
-    userScrolledUpRef.current = !atBottom;
-    setShowScrollDown(!atBottom);
-  }, []);
+    const near = isNearBottom();
+    pinnedRef.current = near;
+    setShowScrollDown(!near);
+  }, [isNearBottom]);
 
   useEffect(() => {
-    if (!userScrolledUpRef.current) {
-      scrollToBottom(false);
+    if (!open) return;
+    pinnedRef.current = true;
+    requestAnimationFrame(() => scrollToBottom(false));
+  }, [open, scrollToBottom]);
+
+  useEffect(() => {
+    if (messageCount > prevMessageCountRef.current) {
+      pinnedRef.current = true;
+      requestAnimationFrame(() => scrollToBottom(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+    prevMessageCountRef.current = messageCount;
+  }, [messageCount, scrollToBottom]);
+
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content || !open) return;
+
+    const scrollIfPinned = () => {
+      if (!pinnedRef.current) return;
+      const el = bodyRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    };
+
+    const observer = new ResizeObserver(() => {
+      scrollIfPinned();
+    });
+    observer.observe(content);
+    scrollIfPinned();
+
+    return () => observer.disconnect();
+  }, [open, messageCount, streaming]);
 
   return {
     bodyRef,
+    contentRef,
     endRef,
     showScrollDown,
     scrollToBottom,

@@ -315,6 +315,14 @@
   scroll-behavior: smooth;
   position: relative;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.aicw-messages-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: min-content;
 }
 
 .aicw-body.dark {
@@ -401,6 +409,63 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+}
+
+.aicw-bubble-paragraph {
+  margin: 0;
+}
+
+.aicw-bubble-paragraph + .aicw-bubble-paragraph {
+  margin-top: 8px;
+}
+
+.aicw-contact-card {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 43, 52, 0.22);
+  background: #fff5f5;
+  color: #7f1d1d;
+}
+
+.aicw-contact-card.dark {
+  background: rgba(239, 43, 52, 0.12);
+  border-color: rgba(239, 43, 52, 0.35);
+  color: #fecaca;
+}
+
+.aicw-contact-card-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 43, 52, 0.12);
+  color: var(--aicw-primary, #EF2B34);
+}
+
+.aicw-contact-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.aicw-contact-card-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--aicw-primary, #EF2B34);
+}
+
+.aicw-contact-card-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .aicw-bubble {

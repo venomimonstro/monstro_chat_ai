@@ -48,7 +48,8 @@ export class ReportBuilderService {
     from: string,
     to: string,
   ): Promise<TenantStatisticsDto> {
-    const cacheKey = { type: 'tenant-stats', tenantId, from, to };
+    const version = await this.cache.getTenantVersion(tenantId);
+    const cacheKey = { type: 'tenant-stats', tenantId, from, to, version };
     const cached = await this.cache.get<TenantStatisticsDto>(cacheKey);
     if (cached) return cached;
 
@@ -312,6 +313,16 @@ export class ReportBuilderService {
   }
 
   private parseRange(from: string, to: string): DateRange {
-    return { from: new Date(from), to: new Date(to) };
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from.trim())) {
+      fromDate.setUTCHours(0, 0, 0, 0);
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(to.trim())) {
+      toDate.setUTCHours(23, 59, 59, 999);
+    }
+
+    return { from: fromDate, to: toDate };
   }
 }

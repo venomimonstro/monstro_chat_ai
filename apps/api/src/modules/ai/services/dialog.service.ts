@@ -6,12 +6,14 @@ import {
   attributionToUtmJson,
   type DialogAttributionInput,
 } from '../../integrations/attribution.util';
+import { AnalyticsCacheService } from '../../analytics/services/analytics-cache.service';
 
 @Injectable()
 export class DialogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outgoingWebhook: OutgoingWebhookService,
+    private readonly analyticsCache: AnalyticsCacheService,
   ) {}
 
   async getOrCreateDialog(
@@ -33,7 +35,7 @@ export class DialogService {
       return existing;
     }
 
-    return this.prisma.dialog.create({
+    const dialog = await this.prisma.dialog.create({
       data: {
         tenantId,
         sourceId,
@@ -45,6 +47,8 @@ export class DialogService {
         gaClientId: attribution?.gaClientId,
       },
     });
+    void this.analyticsCache.invalidateTenant(tenantId);
+    return dialog;
   }
 
   private async applyAttributionIfEmpty(
