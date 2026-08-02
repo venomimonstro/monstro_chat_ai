@@ -9,6 +9,7 @@ import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewportHeight } from './hooks/useViewport';
 import { dedupeMessages } from './utils/messages';
+import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
 
 interface ChatMessage {
@@ -78,7 +79,7 @@ function getVisitorId(): string {
   const key = 'aicw_visitor_id';
   let id = localStorage.getItem(key);
   if (!id) {
-    id = `v_${crypto.randomUUID()}`;
+    id = `v_${generateUuid()}`;
     localStorage.setItem(key, id);
   }
   return id;

@@ -211,10 +211,7 @@ interface AicwApi {
       const type = event.data?.type;
       if (type === 'aicw:ready' || type === 'aicw:panel-open') {
         removeLauncher();
-        launcherBtn = null;
-        if (type === 'aicw:panel-open') {
-          setIframePointerEvents(true);
-        }
+        setIframePointerEvents(true);
       }
       if (type === 'aicw:panel-close') {
         setIframePointerEvents(false);
@@ -225,11 +222,16 @@ interface AicwApi {
     });
   }
 
+  function finalizeOpen() {
+    setIframePointerEvents(true);
+    removeLauncher();
+  }
+
   function loadIframe(opts: InitOptions, autoOpen = false) {
     if (iframe) {
       if (autoOpen) {
         iframe.contentWindow?.postMessage({ type: 'aicw:open' }, '*');
-        setIframePointerEvents(true);
+        finalizeOpen();
       }
       return;
     }
@@ -248,15 +250,28 @@ interface AicwApi {
     }
     document.body.appendChild(iframe);
 
+    let openFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
     iframe.onload = () => {
       if (!iframe?.contentWindow) return;
-      if (!autoOpen) {
-        setIframePointerEvents(true);
-      }
       if (autoOpen) {
         iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
+        openFallbackTimer = setTimeout(finalizeOpen, 800);
+      } else {
+        setIframePointerEvents(true);
       }
     };
+
+    if (autoOpen) {
+      window.addEventListener('message', function onReady(event: MessageEvent) {
+        if (!isFromWidgetIframe(event)) return;
+        if (event.data?.type === 'aicw:ready' || event.data?.type === 'aicw:panel-open') {
+          if (openFallbackTimer) clearTimeout(openFallbackTimer);
+          finalizeOpen();
+          window.removeEventListener('message', onReady);
+        }
+      });
+    }
   }
 
   function scheduleLoad(opts: InitOptions) {
