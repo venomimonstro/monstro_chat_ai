@@ -23,11 +23,6 @@ export function PricingGrid({ tariffs }: PricingGridProps) {
     }));
   }, [tariffs, period]);
 
-  const mostPopular = useMemo(() => {
-    const pro = visible.find((t) => t.name.toLowerCase().includes('pro'));
-    return pro?.id ?? visible[Math.min(1, visible.length - 1)]?.id;
-  }, [visible]);
-
   const features = [
     'ИИ-ответы по базе знаний',
     'Сбор лидов и CRM',
@@ -67,21 +62,11 @@ export function PricingGrid({ tariffs }: PricingGridProps) {
 
       <div className="mt-10 grid gap-6 md:grid-cols-3">
         {visible.map((tariff) => {
-          const popular = tariff.id === mostPopular;
           return (
             <div
               key={tariff.id}
-              className={`relative flex flex-col rounded-2xl border p-6 transition hover:-translate-y-1 hover:shadow-soft ${
-                popular
-                  ? 'border-brand-300 bg-brand-50/50 shadow-soft'
-                  : 'border-slate-100 bg-white shadow-card'
-              }`}
+              className="relative flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-card transition hover:-translate-y-1 hover:border-brand-200 hover:shadow-soft"
             >
-              {popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-3 py-1 text-xs font-medium text-white">
-                  Популярный
-                </span>
-              )}
               <h3 className="text-lg font-semibold text-slate-900">{tariff.name}</h3>
               <p className="mt-4 text-4xl font-bold tracking-tight text-slate-900">
                 {tariff.price.toLocaleString('ru-RU')}
@@ -112,11 +97,7 @@ export function PricingGrid({ tariffs }: PricingGridProps) {
                     ? `/register?tariffId=${encodeURIComponent(tariff.id)}`
                     : `/register?tariffName=${encodeURIComponent(tariff.name)}`
                 }
-                className={`mt-8 block rounded-full py-2.5 text-center text-sm font-medium transition ${
-                  popular
-                    ? 'bg-brand-600 text-white hover:bg-brand-700'
-                    : 'border border-slate-200 bg-white text-slate-700 hover:border-brand-300 hover:text-brand-700'
-                }`}
+                className="mt-8 block rounded-full bg-brand-600 py-2.5 text-center text-sm font-medium text-white transition hover:bg-brand-700"
               >
                 Начать бесплатно
               </Link>

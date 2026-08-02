@@ -19,6 +19,14 @@ export function LoginPage() {
   const location = useLocation();
   const { setUser } = useAuth();
   const [serverError, setServerError] = useState('');
+  const params = new URLSearchParams(location.search);
+  const successMessage =
+    params.get('registered') === '1'
+      ? 'Аккаунт создан. Войдите, чтобы продолжить настройку.'
+      : params.get('reset') === '1' ||
+          (location.state as { message?: string } | null)?.message
+        ? 'Пароль обновлён. Войдите с новым паролем.'
+        : '';
 
   const {
     register,
@@ -49,8 +57,14 @@ export function LoginPage() {
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <h1 className="text-2xl font-bold text-slate-900">Вход</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Войдите в личный кабинет AI-Консультант
+          Войдите в личный кабинет Monstro Chat AI
         </p>
+
+        {successMessage && (
+          <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+            {successMessage}
+          </div>
+        )}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
           <div>

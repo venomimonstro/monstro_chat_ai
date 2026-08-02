@@ -211,7 +211,7 @@
 
 .aicw-faq-item:hover:not(:disabled) {
   border-color: #EF2B34;
-  background: #f0fdf9;
+  background: #fff1f1;
 }
 
 .aicw-faq-item:disabled {
@@ -350,7 +350,7 @@
 .aicw-chip:hover {
   border-color: #EF2B34;
   color: #EF2B34;
-  background: #f0fdf9;
+  background: #fff1f1;
 }
 
 .aicw-message {

@@ -45,6 +45,7 @@ export function SiteChatWidget({
         widgetKey,
         apiUrl: resolvedApiUrl,
         widgetUrl: resolvedWidgetUrl,
+        primaryColor: '#EF2B34',
         lazyLoad: true,
       });
     };

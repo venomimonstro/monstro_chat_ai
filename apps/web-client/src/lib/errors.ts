@@ -1,10 +1,17 @@
 import type { AxiosError } from 'axios';
-import type { ApiError } from '@ai-consultant/shared-types';
 
 export function extractErrorMessage(error: unknown): string {
-  const axiosError = error as AxiosError<ApiError>;
-  if (axiosError.response?.data?.message) {
-    return axiosError.response.data.message;
+  const axiosError = error as AxiosError<{
+    message?: string | string[];
+    retryAfterSeconds?: number;
+  }>;
+  const message = axiosError.response?.data?.message;
+  if (message) {
+    const text = Array.isArray(message) ? message.join(', ') : message;
+    const retryAfter = axiosError.response?.data?.retryAfterSeconds;
+    return retryAfter
+      ? `${text} Повторите через ${retryAfter} сек.`
+      : text;
   }
   if (error instanceof Error) {
     return error.message;
@@ -13,7 +20,7 @@ export function extractErrorMessage(error: unknown): string {
 }
 
 export function getErrorCode(error: unknown): string | undefined {
-  const axiosError = error as AxiosError<ApiError>;
+  const axiosError = error as AxiosError<{ error?: string }>;
   return axiosError.response?.data?.error;
 }
 
