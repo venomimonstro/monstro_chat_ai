@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { RedisService } from '../../../redis/redis.service';
+import { RedisService } from '../../redis/redis.service';
 import type { ReleaseManifestDto, SprintInfoDto } from '@ai-consultant/shared-types';
 
 const REDIS_KEY = 'release:manifest';

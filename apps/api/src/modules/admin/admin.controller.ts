@@ -36,7 +36,9 @@ import { CreateBackupDto, CreateSystemUpdateDto } from './dto/system-updates.dto
 import { BulkBlockTenantsDto, SetProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
+import { SiteSettingsService } from './services/site-settings.service';
 import { ReleaseService } from '../release/release.service';
+import type { AuditLogListQuery, TenantListQuery } from '@ai-consultant/shared-types';
 
 function requestMeta(req: Request) {
   return {
