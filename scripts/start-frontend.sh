@@ -81,7 +81,7 @@ wait_http() {
   local port="$1"
   local i
   for i in $(seq 1 12); do
-    if curl -sf "http://127.0.0.1:${port}/" >/dev/null 2>&1; then
+    if curl -sf "http://127.0.0.1:${port}/health.txt" 2>/dev/null | grep -q '^ok'; then
       return 0
     fi
     sleep 2

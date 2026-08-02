@@ -94,23 +94,43 @@ wait_for_api() {
   return 1
 }
 
-rebuild_admin() {
-  log "Пересобираю админку..."
+rebuild_frontends() {
+  log "Пересобираю фронтенд (ЛК + админка)..."
   cd "${INSTALL_DIR}"
   ensure_node
   npm install \
     --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/web-client \
     --workspace=@ai-consultant/web-admin \
     --include-workspace-root
   npm run build -w @ai-consultant/shared-types
+  npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin
+
+  if systemctl is-active --quiet monstro-web-client 2>/dev/null; then
+    systemctl restart monstro-web-client
+  elif systemctl is-active --quiet monstro-web-admin 2>/dev/null; then
+    systemctl restart monstro-web-admin
+  else
+    warn "Запускаю фронтенд через start-frontend.sh..."
+    bash "${INSTALL_DIR}/scripts/start-frontend.sh"
+    return
+  fi
 
   if systemctl is-active --quiet monstro-web-admin 2>/dev/null; then
     systemctl restart monstro-web-admin
-  else
-    warn "Запускаю админку через start-frontend.sh..."
-    bash "${INSTALL_DIR}/scripts/start-frontend.sh"
   fi
+
+  local i
+  for i in $(seq 1 12); do
+    if curl -sf http://127.0.0.1:5173/health.txt | grep -q '^ok' \
+      && curl -sf http://127.0.0.1:5174/health.txt | grep -q '^ok'; then
+      log "health.txt: ЛК и админка OK"
+      return 0
+    fi
+    sleep 2
+  done
+  warn "health.txt не отвечает — проверьте: journalctl -u monstro-web-client -u monstro-web-admin"
 }
 
 rebuild_public_site() {
@@ -163,7 +183,7 @@ main() {
     docker compose -f "${INSTALL_DIR}/docker-compose.yml" logs api --tail 40
     fail "API не поднялся"
   }
-  rebuild_admin
+  rebuild_frontends
   rebuild_public_site
   verify_update || fail "Обновление не применилось — пришлите вывод этой команды"
   print_done
