@@ -15,7 +15,10 @@ import { AuditLogPage } from './pages/AuditLogPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { TariffsPage } from './pages/TariffsPage';
 import { ProvidersPage } from './pages/ProvidersPage';
+import { SiteSettingsLayout } from './components/SiteSettingsLayout';
 import { SiteSettingsPage } from './pages/SiteSettingsPage';
+import { SiteCodePage } from './pages/SiteCodePage';
+import { SiteDiagnosticsPage } from './pages/SiteDiagnosticsPage';
 import { StabilityPage } from './pages/StabilityPage';
 
 export default function App() {
@@ -34,7 +37,11 @@ export default function App() {
               <Route path="/tenants/:id" element={<TenantDetailPage />} />
               <Route path="/tariffs" element={<TariffsPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
-              <Route path="/site-settings" element={<SiteSettingsPage />} />
+              <Route path="/site-settings" element={<SiteSettingsLayout />}>
+                <Route index element={<SiteSettingsPage />} />
+                <Route path="code" element={<SiteCodePage />} />
+                <Route path="diagnostics" element={<SiteDiagnosticsPage />} />
+              </Route>
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/updates" element={<UpdatesPage />} />
               <Route path="/sprints" element={<SprintsPage />} />

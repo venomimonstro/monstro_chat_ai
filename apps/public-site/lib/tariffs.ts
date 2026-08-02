@@ -14,6 +14,33 @@ export async function fetchPublicTariffs(): Promise<TariffDto[]> {
   }
 }
 
+export async function fetchSiteScripts() {
+  const apiBase = getServerApiBase();
+  try {
+    const res = await fetch(`${apiBase}/public/site-scripts`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) {
+      return {
+        customHeadHtml: '',
+        customBodyStartHtml: '',
+        customBodyEndHtml: '',
+      };
+    }
+    return res.json() as Promise<{
+      customHeadHtml: string;
+      customBodyStartHtml: string;
+      customBodyEndHtml: string;
+    }>;
+  } catch {
+    return {
+      customHeadHtml: '',
+      customBodyStartHtml: '',
+      customBodyEndHtml: '',
+    };
+  }
+}
+
 export async function fetchDemoWidget() {
   const apiBase = getServerApiBase();
   try {

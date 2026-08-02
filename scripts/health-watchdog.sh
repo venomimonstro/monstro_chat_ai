@@ -61,11 +61,11 @@ main() {
   check_url "API DB" "${API_BASE}/health/db" '"database":"connected"' || failed=1
   check_url "API Redis" "${API_BASE}/health/redis" '"redis":"connected"' || failed=1
   check_url "Public chat" "${API_BASE}/public/demo-widget" 'demoWidgetKey' || failed=1
-  check_url "Web client" "http://127.0.0.1:${CLIENT_PORT}/" || {
+  check_url "Web client" "http://127.0.0.1:${CLIENT_PORT}/health.txt" '^ok' || {
     restart_service monstro-web-client
     failed=1
   }
-  check_url "Web admin" "http://127.0.0.1:${ADMIN_PORT}/" || {
+  check_url "Web admin" "http://127.0.0.1:${ADMIN_PORT}/health.txt" '^ok' || {
     restart_service monstro-web-admin
     failed=1
   }

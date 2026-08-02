@@ -83,18 +83,12 @@ export function SiteSettingsPage() {
   if (!settings) return <EmptyState title="Нет данных" />;
 
   return (
-    <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-100">Настройки публичного сайта</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Виджет чата на лендинге и демо-странице
+    <div className="max-w-2xl space-y-6">
+      {message && (
+        <p className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">
+          {message}
         </p>
-        {message && (
-          <p className="mt-2 text-sm text-emerald-400">{message}</p>
-        )}
-      </div>
-
-      <div className="max-w-2xl space-y-6">
+      )}
         {workspace && (
           <section className="rounded-xl border border-brand-500/30 bg-brand-950/20 p-5">
             <h2 className="text-lg font-semibold text-slate-100">ЛК платформы</h2>
@@ -193,7 +187,6 @@ export function SiteSettingsPage() {
         >
           {saving ? 'Сохранение…' : 'Сохранить'}
         </button>
-      </div>
     </div>
   );
 }

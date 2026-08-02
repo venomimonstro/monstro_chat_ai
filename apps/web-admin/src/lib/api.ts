@@ -287,6 +287,20 @@ export async function fetchSiteSettings() {
   return res.data;
 }
 
+export async function fetchDiagnosticsLink() {
+  const res = await api.get<import('@ai-consultant/shared-types').DiagnosticsLinkDto>(
+    '/admin/site-settings/diagnostics-link',
+  );
+  return res.data;
+}
+
+export async function regenerateDiagnosticsLink() {
+  const res = await api.post<import('@ai-consultant/shared-types').DiagnosticsLinkDto>(
+    '/admin/site-settings/diagnostics-link/regenerate',
+  );
+  return res.data;
+}
+
 export async function updateSiteSettings(
   data: import('@ai-consultant/shared-types').UpdatePublicSiteSettingsDto,
 ) {

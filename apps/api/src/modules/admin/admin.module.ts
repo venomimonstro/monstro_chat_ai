@@ -14,7 +14,9 @@ import { SystemUpdatesService } from './services/system-updates.service';
 import { SystemUpdateProcessor } from './processors/system-update.processor';
 import { UpdatesGateway } from './gateways/updates.gateway';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
+import { SiteSettingsController } from './site-settings.controller';
 import { SiteSettingsService } from './services/site-settings.service';
+import { DiagnosticsTokenService } from './services/diagnostics-token.service';
 import { PlatformWorkspaceService } from './services/platform-workspace.service';
 import { DeploymentRecordsService } from './services/deployment-records.service';
 import { StabilityMonitorService } from './services/stability-monitor.service';
@@ -49,7 +51,7 @@ import { SourcesModule } from '../sources/sources.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminController, ReleaseController, StabilityController],
+  controllers: [AdminController, ReleaseController, StabilityController, SiteSettingsController],
   providers: [
     MarginAnalyticsService,
     AdminTenantsService,
@@ -61,10 +63,11 @@ import { SourcesModule } from '../sources/sources.module';
     UpdatesGateway,
     AdminSystemHealthService,
     SiteSettingsService,
+    DiagnosticsTokenService,
     PlatformWorkspaceService,
     DeploymentRecordsService,
     StabilityMonitorService,
   ],
-  exports: [SiteSettingsService],
+  exports: [SiteSettingsService, DiagnosticsTokenService, StabilityMonitorService],
 })
 export class AdminModule {}

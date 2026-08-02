@@ -8,7 +8,7 @@ const navItems = [
   { to: '/tenants', label: 'Клиенты' },
   { to: '/tariffs', label: 'Тарифы' },
   { to: '/providers', label: 'LLM-провайдеры' },
-  { to: '/site-settings', label: 'Сайт / чат' },
+  { to: '/site-settings', label: 'Настройки сайта' },
   { to: '/analytics', label: 'Аналитика' },
   { to: '/updates', label: 'Обновления' },
   { to: '/sprints', label: 'Спринты' },

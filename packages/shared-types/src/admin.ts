@@ -133,6 +133,9 @@ export interface PublicSiteSettingsDto {
   apiUrl: string;
   widgetUrl: string;
   enabled: boolean;
+  customHeadHtml: string;
+  customBodyStartHtml: string;
+  customBodyEndHtml: string;
 }
 
 export interface UpdatePublicSiteSettingsDto {
@@ -140,6 +143,15 @@ export interface UpdatePublicSiteSettingsDto {
   chatEnabled?: boolean;
   welcomeTitle?: string;
   welcomeText?: string;
+  customHeadHtml?: string;
+  customBodyStartHtml?: string;
+  customBodyEndHtml?: string;
+}
+
+export interface DiagnosticsLinkDto {
+  token: string;
+  pageUrl: string;
+  apiUrl: string;
 }
 
 export interface PlatformWorkspaceDto {
@@ -174,6 +186,19 @@ export interface StabilityStatusDto {
   timestamp: string;
   probes: StabilityProbeDto[];
   openIncidents: number;
+}
+
+export interface PublicDiagnosticsDto extends StabilityStatusDto {
+  version: string;
+  sprint: number;
+  checkedAt: string;
+  services: {
+    api: string;
+    webClient: string;
+    webAdmin: string;
+    publicSite: string;
+    widget: string;
+  };
 }
 
 export interface StabilityIncidentDto {

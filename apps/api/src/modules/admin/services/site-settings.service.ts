@@ -13,6 +13,9 @@ export interface StoredSiteSettings {
   chatEnabled?: boolean;
   welcomeTitle?: string;
   welcomeText?: string;
+  customHeadHtml?: string;
+  customBodyStartHtml?: string;
+  customBodyEndHtml?: string;
 }
 
 @Injectable()
@@ -75,6 +78,18 @@ export class SiteSettingsService implements OnModuleInit {
       apiUrl,
       widgetUrl,
       enabled: chatEnabled && Boolean(demoWidgetKey),
+      customHeadHtml: this.cached.customHeadHtml ?? '',
+      customBodyStartHtml: this.cached.customBodyStartHtml ?? '',
+      customBodyEndHtml: this.cached.customBodyEndHtml ?? '',
+    };
+  }
+
+  getPublicScripts() {
+    const config = this.getPublicConfig();
+    return {
+      customHeadHtml: config.customHeadHtml,
+      customBodyStartHtml: config.customBodyStartHtml,
+      customBodyEndHtml: config.customBodyEndHtml,
     };
   }
 
@@ -95,6 +110,15 @@ export class SiteSettingsService implements OnModuleInit {
         : {}),
       ...(dto.welcomeText !== undefined
         ? { welcomeText: dto.welcomeText.trim() }
+        : {}),
+      ...(dto.customHeadHtml !== undefined
+        ? { customHeadHtml: dto.customHeadHtml }
+        : {}),
+      ...(dto.customBodyStartHtml !== undefined
+        ? { customBodyStartHtml: dto.customBodyStartHtml }
+        : {}),
+      ...(dto.customBodyEndHtml !== undefined
+        ? { customBodyEndHtml: dto.customBodyEndHtml }
         : {}),
     };
 

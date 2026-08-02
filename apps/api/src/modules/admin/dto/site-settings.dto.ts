@@ -16,4 +16,16 @@ export class UpdateSiteSettingsDto {
   @IsOptional()
   @IsString()
   welcomeText?: string;
+
+  @IsOptional()
+  @IsString()
+  customHeadHtml?: string;
+
+  @IsOptional()
+  @IsString()
+  customBodyStartHtml?: string;
+
+  @IsOptional()
+  @IsString()
+  customBodyEndHtml?: string;
 }

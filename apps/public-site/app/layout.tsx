@@ -2,9 +2,10 @@ import type { Metadata } from 'next';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteChatWidgetHost } from '@/components/SiteChatWidgetHost';
+import { SiteInjectedScripts } from '@/components/SiteInjectedScripts';
 import { JsonLd } from '@/components/JsonLd';
 import { siteConfig } from '@/lib/site';
-import { fetchDemoWidget } from '@/lib/tariffs';
+import { fetchDemoWidget, fetchSiteScripts } from '@/lib/tariffs';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -27,10 +28,16 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const demo = await fetchDemoWidget();
+  const scripts = await fetchSiteScripts();
 
   return (
     <html lang="ru">
       <body>
+        <SiteInjectedScripts
+          headHtml={scripts.customHeadHtml}
+          bodyStartHtml={scripts.customBodyStartHtml}
+          bodyEndHtml={scripts.customBodyEndHtml}
+        />
         <JsonLd
           data={{
             '@context': 'https://schema.org',

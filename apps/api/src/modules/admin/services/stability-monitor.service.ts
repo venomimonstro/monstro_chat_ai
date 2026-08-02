@@ -94,12 +94,14 @@ export class StabilityMonitorService {
       {
         component: 'web_client',
         label: 'ЛК клиента',
-        url: clientUrl,
+        url: `${clientUrl.replace(/\/$/, '')}/health.txt`,
+        expect: /^ok$/m,
       },
       {
         component: 'web_admin',
         label: 'Админка',
-        url: adminUrl,
+        url: `${adminUrl.replace(/\/$/, '')}/health.txt`,
+        expect: /^ok$/m,
       },
       {
         component: 'public_site',

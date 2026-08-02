@@ -37,9 +37,7 @@ import {
 } from './dto/admin-tenants.dto';
 import { CreateBackupDto, CreateSystemUpdateDto } from './dto/system-updates.dto';
 import { BulkBlockTenantsDto, SetProviderCredentialsDto, TestProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
-import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
-import { SiteSettingsService } from './services/site-settings.service';
 import { PlatformWorkspaceService } from './services/platform-workspace.service';
 import { ReleaseService } from '../release/release.service';
 import type { AuditLogListQuery, TenantListQuery } from '@ai-consultant/shared-types';
@@ -62,7 +60,6 @@ export class AdminController {
     private readonly authService: AuthService,
     private readonly providers: ProviderRegistryService,
     private readonly systemHealth: AdminSystemHealthService,
-    private readonly siteSettings: SiteSettingsService,
     private readonly platformWorkspace: PlatformWorkspaceService,
     private readonly release: ReleaseService,
     private readonly jwtService: JwtService,
@@ -134,18 +131,6 @@ export class AdminController {
     @Req() req: Request,
   ) {
     return this.platformWorkspace.openWorkspace(user, requestMeta(req));
-  }
-
-  @Get('site-settings')
-  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
-  getSiteSettings() {
-    return this.siteSettings.getPublicConfig();
-  }
-
-  @Patch('site-settings')
-  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
-  updateSiteSettings(@Body() dto: UpdateSiteSettingsDto) {
-    return this.siteSettings.update(dto);
   }
 
   @Get('tenants')
