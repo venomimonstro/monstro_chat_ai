@@ -6,9 +6,9 @@ import { siteConfig } from '@/lib/site';
 
 const links = [
   { href: '/#how', label: 'Как работает' },
-  { href: '/#for-whom', label: 'Для кого' },
-  { href: '/pricing', label: 'Тарифы' },
-  { href: '/blog', label: 'Блог' },
+  { href: '/#demo', label: 'Демо' },
+  { href: '/#features', label: 'Возможности' },
+  { href: '/#pricing', label: 'Тарифы' },
 ];
 
 export function SiteHeader() {
@@ -34,7 +34,7 @@ export function SiteHeader() {
             Войти
           </a>
           <a href="/register" className="btn-primary px-5 py-2 text-sm">
-            Попробовать бесплатно
+            Попробовать 7 дней
           </a>
         </nav>
 
@@ -67,7 +67,7 @@ export function SiteHeader() {
             ))}
             <a href={`${siteConfig.clientAppUrl}/login`}>Войти</a>
             <a href="/register" className="btn-primary text-center">
-              Попробовать бесплатно
+              Попробовать 7 дней
             </a>
           </nav>
         </div>

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     template: `%s · ${siteConfig.name}`,
   },
   description:
-    'Monstro Chat AI — умный AI-чат для вашего сайта. Отвечает посетителям как лучший менеджер, приводит заявки круглосуточно. Настройка за 5 минут.',
+    'Monstro Chat AI отвечает посетителям по материалам компании, уточняет запрос и передаёт контакт менеджеру вместе с историей диалога.',
   openGraph: {
     type: 'website',
     locale: 'ru_RU',
@@ -45,6 +45,12 @@ export default async function RootLayout({
         />
       </head>
       <body>
+        <a
+          href="#main-content"
+          className="fixed left-4 top-3 z-[100] -translate-y-20 rounded-lg bg-white px-4 py-2 font-medium text-ink-900 shadow-lg transition focus:translate-y-0"
+        >
+          Перейти к содержанию
+        </a>
         <SiteInjectedScripts
           customHeadHtml={scripts.customHeadHtml}
           customBodyStartHtml={scripts.customBodyStartHtml}
@@ -60,7 +66,7 @@ export default async function RootLayout({
           }}
         />
         <SiteHeader />
-        <main className="min-h-[70vh]">{children}</main>
+        <main id="main-content" className="min-h-[70vh]">{children}</main>
         <SiteFooter />
         <StickyCtaBar />
         <SiteChatWidgetHost initial={demo} />

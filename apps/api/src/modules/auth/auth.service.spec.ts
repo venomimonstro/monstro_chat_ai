@@ -11,6 +11,7 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../common/email/email.service';
 import { TokenService } from './token.service';
+import { CsrfTokenService } from './csrf-token.service';
 import { TwoFaCryptoService } from './two-fa-crypto.service';
 
 jest.mock('otplib', () => ({
@@ -43,6 +44,7 @@ describe('AuthService', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -94,6 +96,13 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: mockConfig },
         { provide: EmailService, useValue: mockEmail },
         { provide: TokenService, useValue: mockToken },
+        {
+          provide: CsrfTokenService,
+          useValue: {
+            issue: jest.fn().mockResolvedValue('csrf-token'),
+            bind: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: TwoFaCryptoService, useValue: { encrypt: (s: string) => s, decrypt: (s: string) => s } },
       ],
     }).compile();

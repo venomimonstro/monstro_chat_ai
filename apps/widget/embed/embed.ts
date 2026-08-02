@@ -176,7 +176,7 @@ interface AicwApi {
       zIndex: '2147483647',
       background: color,
       color: '#fff',
-      boxShadow: '0 4px 14px rgba(0,0,0,.18)',
+      boxShadow: '0 6px 20px rgba(239,43,52,.28)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -212,9 +212,11 @@ interface AicwApi {
       if (type === 'aicw:ready' || type === 'aicw:panel-open') {
         removeLauncher();
         setIframePointerEvents(true);
+        window.dispatchEvent(new Event('aicw:opened'));
       }
       if (type === 'aicw:panel-close') {
         setIframePointerEvents(false);
+        window.dispatchEvent(new Event('aicw:closed'));
         if (lazyLoadEnabled) {
           createLauncher(state);
         }
@@ -225,6 +227,7 @@ interface AicwApi {
   function finalizeOpen() {
     setIframePointerEvents(true);
     removeLauncher();
+    window.dispatchEvent(new Event('aicw:opened'));
   }
 
   function loadIframe(opts: InitOptions, autoOpen = false) {
