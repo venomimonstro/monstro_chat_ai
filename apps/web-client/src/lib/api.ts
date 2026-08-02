@@ -13,13 +13,16 @@ function getCsrfTokenFromCookie(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function getCsrfToken(): string | null {
-  return csrfTokenMemory ?? getCsrfTokenFromCookie();
+function getCsrfToken(): string | null {
+  const fromCookie = getCsrfTokenFromCookie();
+  if (fromCookie) {
+    csrfTokenMemory = fromCookie;
+    return fromCookie;
+  }
+  return csrfTokenMemory;
 }
 
 export async function ensureCsrfToken(): Promise<string | null> {
-  const existing = getCsrfToken();
-  if (existing) return existing;
   try {
     const res = await api.get<{ token: string | null }>('/auth/csrf');
     if (res.data.token) {
@@ -40,7 +43,12 @@ export async function ensureCsrfToken(): Promise<string | null> {
   } catch {
     /* ignore */
   }
-  return getCsrfToken();
+  const fromCookie = getCsrfTokenFromCookie();
+  if (fromCookie) {
+    setCsrfToken(fromCookie);
+    return fromCookie;
+  }
+  return null;
 }
 
 export const api = axios.create({
@@ -95,6 +103,7 @@ api.interceptors.response.use(
     ) {
       original._csrfRetry = true;
       setCsrfToken(null);
+      await refreshSession();
       await ensureCsrfToken();
       return api(original);
     }

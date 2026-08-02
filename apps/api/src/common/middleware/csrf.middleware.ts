@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
 import { CSRF_COOKIE, REFRESH_COOKIE } from '../constants/cookies';
 import { CsrfTokenService } from '../../modules/auth/csrf-token.service';
+import { TokenService } from '../../modules/auth/token.service';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -30,6 +31,7 @@ const CSRF_SKIP_PREFIXES = [
 export class CsrfMiddleware implements NestMiddleware {
   constructor(
     private readonly csrfTokens: CsrfTokenService,
+    private readonly tokenService: TokenService,
     private readonly config: ConfigService,
   ) {}
 
@@ -50,6 +52,9 @@ export class CsrfMiddleware implements NestMiddleware {
     const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
 
     if (cookieToken && headerToken && cookieToken === headerToken) {
+      if (refreshToken) {
+        await this.csrfTokens.bind(refreshToken, cookieToken);
+      }
       next();
       return;
     }
@@ -62,6 +67,24 @@ export class CsrfMiddleware implements NestMiddleware {
         }
         next();
         return;
+      }
+    }
+
+    if (refreshToken && cookieToken) {
+      const stored = await this.csrfTokens.get(refreshToken);
+      if (stored === cookieToken) {
+        if (headerToken === cookieToken) {
+          next();
+          return;
+        }
+      }
+      const session = await this.tokenService.validateRefreshToken(refreshToken);
+      if (session && cookieToken) {
+        await this.csrfTokens.bind(refreshToken, cookieToken);
+        if (headerToken === cookieToken) {
+          next();
+          return;
+        }
       }
     }
 

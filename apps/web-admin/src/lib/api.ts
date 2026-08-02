@@ -29,12 +29,15 @@ export function setCsrfToken(token: string | null) {
 }
 
 function getCsrfToken(): string | null {
-  return csrfTokenMemory ?? getCsrfTokenFromCookie();
+  const fromCookie = getCsrfTokenFromCookie();
+  if (fromCookie) {
+    csrfTokenMemory = fromCookie;
+    return fromCookie;
+  }
+  return csrfTokenMemory;
 }
 
 export async function ensureCsrfToken(): Promise<string | null> {
-  const existing = getCsrfToken();
-  if (existing) return existing;
   try {
     const res = await api.get<{ token: string | null }>('/auth/csrf');
     if (res.data.token) {
@@ -55,7 +58,12 @@ export async function ensureCsrfToken(): Promise<string | null> {
   } catch {
     /* ignore */
   }
-  return getCsrfToken();
+  const fromCookie = getCsrfTokenFromCookie();
+  if (fromCookie) {
+    setCsrfToken(fromCookie);
+    return fromCookie;
+  }
+  return null;
 }
 
 export const api = axios.create({
@@ -110,6 +118,7 @@ api.interceptors.response.use(
     ) {
       original._csrfRetry = true;
       setCsrfToken(null);
+      await refreshSession();
       await ensureCsrfToken();
       return api(original);
     }
@@ -278,6 +287,7 @@ export async function fetchSiteSettings() {
 export async function updateSiteSettings(
   data: import('@ai-consultant/shared-types').UpdatePublicSiteSettingsDto,
 ) {
+  await ensureCsrfToken();
   const res = await api.patch<import('@ai-consultant/shared-types').PublicSiteSettingsDto>(
     '/admin/site-settings',
     data,

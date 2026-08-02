@@ -10,9 +10,11 @@ import {
 import type { AuthUser } from '@ai-consultant/shared-types';
 import {
   api,
+  ensureCsrfToken,
   fetchCurrentUser,
   loginAdmin,
   logoutUser,
+  setCsrfToken,
 } from './api';
 
 interface AuthContextValue {
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = useCallback(async () => {
     try {
+      await ensureCsrfToken();
       const me = await fetchCurrentUser();
       if (me.role !== 'admin' && me.role !== 'owner') {
         setUser(null);
@@ -41,7 +44,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch {
       try {
-        await api.post('/auth/refresh');
+        const res = await api.post<{ success: boolean; csrfToken?: string }>(
+          '/auth/refresh',
+        );
+        if (res.data.csrfToken) {
+          setCsrfToken(res.data.csrfToken);
+        } else {
+          await ensureCsrfToken();
+        }
         const me = await fetchCurrentUser();
         if (me.role !== 'admin' && me.role !== 'owner') {
           setUser(null);

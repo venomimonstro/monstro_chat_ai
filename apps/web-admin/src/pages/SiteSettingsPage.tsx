@@ -58,8 +58,8 @@ export function SiteSettingsPage() {
       });
       setSettings(updated);
       setMessage('Настройки сохранены');
-    } catch {
-      setMessage('Не удалось сохранить настройки');
+    } catch (err) {
+      setMessage(extractApiError(err, 'Не удалось сохранить настройки'));
     } finally {
       setSaving(false);
     }

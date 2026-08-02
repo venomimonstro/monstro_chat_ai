@@ -579,4 +579,43 @@ export class AuthService {
   getRefreshCookieName() {
     return REFRESH_COOKIE;
   }
+
+  async syncOrCreateCsrfToken(req: Request, res: Response): Promise<string | null> {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    const cookieToken = req.cookies?.[CSRF_COOKIE] as string | undefined;
+
+    if (!refreshToken) {
+      return cookieToken ?? null;
+    }
+
+    const session = await this.tokenService.validateRefreshToken(refreshToken);
+    if (!session) {
+      return cookieToken ?? null;
+    }
+
+    if (cookieToken) {
+      await this.csrfTokens.bind(refreshToken, cookieToken);
+      return cookieToken;
+    }
+
+    const stored = await this.csrfTokens.get(refreshToken);
+    if (stored) {
+      this.setCsrfCookieValue(res, stored);
+      return stored;
+    }
+
+    const token = this.setCsrfCookie(res);
+    await this.csrfTokens.bind(refreshToken, token);
+    return token;
+  }
+
+  private setCsrfCookieValue(res: Response, token: string): void {
+    res.cookie(CSRF_COOKIE, token, {
+      httpOnly: false,
+      secure: this.cookiesSecure(),
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
 }

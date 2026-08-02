@@ -36,8 +36,12 @@ export class AuthController {
 
   @Public()
   @Get('csrf')
-  csrfToken(@Req() req: Request) {
-    return { token: req.cookies?.[CSRF_COOKIE] ?? null };
+  async csrfToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = await this.authService.syncOrCreateCsrfToken(req, res);
+    return { token };
   }
 
   @Public()

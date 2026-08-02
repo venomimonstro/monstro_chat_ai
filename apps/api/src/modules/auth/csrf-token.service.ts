@@ -21,6 +21,12 @@ export class CsrfTokenService {
     return stored === token;
   }
 
+  async get(refreshTokenId: string): Promise<string | null> {
+    const client = this.redis.getClient();
+    if (!client || !refreshTokenId) return null;
+    return client.get(`${CSRF_PREFIX}${refreshTokenId}`);
+  }
+
   async clear(refreshTokenId: string): Promise<void> {
     const client = this.redis.getClient();
     if (!client || !refreshTokenId) return;
