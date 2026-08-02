@@ -2,6 +2,7 @@
 
 import Script from 'next/script';
 import { siteConfig } from '@/lib/site';
+import { getBrowserApiBase } from '@/lib/api-url';
 
 interface SiteChatWidgetProps {
   widgetKey: string;
@@ -17,7 +18,8 @@ export function SiteChatWidget({
   if (!widgetKey) return null;
 
   const scriptSrc = `${widgetUrl ?? siteConfig.widgetUrl}/embed.js`;
-  const resolvedApiUrl = apiUrl ?? siteConfig.apiUrl;
+  const resolvedApiUrl = getBrowserApiBase(apiUrl);
+  const resolvedWidgetUrl = widgetUrl ?? siteConfig.widgetUrl;
 
   return (
     <>
@@ -30,7 +32,12 @@ export function SiteChatWidget({
         strategy="afterInteractive"
         onLoad={() => {
           const api = (window as Window & { aicw?: (...args: unknown[]) => void }).aicw;
-          api?.('init', { widgetKey, apiUrl: resolvedApiUrl });
+          api?.('init', {
+            widgetKey,
+            apiUrl: resolvedApiUrl,
+            widgetUrl: resolvedWidgetUrl,
+            lazyLoad: false,
+          });
         }}
       />
     </>

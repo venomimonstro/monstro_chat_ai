@@ -11,10 +11,15 @@ import { CredentialCryptoService } from '../../integrations/services/credential-
 import type { OpenAIProvider } from '../providers/openai.provider';
 import type { DeepSeekProvider } from '../providers/deepseek.provider';
 import type { AnthropicProvider } from '../providers/anthropic.provider';
+import type { OpenRouterProvider } from '../providers/openrouter.provider';
 
 const REDIS_KEY = 'admin:llm-provider-credentials';
 
-type CredentialProvider = OpenAIProvider | DeepSeekProvider | AnthropicProvider;
+type CredentialProvider =
+  | OpenAIProvider
+  | DeepSeekProvider
+  | AnthropicProvider
+  | OpenRouterProvider;
 
 @Injectable()
 export class ProviderCredentialsService implements OnModuleInit {
@@ -32,6 +37,7 @@ export class ProviderCredentialsService implements OnModuleInit {
       openai: config.get<string>('OPENAI_API_KEY'),
       deepseek: config.get<string>('DEEPSEEK_API_KEY'),
       anthropic: config.get<string>('ANTHROPIC_API_KEY'),
+      openrouter: config.get<string>('OPENROUTER_API_KEY'),
     };
   }
 

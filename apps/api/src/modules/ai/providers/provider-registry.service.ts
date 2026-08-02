@@ -4,10 +4,22 @@ import type { LLMProviderAdapter } from './llm-provider.interface';
 import { OpenAIProvider } from './openai.provider';
 import { DeepSeekProvider } from './deepseek.provider';
 import { AnthropicProvider } from './anthropic.provider';
+import { OpenRouterProvider } from './openrouter.provider';
 import { MockLLMProvider } from './mock.provider';
+import { parseLlmProviderError } from './llm-provider-errors';
 import type { ModelTier } from '../services/model-router.service';
 import { ProviderConfigService } from '../services/provider-config.service';
 import { ProviderCredentialsService } from '../services/provider-credentials.service';
+
+export interface ProviderTestResultDto {
+  ok: boolean;
+  provider: string;
+  model: string;
+  latencyMs: number;
+  error?: string;
+  errorCode?: string;
+  hint?: string;
+}
 
 export interface AdminProviderDto {
   name: string;
@@ -24,14 +36,15 @@ export interface AdminProviderDto {
 export class ProviderRegistryService implements OnModuleInit {
   private readonly logger = new Logger(ProviderRegistryService.name);
   private readonly byName: Record<string, LLMProviderAdapter & { getMaskedApiKey?: () => string | null }>;
-  private readonly cheapOrder = ['deepseek', 'mock'];
-  private readonly premiumOrder = ['openai', 'anthropic', 'deepseek', 'mock'];
+  private readonly cheapOrder = ['openrouter', 'deepseek', 'mock'];
+  private readonly premiumOrder = ['openai', 'anthropic', 'openrouter', 'deepseek', 'mock'];
 
   constructor(
     config: ConfigService,
     deepseek: DeepSeekProvider,
     openai: OpenAIProvider,
     anthropic: AnthropicProvider,
+    openrouter: OpenRouterProvider,
     mock: MockLLMProvider,
     private readonly providerConfig: ProviderConfigService,
     private readonly credentials: ProviderCredentialsService,
@@ -40,6 +53,7 @@ export class ProviderRegistryService implements OnModuleInit {
       deepseek,
       openai,
       anthropic,
+      openrouter,
       mock,
     };
 
@@ -47,11 +61,12 @@ export class ProviderRegistryService implements OnModuleInit {
       deepseek,
       openai,
       anthropic,
+      openrouter,
     });
 
     const configured = config.get<string>(
       'LLM_PROVIDER_CHAIN',
-      'deepseek,openai,anthropic,mock',
+      'openrouter,deepseek,openai,anthropic,mock',
     );
     this.logger.log(`LLM default chain: ${configured}`);
   }
@@ -143,14 +158,20 @@ export class ProviderRegistryService implements OnModuleInit {
     return this.listForAdmin();
   }
 
-  async testProvider(name: string) {
+  async testProvider(name: string, apiKey?: string): Promise<ProviderTestResultDto> {
     const normalized = name.trim().toLowerCase();
     const provider = this.byName[normalized];
     if (!provider || normalized === 'mock') {
       throw new NotFoundException(`Неизвестный провайдер: ${name}`);
     }
-    if (!provider.isAvailable()) {
+
+    const draftKey = apiKey?.trim();
+    if (!draftKey && !provider.isAvailable()) {
       throw new BadRequestException('API-ключ не задан');
+    }
+
+    if (draftKey) {
+      provider.setApiKey?.(draftKey);
     }
 
     const started = Date.now();
@@ -163,21 +184,41 @@ export class ProviderRegistryService implements OnModuleInit {
         if (token.content) gotToken = true;
         if (token.done) break;
       }
+
+      if (!gotToken) {
+        return {
+          ok: false,
+          provider: provider.name,
+          model: provider.defaultModel,
+          latencyMs: Date.now() - started,
+          error: 'Пустой ответ от провайдера',
+          errorCode: 'unknown',
+          hint: 'Ключ принят, но модель не вернула текст — проверьте модель',
+        };
+      }
+
       return {
-        ok: gotToken,
+        ok: true,
         provider: provider.name,
         model: provider.defaultModel,
         latencyMs: Date.now() - started,
-        error: gotToken ? undefined : 'Пустой ответ от провайдера',
       };
     } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      const parsed = parseLlmProviderError(raw);
       return {
         ok: false,
         provider: provider.name,
         model: provider.defaultModel,
         latencyMs: Date.now() - started,
-        error: error instanceof Error ? error.message : String(error),
+        error: parsed.error,
+        errorCode: parsed.errorCode,
+        hint: parsed.hint,
       };
+    } finally {
+      if (draftKey) {
+        await this.credentials.loadAndApply();
+      }
     }
   }
 }

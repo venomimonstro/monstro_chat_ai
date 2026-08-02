@@ -22,6 +22,10 @@ export abstract class BaseOpenAiCompatibleProvider
     return this._apiKey;
   }
 
+  protected extraHeaders(): Record<string, string> {
+    return {};
+  }
+
   isAvailable(): boolean {
     return Boolean(this._apiKey);
   }
@@ -47,6 +51,7 @@ export abstract class BaseOpenAiCompatibleProvider
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
+        ...this.extraHeaders(),
       },
       body: JSON.stringify({
         model: opts?.model ?? this.defaultModel,

@@ -23,6 +23,7 @@ export interface LLMProviderAdapter {
   readonly name: string;
   readonly defaultModel: string;
   isAvailable(): boolean;
+  setApiKey?(key: string | undefined): void;
   streamChat(
     messages: ChatMessage[],
     opts?: StreamChatOptions,

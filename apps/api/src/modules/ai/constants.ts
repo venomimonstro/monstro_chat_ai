@@ -13,6 +13,7 @@ export const PROVIDER_COST_PER_1K: Record<
   openai: { input: 0.00015, output: 0.0006 },
   deepseek: { input: 0.00007, output: 0.00028 },
   anthropic: { input: 0.00025, output: 0.00125 },
+  openrouter: { input: 0, output: 0 },
   mock: { input: 0, output: 0 },
 };
 

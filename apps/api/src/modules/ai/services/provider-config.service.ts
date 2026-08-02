@@ -19,7 +19,7 @@ export class ProviderConfigService implements OnModuleInit {
     config: ConfigService,
   ) {
     this.defaultChain = config
-      .get<string>('LLM_PROVIDER_CHAIN', 'deepseek,openai,anthropic,mock')
+      .get<string>('LLM_PROVIDER_CHAIN', 'openrouter,deepseek,openai,anthropic,mock')
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean);

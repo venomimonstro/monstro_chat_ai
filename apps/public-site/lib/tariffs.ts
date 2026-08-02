@@ -1,5 +1,6 @@
 import type { TariffDto } from '@ai-consultant/shared-types';
 import { siteConfig } from './site';
+import { getServerApiBase } from './api-url';
 
 export async function fetchPublicTariffs(): Promise<TariffDto[]> {
   try {
@@ -14,8 +15,9 @@ export async function fetchPublicTariffs(): Promise<TariffDto[]> {
 }
 
 export async function fetchDemoWidget() {
+  const apiBase = getServerApiBase();
   try {
-    const res = await fetch(`${siteConfig.apiUrl}/public/demo-widget`, {
+    const res = await fetch(`${apiBase}/public/demo-widget`, {
       next: { revalidate: 60 },
     });
     if (!res.ok) {

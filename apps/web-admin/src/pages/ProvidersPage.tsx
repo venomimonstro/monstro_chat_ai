@@ -128,17 +128,19 @@ export function ProvidersPage() {
   };
 
   const testKey = async (name: string) => {
+    const draftKey = keyInputs[name]?.trim();
     setKeyTesting(name);
     notify(null);
     try {
-      const result = await testProviderCredentials(name);
+      const result = await testProviderCredentials(name, draftKey || undefined);
       setTestResults((prev) => ({ ...prev, [name]: result }));
       if (result.ok) {
         notify(
           `${name}: ключ работает (${result.model}, ${result.latencyMs} мс)`,
         );
       } else {
-        notify(result.error ?? 'Провайдер вернул ошибку', 'error');
+        const hint = result.hint ? ` — ${result.hint}` : '';
+        notify(`${result.error ?? 'Ошибка провайдера'}${hint}`, 'error');
       }
     } catch (err) {
       notify(extractApiError(err, `Не удалось проверить ключ ${name}`), 'error');
@@ -155,7 +157,8 @@ export function ProvidersPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-100">LLM-провайдеры</h1>
         <p className="mt-1 text-sm text-slate-400">
-          Приоритет fallback-цепочки, ключи API и включение провайдеров
+          Приоритет fallback-цепочки, ключи API и включение провайдеров.
+          OpenRouter — бесплатные модели (например google/gemini-2.0-flash-exp:free).
         </p>
         {message && (
           <p
@@ -211,15 +214,34 @@ export function ProvidersPage() {
               </div>
 
               {testResults[provider.name] && (
-                <p
+                <div
                   className={`mt-3 text-sm ${
                     testResults[provider.name].ok ? 'text-emerald-400' : 'text-red-400'
                   }`}
                 >
-                  {testResults[provider.name].ok
-                    ? `Проверка OK — ${testResults[provider.name].model}, ${testResults[provider.name].latencyMs} мс`
-                    : `Ошибка: ${testResults[provider.name].error ?? 'неизвестная'}`}
-                </p>
+                  {testResults[provider.name].ok ? (
+                    <p>
+                      Проверка OK — {testResults[provider.name].model},{' '}
+                      {testResults[provider.name].latencyMs} мс
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        {testResults[provider.name].errorCode === 'invalid_key'
+                          ? 'Ключ невалидный'
+                          : testResults[provider.name].errorCode === 'insufficient_balance'
+                            ? 'Баланс / лимит исчерпан'
+                            : 'Ошибка'}
+                        : {testResults[provider.name].error ?? 'неизвестная'}
+                      </p>
+                      {testResults[provider.name].hint && (
+                        <p className="mt-1 text-xs text-slate-400">
+                          {testResults[provider.name].hint}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
 
               {provider.name !== 'mock' && (
@@ -251,8 +273,8 @@ export function ProvidersPage() {
                     type="button"
                     disabled={
                       keyTesting === provider.name ||
-                      !provider.available ||
-                      keySaving === provider.name
+                      keySaving === provider.name ||
+                      (!provider.available && !keyInputs[provider.name]?.trim())
                     }
                     onClick={() => testKey(provider.name)}
                     className="rounded-lg border border-slate-600 px-3 py-2 text-xs text-slate-300 disabled:opacity-40"

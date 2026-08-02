@@ -36,7 +36,7 @@ import {
   TenantTariffChangeDto,
 } from './dto/admin-tenants.dto';
 import { CreateBackupDto, CreateSystemUpdateDto } from './dto/system-updates.dto';
-import { BulkBlockTenantsDto, SetProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
+import { BulkBlockTenantsDto, SetProviderCredentialsDto, TestProviderCredentialsDto, UpdateProvidersDto } from './dto/admin-providers.dto';
 import { UpdateSiteSettingsDto } from './dto/site-settings.dto';
 import { AdminSystemHealthService } from './services/admin-system-health.service';
 import { SiteSettingsService } from './services/site-settings.service';
@@ -114,8 +114,11 @@ export class AdminController {
 
   @Post('providers/:name/test')
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
-  testProvider(@Param('name') name: string) {
-    return this.providers.testProvider(name);
+  testProvider(
+    @Param('name') name: string,
+    @Body() dto: TestProviderCredentialsDto,
+  ) {
+    return this.providers.testProvider(name, dto.apiKey);
   }
 
   @Get('platform-workspace')

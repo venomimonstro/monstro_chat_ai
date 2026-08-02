@@ -14,8 +14,16 @@ const nextConfig = {
         destination: `${internalApiUrl}/api/public/:path*`,
       },
       {
+        source: '/api/widget/:path*',
+        destination: `${internalApiUrl}/api/widget/:path*`,
+      },
+      {
         source: '/api/auth/:path*',
         destination: `${internalApiUrl}/api/auth/:path*`,
+      },
+      {
+        source: '/socket.io/:path*',
+        destination: `${internalApiUrl}/socket.io/:path*`,
       },
     ];
   },

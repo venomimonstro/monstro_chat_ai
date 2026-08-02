@@ -8,6 +8,7 @@ import { BillingModule } from '../billing/billing.module';
 import { OpenAIProvider } from './providers/openai.provider';
 import { DeepSeekProvider } from './providers/deepseek.provider';
 import { AnthropicProvider } from './providers/anthropic.provider';
+import { OpenRouterProvider } from './providers/openrouter.provider';
 import { MockLLMProvider } from './providers/mock.provider';
 import { ProviderRegistryService } from './providers/provider-registry.service';
 import { RetrievalService } from './services/retrieval.service';
@@ -32,6 +33,7 @@ import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
     OpenAIProvider,
     DeepSeekProvider,
     AnthropicProvider,
+    OpenRouterProvider,
     MockLLMProvider,
     ProviderRegistryService,
     ProviderConfigService,

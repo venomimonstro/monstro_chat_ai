@@ -186,6 +186,8 @@ export interface ProviderTestResult {
   model: string;
   latencyMs: number;
   error?: string;
+  errorCode?: string;
+  hint?: string;
 }
 
 export interface AdminSystemHealth {
@@ -244,9 +246,10 @@ export async function clearProviderCredentials(name: string) {
   return res.data;
 }
 
-export async function testProviderCredentials(name: string) {
+export async function testProviderCredentials(name: string, apiKey?: string) {
   const res = await api.post<ProviderTestResult>(
     `/admin/providers/${name}/test`,
+    apiKey ? { apiKey } : {},
   );
   return res.data;
 }

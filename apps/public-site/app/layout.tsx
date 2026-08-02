@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
-import { SiteChatWidget } from '@/components/SiteChatWidget';
+import { SiteChatWidgetHost } from '@/components/SiteChatWidgetHost';
 import { JsonLd } from '@/components/JsonLd';
 import { siteConfig } from '@/lib/site';
 import { fetchDemoWidget } from '@/lib/tariffs';
@@ -43,13 +43,7 @@ export default async function RootLayout({
         <SiteHeader />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter />
-        {demo.enabled && demo.demoWidgetKey && (
-          <SiteChatWidget
-            widgetKey={demo.demoWidgetKey}
-            apiUrl={demo.apiUrl}
-            widgetUrl={demo.widgetUrl}
-          />
-        )}
+        <SiteChatWidgetHost initial={demo.enabled ? demo : null} />
       </body>
     </html>
   );
