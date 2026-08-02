@@ -47,6 +47,9 @@
 | 42 | Done | Редизайн сайта и чата: конверсия vs конкуренты, компактный виджет, оплата за сообщения |
 | 43 | Done | Monstro Chat AI: конверсионный лендинг, светлая тема + красный, без конкурентов |
 | 44 | Done | Конверсия v2: калькулятор потерь, до/после, отзывы, возражения, sticky CTA, auth на сайте, красный виджет по умолчанию |
+| 45 | Done | Knowledge crawler, leads, fraud protection, manual knowledge |
+| 46 | Done | Trust-first landing, auth fixes, red theme LK/widget |
+| 47 | In progress | Аудит AI-чата: открытие в новых вкладках, панель диалогов, красный дефолт, сохранение кастомных настроек |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

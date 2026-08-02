@@ -61,7 +61,11 @@ export * from './team';
 export * from './channels';
 export * from './prompt-experiment';
 export * from './push';
-export { DEFAULT_SOURCE_CONFIG } from './source';
+export {
+  DEFAULT_SOURCE_CONFIG,
+  mergeSourceConfig,
+  patchSourceConfig,
+} from './source';
 export type {
   WidgetPosition,
   WidgetButtonShape,

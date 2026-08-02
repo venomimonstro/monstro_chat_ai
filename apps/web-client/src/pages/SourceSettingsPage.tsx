@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SourceConfig, SourceDto } from '@ai-consultant/shared-types';
-import { DEFAULT_SOURCE_CONFIG } from '@ai-consultant/shared-types';
+import { DEFAULT_SOURCE_CONFIG, mergeSourceConfig } from '@ai-consultant/shared-types';
 import { api } from '../lib/api';
 import { updateSource } from '../lib/sources';
 import { TrainingTab } from '../components/TrainingTab';
@@ -43,7 +43,7 @@ export function SourceSettingsPage() {
       .get<SourceDto>(`/sources/${id}`)
       .then((res) => {
         setSource(res.data);
-        setConfig(res.data.config);
+        setConfig(mergeSourceConfig(res.data.config));
       })
       .catch(() => {
         setLoadError('Источник не найден или нет доступа');

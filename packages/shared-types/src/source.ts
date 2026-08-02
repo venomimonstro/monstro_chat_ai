@@ -56,6 +56,50 @@ export interface SourceConfig {
   channel?: import('./channels').SourceChannelConfig;
 }
 
+/** Merge stored/partial config with platform defaults (e.g. red primary when DB has legacy blue). */
+export function mergeSourceConfig(
+  stored: Partial<SourceConfig> | null | undefined,
+): SourceConfig {
+  const base = DEFAULT_SOURCE_CONFIG;
+  const existing = stored ?? {};
+  return {
+    appearance: { ...base.appearance, ...existing.appearance },
+    personalization: { ...base.personalization, ...existing.personalization },
+    behavior: { ...base.behavior, ...existing.behavior },
+    security: { ...base.security, ...(existing.security ?? {}) },
+    ...(existing.ai || base.ai
+      ? { ai: { ...base.ai, ...existing.ai } }
+      : {}),
+    ...(existing.channel ? { channel: existing.channel } : {}),
+  };
+}
+
+/** Apply a partial patch on top of merged config (used by source update API). */
+export function patchSourceConfig(
+  existing: Partial<SourceConfig> | null | undefined,
+  patch: Partial<SourceConfig>,
+): SourceConfig {
+  const base = mergeSourceConfig(existing);
+  return mergeSourceConfig({
+    ...base,
+    ...patch,
+    appearance: patch.appearance
+      ? { ...base.appearance, ...patch.appearance }
+      : base.appearance,
+    personalization: patch.personalization
+      ? { ...base.personalization, ...patch.personalization }
+      : base.personalization,
+    behavior: patch.behavior
+      ? { ...base.behavior, ...patch.behavior }
+      : base.behavior,
+    security: patch.security
+      ? { ...base.security, ...patch.security }
+      : base.security,
+    ai: patch.ai ? { ...base.ai, ...patch.ai } : base.ai,
+    channel: patch.channel ?? base.channel,
+  });
+}
+
 export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   appearance: {
     primaryColor: '#EF2B34',

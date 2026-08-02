@@ -3,8 +3,7 @@ import { SourcesService } from '../sources/sources.service';
 import { DialogService } from '../ai/services/dialog.service';
 import { Public } from '../../common/decorators/auth.decorators';
 import { WidgetPingDto } from '../sources/dto/source.dto';
-import { SourceConfig } from '@ai-consultant/shared-types';
-import { DEFAULT_SOURCE_CONFIG } from '@ai-consultant/shared-types';
+import { mergeSourceConfig } from '@ai-consultant/shared-types';
 
 @Controller('widget')
 @Public()
@@ -34,8 +33,9 @@ export class WidgetController {
       return { error: 'not_found' };
     }
 
-    const config =
-      (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
+    const config = mergeSourceConfig(
+      source.configJson as Parameters<typeof mergeSourceConfig>[0],
+    );
 
     return {
       widgetKey: source.widgetKey,

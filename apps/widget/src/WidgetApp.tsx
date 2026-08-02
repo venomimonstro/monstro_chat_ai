@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import {
   DEFAULT_SOURCE_CONFIG,
+  mergeSourceConfig,
   type SourceConfig,
 } from '@ai-consultant/shared-types';
 import { COMMON_EMOJIS } from './constants/emojis';
@@ -75,22 +76,68 @@ function getSocketOrigin(apiUrl: string): string {
   return apiUrl.replace(/\/api\/?$/, '');
 }
 
+function safeStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeStorageSet(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* private mode / blocked storage */
+  }
+}
+
+function safeStorageRemove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function getParentOrigin(): string | null {
+  const fromAncestors = window.location.ancestorOrigins?.[0];
+  if (fromAncestors) return fromAncestors;
+  if (!document.referrer) return null;
+  try {
+    return new URL(document.referrer).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isTrustedParentMessage(event: MessageEvent, previewMode: boolean): boolean {
+  if (previewMode) return true;
+  const parentOrigin = getParentOrigin();
+  if (!parentOrigin) return true;
+  return event.origin === parentOrigin || event.origin === window.location.origin;
+}
+
 function getVisitorId(): string {
   const key = 'aicw_visitor_id';
-  let id = localStorage.getItem(key);
+  let id = safeStorageGet(key);
   if (!id) {
     id = `v_${generateUuid()}`;
-    localStorage.setItem(key, id);
+    safeStorageSet(key, id);
   }
   return id;
 }
 
 function getStoredDialogId(widgetKey: string): string | null {
-  return localStorage.getItem(`aicw_dialog_${widgetKey}`);
+  return safeStorageGet(`aicw_dialog_${widgetKey}`);
 }
 
 function storeDialogId(widgetKey: string, dialogId: string) {
-  localStorage.setItem(`aicw_dialog_${widgetKey}`, dialogId);
+  safeStorageSet(`aicw_dialog_${widgetKey}`, dialogId);
+}
+
+function clearStoredDialogId(widgetKey: string) {
+  safeStorageRemove(`aicw_dialog_${widgetKey}`);
 }
 
 function formatTime(date: Date): string {
@@ -106,7 +153,7 @@ export function WidgetApp() {
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [open, setOpen] = useState(preview || autoOpen);
   const [pdConsent, setPdConsent] = useState(() =>
-    localStorage.getItem(`aicw_pd_consent_${widgetKey}`) === '1',
+    widgetKey ? safeStorageGet(`aicw_pd_consent_${widgetKey}`) === '1' : false,
   );
   const [consentChecked, setConsentChecked] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -166,7 +213,7 @@ export function WidgetApp() {
         `${apiUrl}/widget/config/${encodeURIComponent(widgetKey)}`,
       );
       const data = await res.json();
-      if (data?.config) setConfig(data.config);
+      if (data?.config) setConfig(mergeSourceConfig(data.config));
     } catch {
       /* ignore */
     }
@@ -175,6 +222,7 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
     loadConfig();
+    if (preview) return;
     const interval = setInterval(loadConfig, 4000);
     return () => clearInterval(interval);
   }, [loadConfig, deferSocket, open, preview]);
@@ -198,15 +246,14 @@ export function WidgetApp() {
         setOpen(true);
         return;
       }
-      const parentOrigin = window.location.ancestorOrigins?.[0] ?? document.referrer;
-      if (parentOrigin && event.origin !== parentOrigin && event.origin !== '*') return;
+      if (!isTrustedParentMessage(event, preview)) return;
       if (event.data?.type === 'aicw:config' && event.data.config) {
-        setConfig(event.data.config as SourceConfig);
+        setConfig(mergeSourceConfig(event.data.config as Partial<SourceConfig>));
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [preview]);
 
   useEffect(() => {
     if (!open) return;
@@ -230,6 +277,13 @@ export function WidgetApp() {
   useEffect(() => {
     messagesLengthRef.current = messages.length;
   }, [messages.length]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      '--aicw-primary',
+      config.appearance.primaryColor,
+    );
+  }, [config.appearance.primaryColor]);
 
   const connectSocket = useCallback(async () => {
     if (!widgetKey || socketRef.current?.connected) return;
@@ -277,6 +331,12 @@ export function WidgetApp() {
     });
 
     socket.on('connect_error', () => setConnectionError(true));
+
+    socket.on('joined', () => {
+      if (!dialogIdRef.current) {
+        setHistoryLoading(false);
+      }
+    });
 
     socket.on('history', (data: { dialogId: string; messages: ChatMessage[] }) => {
       setHistoryLoading(false);
@@ -378,6 +438,17 @@ export function WidgetApp() {
       appendError(data.message ?? 'Аккаунт приостановлен.');
     });
 
+    socket.on('error', (data: { code?: string }) => {
+      if (data.code === 'dialog_not_found' && widgetKey) {
+        clearStoredDialogId(widgetKey);
+        setDialogId(null);
+        dialogIdRef.current = null;
+        historyLoadedRef.current = null;
+        setHistoryLoading(false);
+        setMessages([]);
+      }
+    });
+
     socketRef.current = socket;
   }, [apiUrl, widgetKey, visitorId, attribution]);
 
@@ -395,10 +466,16 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
-    setHistoryLoading(true);
+    setHistoryLoading(Boolean(dialogIdRef.current));
+
+    const historyTimeout = window.setTimeout(() => {
+      setHistoryLoading(false);
+    }, 4000);
+
     void connectSocket();
 
     return () => {
+      window.clearTimeout(historyTimeout);
       if (deferSocket) {
         socketRef.current?.disconnect();
         socketRef.current = null;
@@ -549,7 +626,7 @@ export function WidgetApp() {
         style={{ background: appearance.primaryColor, color: appearance.textColor }}
         onClick={() => {
           setPdConsent(true);
-          if (widgetKey) localStorage.setItem(`aicw_pd_consent_${widgetKey}`, '1');
+          if (widgetKey) safeStorageSet(`aicw_pd_consent_${widgetKey}`, '1');
         }}
       >
         Начать диалог

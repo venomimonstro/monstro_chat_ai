@@ -4,7 +4,12 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DEFAULT_SOURCE_CONFIG, SourceConfig } from '@ai-consultant/shared-types';
+import {
+  DEFAULT_SOURCE_CONFIG,
+  mergeSourceConfig,
+  patchSourceConfig,
+  SourceConfig,
+} from '@ai-consultant/shared-types';
 import { randomBytes } from 'crypto';
 import { CreateSourceDto, UpdateSourceDto } from './dto/source.dto';
 import { Source, SourceStatus, Prisma } from '@prisma/client';
@@ -55,7 +60,7 @@ export class SourcesService {
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.ai !== undefined) {
       const existing = await this.prisma.source.findUnique({ where: { id } });
-      const merged = this.mergeConfig(
+      const merged = patchSourceConfig(
         existing?.configJson as unknown as SourceConfig,
         { ai: dto.ai as Partial<SourceConfig['ai']> },
       );
@@ -63,7 +68,7 @@ export class SourcesService {
     }
     if (dto.config !== undefined) {
       const existing = await this.prisma.source.findUnique({ where: { id } });
-      const merged = this.mergeConfig(
+      const merged = patchSourceConfig(
         existing?.configJson as unknown as SourceConfig,
         dto.config as Partial<SourceConfig>,
       );
@@ -108,7 +113,9 @@ export class SourcesService {
   }
 
   getAllowedOrigins(source: Source): string[] {
-    const config = (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
+    const config = mergeSourceConfig(
+      source.configJson as unknown as SourceConfig,
+    );
     return config.security?.allowedOrigins ?? [];
   }
 
@@ -180,19 +187,6 @@ export class SourcesService {
     return source;
   }
 
-  private mergeConfig(
-    existing: SourceConfig | null | undefined,
-    patch: Partial<SourceConfig>,
-  ): SourceConfig {
-    const base = existing ?? DEFAULT_SOURCE_CONFIG;
-    return {
-      appearance: { ...base.appearance, ...patch.appearance },
-      personalization: { ...base.personalization, ...patch.personalization },
-      behavior: { ...base.behavior, ...patch.behavior },
-      ai: { ...base.ai, ...patch.ai },
-    };
-  }
-
   private toDto(source: Source) {
     return {
       id: source.id,
@@ -201,7 +195,7 @@ export class SourcesService {
       name: source.name,
       widgetKey: source.widgetKey,
       status: source.status,
-      config: source.configJson as unknown as SourceConfig,
+      config: mergeSourceConfig(source.configJson as unknown as SourceConfig),
       configVersion: source.configVersion,
       scriptInstalledAt: source.scriptInstalledAt?.toISOString() ?? null,
       lastSeenAt: source.lastSeenAt?.toISOString() ?? null,

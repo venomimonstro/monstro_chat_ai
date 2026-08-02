@@ -111,8 +111,8 @@ async function main() {
         status: 'active',
         widgetKey: `wk_${randomBytes(12).toString('hex')}`,
         configJson: {
-          appearance: { primaryColor: '#4f46e5' },
-          personalization: { botName: 'Ассистент' },
+          appearance: { primaryColor: '#EF2B34' },
+          personalization: { managerName: 'Ассистент' },
         },
       },
     });

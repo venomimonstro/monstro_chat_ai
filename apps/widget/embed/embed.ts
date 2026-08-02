@@ -231,7 +231,6 @@ interface AicwApi {
     if (iframe) {
       if (autoOpen) {
         iframe.contentWindow?.postMessage({ type: 'aicw:open' }, '*');
-        finalizeOpen();
       }
       return;
     }
@@ -256,9 +255,7 @@ interface AicwApi {
       if (!iframe?.contentWindow) return;
       if (autoOpen) {
         iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
-        openFallbackTimer = setTimeout(finalizeOpen, 800);
-      } else {
-        setIframePointerEvents(true);
+        openFallbackTimer = setTimeout(finalizeOpen, 1200);
       }
     };
 
@@ -295,6 +292,12 @@ interface AicwApi {
     }).catch(() => undefined);
   }
 
+  function updateLauncherFromConfig(config: { appearance?: { primaryColor?: string } }) {
+    const color = config.appearance?.primaryColor;
+    if (!color || !launcherBtn) return;
+    launcherBtn.style.background = color;
+  }
+
   function pollConfig(apiUrl: string, widgetKey: string) {
     fetch(`${apiUrl}/widget/config/version/${encodeURIComponent(widgetKey)}`)
       .then((r) => r.json())
@@ -305,6 +308,7 @@ interface AicwApi {
           .then((r) => r.json())
           .then((configData) => {
             if (!configData?.config) return;
+            updateLauncherFromConfig(configData.config);
             const targetOrigin = iframe?.src ? new URL(iframe.src).origin : '*';
             iframe?.contentWindow?.postMessage(
               {
