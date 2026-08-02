@@ -1,13 +1,28 @@
 #!/usr/bin/env bash
-# Проверка корректности релиза после (или до) деплоя
-# Usage: bash scripts/verify-release.sh [expected_version] [expected_sprint]
+# Проверка корректности релиза
+# Usage:
+#   bash scripts/verify-release.sh pre              # перед деплоем (только health/db/redis)
+#   bash scripts/verify-release.sh post [ver] [spr] # после деплоем (полная проверка)
+#   bash scripts/verify-release.sh [ver] [spr]      # alias для post
 set -euo pipefail
 
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
-EXPECTED_VERSION="${1:-}"
-EXPECTED_SPRINT="${2:-}"
+MODE="post"
+EXPECTED_VERSION=""
+EXPECTED_SPRINT=""
 ADMIN_PORT="${ADMIN_PORT:-5174}"
 PUBLIC_PORT="${PUBLIC_PORT:-4321}"
+
+if [[ "${1:-}" == "pre" ]]; then
+  MODE="pre"
+elif [[ "${1:-}" == "post" ]]; then
+  MODE="post"
+  EXPECTED_VERSION="${2:-}"
+  EXPECTED_SPRINT="${3:-}"
+elif [[ -n "${1:-}" ]]; then
+  EXPECTED_VERSION="${1:-}"
+  EXPECTED_SPRINT="${2:-}"
+fi
 
 log()  { echo -e "\033[1;32m[verify]\033[0m $*"; }
 fail() { echo -e "\033[1;31m[verify FAIL]\033[0m $*" >&2; exit 1; }
@@ -18,7 +33,7 @@ check_health() {
   body=$(curl -sf "${API_BASE}/health" 2>/dev/null) || fail "API health недоступен"
   echo "  ${body}"
 
-  if [[ -n "${EXPECTED_VERSION}" ]]; then
+  if [[ "${MODE}" == "post" && -n "${EXPECTED_VERSION}" ]]; then
     local ver
     ver=$(echo "${body}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('version',''))" 2>/dev/null || echo "")
     if [[ -n "${ver}" && "${ver}" != "${EXPECTED_VERSION}" ]]; then
@@ -82,10 +97,16 @@ check_frontend() {
 }
 
 main() {
-  log "Запуск проверки релиза"
+  log "Запуск проверки (${MODE})"
   check_health
   check_db
   check_redis
+
+  if [[ "${MODE}" == "pre" ]]; then
+    log "Pre-deploy OK (базовая доступность)"
+    return 0
+  fi
+
   check_sprint32_api
   check_release_endpoint
   check_frontend

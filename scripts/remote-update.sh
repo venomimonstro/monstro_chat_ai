@@ -132,7 +132,7 @@ rebuild_public_site() {
 
 verify_update() {
   log "Проверяю версию..."
-  bash "${INSTALL_DIR}/scripts/verify-release.sh"
+  bash "${INSTALL_DIR}/scripts/verify-release.sh" post
 }
 
 print_done() {

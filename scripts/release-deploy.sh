@@ -85,9 +85,9 @@ main() {
   log "Деплой версии ${VERSION} (Sprint ${SPRINT})"
   report "deploy" "info" "Старт деплоя ${VERSION} (Sprint ${SPRINT})"
 
-  # Pre-deploy: текущий сервис должен быть жив
+  # Pre-deploy: сервис жив (старая версия допустима)
   log "Pre-deploy проверка..."
-  bash "${INSTALL_DIR}/scripts/verify-release.sh" || fail "Pre-deploy: сервис в нерабочем состоянии"
+  bash "${INSTALL_DIR}/scripts/verify-release.sh" pre || fail "Pre-deploy: API/DB/Redis недоступны"
 
   # Deploy
   export APP_VERSION="${VERSION}"
@@ -106,7 +106,7 @@ main() {
 
   # Post-deploy verification
   log "Post-deploy проверка..."
-  if ! bash "${INSTALL_DIR}/scripts/verify-release.sh" "${VERSION}" "${SPRINT}"; then
+  if ! bash "${INSTALL_DIR}/scripts/verify-release.sh" post "${VERSION}" "${SPRINT}"; then
     rollback_on_failure
   fi
 

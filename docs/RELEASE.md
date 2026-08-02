@@ -36,12 +36,19 @@ bash /opt/monstro_chat_ai/scripts/verify-release.sh
 
 ## Проверки verify-release.sh
 
+<<<<<<< Updated upstream
 - `/api/health` + версия
 - `/api/health/db` — PostgreSQL
 - `/api/health/redis` — Redis
 - `/api/public/demo-widget` — актуальный API
 - `/api/public/release` — sprint/version
 - Админка :5174, сайт :4321
+=======
+```bash
+bash scripts/verify-release.sh pre              # перед деплоем: health + DB + Redis
+bash scripts/verify-release.sh post 0.33.0 33   # после: полная проверка версии
+```
+>>>>>>> Stashed changes
 
 ## Откат
 
