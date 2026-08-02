@@ -85,6 +85,38 @@ export async function excludeDocument(documentId: string) {
   return res.data;
 }
 
+export async function addManualText(
+  sourceId: string,
+  title: string,
+  content: string,
+) {
+  const res = await api.post<KnowledgeDocumentDto>('/knowledge/text', {
+    sourceId,
+    title,
+    content,
+  });
+  return res.data;
+}
+
+export async function getManualText(documentId: string) {
+  const res = await api.get<{ document: KnowledgeDocumentDto; content: string }>(
+    `/knowledge/text/${documentId}`,
+  );
+  return res.data;
+}
+
+export async function updateManualText(
+  documentId: string,
+  content: string,
+  title?: string,
+) {
+  const res = await api.patch<KnowledgeDocumentDto>(
+    `/knowledge/text/${documentId}`,
+    { content, title },
+  );
+  return res.data;
+}
+
 export function connectIndexingSocket(
   onProgress: (event: IndexingProgressEvent) => void,
 ): () => void {

@@ -46,6 +46,7 @@ export class PromptAssemblyService {
     fallbackClientPrompt?: string;
     clientPromptOverride?: string | null;
     antiInjectionInstruction?: string | null;
+    leadGoalInstruction?: string | null;
   }): Promise<AssembledPrompt> {
     const dbClient = await this.getActivePrompt('tenant', params.tenantId);
     const clientPrompt =
@@ -67,6 +68,10 @@ export class PromptAssemblyService {
 
     if (params.dialogSummary) {
       parts.push(`[Резюме предыдущего диалога]\n${params.dialogSummary}`);
+    }
+
+    if (params.leadGoalInstruction) {
+      parts.push(params.leadGoalInstruction);
     }
 
     if (params.antiInjectionInstruction) {

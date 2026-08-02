@@ -18,6 +18,7 @@ import {
   type SourceConfig,
 } from '@ai-consultant/shared-types';
 import type { DialogAttributionInput } from '../integrations/attribution.util';
+import { WIDGET_MAX_MESSAGE_LENGTH } from '../ai/constants';
 
 interface WidgetAttributionPayload {
   utmSource?: string;
@@ -142,6 +143,14 @@ export class ChatGateway implements OnGatewayConnection {
     client.emit('joined', { visitorId: data.visitorId, dialogId: data.dialogId });
   }
 
+  private clientIp(client: Socket): string {
+    const forwarded = client.handshake.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.length > 0) {
+      return forwarded.split(',')[0].trim();
+    }
+    return client.handshake.address ?? 'unknown';
+  }
+
   @SubscribeMessage('message')
   async handleMessage(
     @MessageBody() data: WidgetMessagePayload,
@@ -151,10 +160,10 @@ export class ChatGateway implements OnGatewayConnection {
       return;
     }
 
-    const limit = await this.rateLimit.checkLimit(data.visitorId);
-    if (!limit.allowed) {
+    const content = data.content.trim();
+    if (content.length > WIDGET_MAX_MESSAGE_LENGTH) {
       client.emit('rate_limited', {
-        message: 'Слишком много сообщений. Подождите немного.',
+        message: `Сообщение слишком длинное (макс. ${WIDGET_MAX_MESSAGE_LENGTH} символов).`,
       });
       return;
     }
@@ -165,14 +174,40 @@ export class ChatGateway implements OnGatewayConnection {
       return;
     }
 
+    const config =
+      (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
+
+    const duplicateOk = await this.rateLimit.checkDuplicate(
+      data.visitorId,
+      content,
+    );
+    if (!duplicateOk) {
+      client.emit('rate_limited', {
+        message: 'Пожалуйста, не отправляйте одинаковые сообщения подряд.',
+      });
+      return;
+    }
+
+    const ip = this.clientIp(client);
+    const limit = await this.rateLimit.checkLimit(data.visitorId, ip, {
+      visitorMax: config.security?.rateLimitPerMinute,
+      ipMax: config.security?.ipRateLimitPerMinute,
+    });
+    if (!limit.allowed) {
+      client.emit('rate_limited', {
+        message:
+          limit.reason === 'ip'
+            ? 'Слишком много запросов с вашего IP. Подождите немного.'
+            : 'Слишком много сообщений. Подождите немного.',
+      });
+      return;
+    }
+
     if (!this.isOriginAllowed(client, source)) {
       client.emit('error', { code: 'origin_not_allowed' });
       client.disconnect(true);
       return;
     }
-
-    const config =
-      (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
 
     const attribution =
       normalizeAttribution(data.attribution) ?? client.data.attribution;
@@ -183,7 +218,7 @@ export class ChatGateway implements OnGatewayConnection {
         sourceId: source.id,
         visitorId: data.visitorId,
         dialogId: data.dialogId,
-        content: data.content.trim(),
+        content,
         sourceConfig: config,
         attribution,
       });
