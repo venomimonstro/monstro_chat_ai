@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
@@ -6,6 +6,7 @@ import { gzipSync } from 'zlib';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const distDir = join(__dirname, '..', 'dist');
 const embedPath = join(distDir, 'embed.js');
+const iframeHtmlPath = join(distDir, 'iframe', 'index.html');
 const iframeAssetsDir = join(distDir, 'iframe', 'assets');
 
 const MAX_EMBED_GZIP = 8 * 1024;
@@ -30,6 +31,21 @@ try {
 } catch {
   console.error('embed.js not found. Run: npm run build -w @ai-consultant/widget');
   process.exit(1);
+}
+
+try {
+  const html = readFileSync(iframeHtmlPath, 'utf8');
+  if (!html.includes('/iframe/assets/')) {
+    console.error(
+      'FAIL: iframe/index.html must reference /iframe/assets/* (set base: "/iframe/" in vite.config.ts)',
+    );
+    failed = true;
+  } else {
+    console.log('OK: iframe asset paths use /iframe/assets/');
+  }
+} catch {
+  console.error('iframe/index.html not found. Run: npm run build:iframe -w @ai-consultant/widget');
+  failed = true;
 }
 
 try {

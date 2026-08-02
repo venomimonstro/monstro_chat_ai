@@ -49,8 +49,28 @@ interface AicwApi {
   let preconnected = false;
   let interactionCleanups: Array<() => void> = [];
 
+  function rewriteLocalhostApiUrl(url: string): string {
+    try {
+      const parsed = new URL(url);
+      const pageHost = location.hostname;
+      if (
+        (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1') &&
+        pageHost &&
+        pageHost !== 'localhost' &&
+        pageHost !== '127.0.0.1'
+      ) {
+        parsed.hostname = pageHost;
+        return parsed.toString().replace(/\/$/, '');
+      }
+    } catch {
+      /* ignore */
+    }
+    return url.replace(/\/$/, '');
+  }
+
   function getApiUrl(opts: InitOptions): string {
-    return (opts.apiUrl ?? deriveApiUrl(scriptSrc)).replace(/\/$/, '');
+    const raw = opts.apiUrl ?? deriveApiUrl(scriptSrc);
+    return rewriteLocalhostApiUrl(raw);
   }
 
   function getWidgetUrl(opts: InitOptions): string {
@@ -176,10 +196,40 @@ interface AicwApi {
     document.body.appendChild(launcherBtn);
   }
 
+  function isFromWidgetIframe(event: MessageEvent): boolean {
+    return Boolean(iframe?.contentWindow && event.source === iframe.contentWindow);
+  }
+
+  function setIframePointerEvents(enabled: boolean) {
+    if (!iframe) return;
+    iframe.style.pointerEvents = enabled ? 'auto' : 'none';
+  }
+
+  function setupMessageBridge() {
+    window.addEventListener('message', (event: MessageEvent) => {
+      if (!isFromWidgetIframe(event) || !state) return;
+      const type = event.data?.type;
+      if (type === 'aicw:ready' || type === 'aicw:panel-open') {
+        removeLauncher();
+        launcherBtn = null;
+        if (type === 'aicw:panel-open') {
+          setIframePointerEvents(true);
+        }
+      }
+      if (type === 'aicw:panel-close') {
+        setIframePointerEvents(false);
+        if (lazyLoadEnabled) {
+          createLauncher(state);
+        }
+      }
+    });
+  }
+
   function loadIframe(opts: InitOptions, autoOpen = false) {
     if (iframe) {
       if (autoOpen) {
         iframe.contentWindow?.postMessage({ type: 'aicw:open' }, '*');
+        setIframePointerEvents(true);
       }
       return;
     }
@@ -193,15 +243,18 @@ interface AicwApi {
     iframe.style.cssText =
       'position:fixed;border:none;z-index:2147483646;width:100%;height:100%;top:0;left:0;background:transparent;pointer-events:none;';
     iframe.setAttribute('allow', 'clipboard-write');
-    iframe.setAttribute('loading', 'lazy');
+    if (!autoOpen) {
+      iframe.setAttribute('loading', 'lazy');
+    }
     document.body.appendChild(iframe);
 
     iframe.onload = () => {
-      if (iframe?.contentWindow) {
-        iframe.style.pointerEvents = 'auto';
-        if (autoOpen) {
-          iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
-        }
+      if (!iframe?.contentWindow) return;
+      if (!autoOpen) {
+        setIframePointerEvents(true);
+      }
+      if (autoOpen) {
+        iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
       }
     };
   }
@@ -266,7 +319,9 @@ interface AicwApi {
 
   function activateWidget(opts: InitOptions, fromUser = false) {
     preconnectOrigins(opts);
-    removeLauncher();
+    if (fromUser) {
+      launcherBtn?.setAttribute('aria-expanded', 'true');
+    }
     if (lazyLoadEnabled && fromUser) {
       startNetworkActivity(opts);
     }
@@ -346,6 +401,8 @@ interface AicwApi {
   } as AicwApi;
   wrapped.q = api.q;
   win.aicw = wrapped;
+
+  setupMessageBridge();
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', processQueue);

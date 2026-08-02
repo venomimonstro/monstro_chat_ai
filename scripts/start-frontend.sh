@@ -31,6 +31,7 @@ build_frontends() {
   ip=$(detect_ip)
   export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
   export VITE_WIDGET_URL="http://${ip}:5175"
+  export VITE_API_URL="http://${ip}:3000/api"
   # Только фронтенд — без API (argon2 не нужен на хосте)
   npm install \
     --workspace=@ai-consultant/shared-types \

@@ -142,6 +142,20 @@ export function WidgetApp() {
   const closePanel = useCallback(() => setOpen(false), []);
   const swipeHandlers = useSwipeToClose(closePanel, isMobile && open);
 
+  const notifyParent = useCallback((type: string) => {
+    if (window.parent === window) return;
+    window.parent.postMessage({ type }, '*');
+  }, []);
+
+  useEffect(() => {
+    notifyParent('aicw:ready');
+  }, [notifyParent]);
+
+  useEffect(() => {
+    if (!hostLauncher) return;
+    notifyParent(open ? 'aicw:panel-open' : 'aicw:panel-close');
+  }, [open, hostLauncher, notifyParent]);
+
   useEffect(() => {
     dialogIdRef.current = dialogId;
   }, [dialogId]);

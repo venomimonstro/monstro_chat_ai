@@ -71,13 +71,25 @@ wait_widget() {
   return 1
 }
 
+verify_widget_bundle() {
+  local html assets_ok=0
+  html=$(curl -sf http://127.0.0.1:5175/iframe/index.html) || return 1
+  echo "${html}" | grep -q '/iframe/assets/' || return 1
+  local asset
+  asset=$(echo "${html}" | grep -oE '/iframe/assets/[^" ]+\.js' | head -1)
+  if [[ -n "${asset}" ]] && curl -sf "http://127.0.0.1:5175${asset}" >/dev/null; then
+    assets_ok=1
+  fi
+  [[ "${assets_ok}" -eq 1 ]]
+}
+
 log "Monstro — AI-виджет чата"
 install_node
 build_widget
 start_service
 
 sleep 2
-if wait_widget; then
+if wait_widget && verify_widget_bundle; then
   echo ""
   echo "=============================================="
   echo "  AI-ВИДЖЕТ ЗАПУЩЕН"
@@ -89,5 +101,5 @@ if wait_widget; then
   echo "  Логи: journalctl -u monstro-widget -f"
 else
   journalctl -u monstro-widget -n 20 --no-pager
-  fail "Виджет не отвечает на :5175"
+  fail "Виджет не отвечает на :5175 или iframe/assets недоступны (проверьте base: '/iframe/' в vite.config.ts)"
 fi

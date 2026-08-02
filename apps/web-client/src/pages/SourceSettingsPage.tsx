@@ -8,8 +8,21 @@ import { TrainingTab } from '../components/TrainingTab';
 import { PromptTab } from '../components/PromptTab';
 import { SkeletonCard } from '../components/Skeleton';
 
-const WIDGET_PREVIEW_URL =
-  import.meta.env.VITE_WIDGET_URL ?? 'http://localhost:5175';
+const WIDGET_PREVIEW_BASE = (() => {
+  const raw = (import.meta.env.VITE_WIDGET_URL ?? 'http://localhost:5175').replace(/\/$/, '');
+  return raw.endsWith('/iframe') ? raw : `${raw}/iframe`;
+})();
+
+function getPreviewApiUrl(): string {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (typeof envUrl === 'string' && envUrl.startsWith('http')) {
+    return envUrl.replace(/\/$/, '');
+  }
+  if (typeof window !== 'undefined') {
+    return `http://${window.location.hostname}:3000/api`;
+  }
+  return 'http://127.0.0.1:3000/api';
+}
 
 export function SourceSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -133,7 +146,7 @@ export function SourceSettingsPage() {
     );
   }
 
-  const previewSrc = `${WIDGET_PREVIEW_URL}?widgetKey=${encodeURIComponent(source.widgetKey)}&apiUrl=${encodeURIComponent('/api')}&preview=1`;
+  const previewSrc = `${WIDGET_PREVIEW_BASE}/index.html?widgetKey=${encodeURIComponent(source.widgetKey)}&apiUrl=${encodeURIComponent(getPreviewApiUrl())}&preview=1`;
 
   return (
     <div>

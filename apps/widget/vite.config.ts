@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
+  // Built iframe is served at /iframe/index.html — assets must use /iframe/assets/*
+  base: '/iframe/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -12,7 +14,8 @@ export default defineConfig({
       ),
     },
   },
-  server: { port: 5175 },
+  server: { port: 5175, strictPort: true },
+  preview: { port: 5175, host: true, strictPort: true },
   build: {
     outDir: 'dist/iframe',
     emptyOutDir: true,
