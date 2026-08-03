@@ -3,7 +3,6 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
 import { SiteChatWidgetHost } from '@/components/SiteChatWidgetHost';
 import { SiteInjectedScripts } from '@/components/SiteInjectedScripts';
-import { StickyCtaBar } from '@/components/conversion/StickyCtaBar';
 import { JsonLd } from '@/components/JsonLd';
 import { siteConfig } from '@/lib/site';
 import { fetchDemoWidget, fetchSiteScripts } from '@/lib/tariffs';
@@ -68,7 +67,6 @@ export default async function RootLayout({
         <SiteHeader />
         <main id="main-content" className="min-h-[70vh]">{children}</main>
         <SiteFooter />
-        <StickyCtaBar />
         <SiteChatWidgetHost initial={demo} />
       </body>
     </html>
