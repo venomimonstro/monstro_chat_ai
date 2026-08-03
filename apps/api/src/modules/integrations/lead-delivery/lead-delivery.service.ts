@@ -21,6 +21,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { CredentialCryptoService } from '../services/credential-crypto.service';
 import { LeadDeliveryRegistryService } from './lead-delivery-registry.service';
 import { LeadDeliveryQueueService } from './lead-delivery-queue.service';
+import { CrmChannelProvisionerService } from './crm-channel-provisioner.service';
 import type { LeadDeliveryLeadData } from './lead-delivery.types';
 import { TelegramDeliveryAdapter } from './adapters/telegram.adapter';
 import {
@@ -43,12 +44,13 @@ export class LeadDeliveryService {
     private readonly crypto: CredentialCryptoService,
     private readonly registry: LeadDeliveryRegistryService,
     private readonly queue: LeadDeliveryQueueService,
+    private readonly crmProvisioner: CrmChannelProvisionerService,
     private readonly telegram: TelegramDeliveryAdapter,
     private readonly config: ConfigService,
   ) {}
 
   async listChannels(tenantId: string): Promise<LeadDeliveryChannelDto[]> {
-    await this.ensureCrmChannels(tenantId);
+    await this.crmProvisioner.ensureCrmChannels(tenantId);
     const rows = await this.prisma.leadDeliveryChannel.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'asc' },
@@ -396,40 +398,6 @@ export class LeadDeliveryService {
       sourceName: 'Тестовый виджет',
       createdAt: new Date(),
     };
-  }
-
-  async ensureCrmChannels(tenantId: string) {
-    const integrations = await this.prisma.integration.findMany({
-      where: {
-        tenantId,
-        type: { in: [IntegrationType.amocrm, IntegrationType.bitrix24] },
-      },
-    });
-
-    for (const integration of integrations) {
-      const channelType =
-        integration.type === IntegrationType.amocrm
-          ? LeadDeliveryChannelType.amocrm
-          : LeadDeliveryChannelType.bitrix24;
-      const name =
-        integration.type === IntegrationType.amocrm ? 'amoCRM' : 'Bitrix24';
-
-      const existing = await this.prisma.leadDeliveryChannel.findFirst({
-        where: { tenantId, type: channelType },
-      });
-
-      if (existing) continue;
-
-      await this.prisma.leadDeliveryChannel.create({
-        data: {
-          tenantId,
-          type: channelType,
-          name,
-          enabled: integration.status === IntegrationStatus.active,
-          configJson: { instantDelivery: true },
-        },
-      });
-    }
   }
 
   private toDto(row: {

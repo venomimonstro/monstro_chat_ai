@@ -20,6 +20,7 @@ import { CrmStatusSyncProcessor } from './processors/crm-status-sync.processor';
 import { LeadDeliveryController } from './lead-delivery/lead-delivery.controller';
 import { LeadDeliveryService } from './lead-delivery/lead-delivery.service';
 import { LeadDeliveryQueueService } from './lead-delivery/lead-delivery-queue.service';
+import { CrmChannelProvisionerService } from './lead-delivery/crm-channel-provisioner.service';
 import { LeadDeliveryRegistryService } from './lead-delivery/lead-delivery-registry.service';
 import { LeadDeliveryProcessor } from './lead-delivery/processors/lead-delivery.processor';
 import { GoogleSheetsOAuthService } from './lead-delivery/google-sheets-oauth.service';
@@ -73,6 +74,7 @@ import { OutgoingWebhookService } from './outgoing-webhook/outgoing-webhook.serv
     CrmStatusSyncProcessor,
     LeadDeliveryService,
     LeadDeliveryQueueService,
+    CrmChannelProvisionerService,
     LeadDeliveryRegistryService,
     LeadDeliveryProcessor,
     GoogleSheetsOAuthService,
