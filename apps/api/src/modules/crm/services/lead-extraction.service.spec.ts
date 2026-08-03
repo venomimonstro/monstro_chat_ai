@@ -49,6 +49,7 @@ describe('LeadExtractionService', () => {
   };
   const mockPromptExperiments = { markConverted: jest.fn() };
   const mockPush = { notifyTenant: jest.fn() };
+  const mockAnalyticsCache = { invalidateTenant: jest.fn() };
 
   let service: LeadExtractionService;
 
@@ -76,6 +77,7 @@ describe('LeadExtractionService', () => {
       mockCrmGateway as never,
       mockPromptExperiments as never,
       mockPush as never,
+      mockAnalyticsCache as never,
       mockConfig as unknown as ConfigService,
     );
   });
