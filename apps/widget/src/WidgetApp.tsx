@@ -511,6 +511,20 @@ export function WidgetApp() {
   }, [connectSocket, deferSocket, open, preview]);
 
   useEffect(() => {
+    if (deferSocket && !open && !preview) return;
+
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const socket = socketRef.current;
+      if (!socket || socket.connected) return;
+      setConnectionError(false);
+      socket.connect();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [deferSocket, open, preview]);
+
+  useEffect(() => {
     return () => {
       socketRef.current?.disconnect();
       socketRef.current = null;
@@ -653,6 +667,12 @@ export function WidgetApp() {
     </div>
   );
 
+  const privacyHref = useMemo(() => {
+    const parent = getParentOrigin();
+    if (parent) return `${parent}/legal/privacy`;
+    return '/legal/privacy';
+  }, []);
+
   const consentScreen = (
     <div className={`aicw-consent ${isDark ? 'dark' : ''}`}>
       <p className="aicw-consent-title">Перед началом диалога</p>
@@ -667,7 +687,7 @@ export function WidgetApp() {
         />
         <span>
           Я согласен(на) на обработку персональных данных и принимаю{' '}
-          <a href="/legal/privacy" target="_blank" rel="noreferrer" className="aicw-link">
+          <a href={privacyHref} target="_blank" rel="noreferrer" className="aicw-link">
             политику конфиденциальности
           </a>
         </span>
@@ -856,7 +876,7 @@ export function WidgetApp() {
       ref={panelRef}
       id="aicw-chat-panel"
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label="Чат с поддержкой"
       className={`aicw-panel ${open ? 'open' : ''} aicw-${viewport} ${isDark ? 'dark' : ''} ${isLeft ? 'left' : 'right'} ${keyboardOpen ? 'aicw-keyboard-open' : ''}`}
       style={panelStyle}
