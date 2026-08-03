@@ -33,6 +33,8 @@ pull_code() {
 rebuild_api() {
   log "Пересобираю API (Docker)..."
   cd "${INSTALL_DIR}"
+  export DOCKER_BUILDKIT=1
+  export COMPOSE_DOCKER_CLI_BUILD=1
   rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
   docker compose build api
   docker compose up -d --force-recreate api

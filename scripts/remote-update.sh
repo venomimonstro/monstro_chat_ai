@@ -78,8 +78,10 @@ ensure_disk_space() {
 }
 
 rebuild_api() {
-  log "Пересобираю API (Docker, 5–15 мин)..."
+  log "Пересобираю API (Docker, обычно 3–10 мин)..."
   cd "${INSTALL_DIR}"
+  export DOCKER_BUILDKIT=1
+  export COMPOSE_DOCKER_CLI_BUILD=1
   APP_VERSION="${APP_VERSION:-0.37.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-37}" \
     docker compose build api
   APP_VERSION="${APP_VERSION:-0.37.0}" SPRINT_NUMBER="${SPRINT_NUMBER:-37}" \

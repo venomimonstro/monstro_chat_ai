@@ -1,13 +1,16 @@
-FROM node:22-alpine AS base
+# Debian slim: argon2 uses prebuilt binaries (no 15–30 min gcc build on Alpine).
+FROM node:22-bookworm-slim AS base
 WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends ca-certificates openssl \
+  && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
-# argon2 compiles native bindings via node-gyp
-RUN apk add --no-cache python3 make g++
 COPY package.json package-lock.json* ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared-types/package.json ./packages/shared-types/
-RUN npm ci --workspace=@ai-consultant/api --workspace=@ai-consultant/shared-types
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --workspace=@ai-consultant/api --workspace=@ai-consultant/shared-types
 
 FROM base AS builder
 ENV NODE_OPTIONS="--max-old-space-size=2048"
@@ -20,19 +23,20 @@ RUN npm run db:generate -w @ai-consultant/api
 RUN npm run build -w @ai-consultant/api
 RUN cd apps/api && npx tsc prisma/seed.ts --outDir prisma/dist --module commonjs --target ES2022 --esModuleInterop --skipLibCheck
 
-FROM node:22-alpine AS runner
+FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN apk add --no-cache wget && \
-  addgroup -S nodejs && \
-  adduser -S nestjs -G nodejs
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends wget ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd -r nodejs \
+  && useradd -r -g nodejs nestjs
 
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/dist ./dist
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/package.json ./
 COPY --from=builder --chown=nestjs:nodejs /app/apps/api/prisma ./prisma
 COPY --from=builder --chown=nestjs:nodejs /app/node_modules ./node_modules
-# Replace workspace symlink with built package files
 RUN rm -rf node_modules/@ai-consultant
 COPY --from=builder --chown=nestjs:nodejs /app/packages/shared-types ./node_modules/@ai-consultant/shared-types
 
