@@ -33,16 +33,26 @@ export function MessageBubble({
   return (
     <>
       <div className={`aicw-bubble ${isDark ? 'dark' : ''}`}>
-        {parsed.paragraphs.length > 0 ? (
-          parsed.paragraphs.map((paragraph, index) => (
-            <p key={index} className="aicw-bubble-paragraph">
-              {paragraph}
-            </p>
-          ))
+        {streaming && !content.trim() ? (
+          <span className="aicw-typing-inline" aria-label="Печатает">
+            <span className="aicw-typing-dot" />
+            <span className="aicw-typing-dot" />
+            <span className="aicw-typing-dot" />
+          </span>
         ) : (
-          <p className="aicw-bubble-paragraph">{parsed.body || content}</p>
+          <>
+            {parsed.paragraphs.length > 0 ? (
+              parsed.paragraphs.map((paragraph, index) => (
+                <p key={index} className="aicw-bubble-paragraph">
+                  {paragraph}
+                </p>
+              ))
+            ) : (
+              <p className="aicw-bubble-paragraph">{parsed.body || content}</p>
+            )}
+            {streaming && <span className="aicw-cursor" aria-hidden>▍</span>}
+          </>
         )}
-        {streaming && <span className="aicw-cursor" aria-hidden>▍</span>}
       </div>
       {parsed.contactPrompt && !streaming && (
         <div className={`aicw-contact-card ${isDark ? 'dark' : ''}`}>

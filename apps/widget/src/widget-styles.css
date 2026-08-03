@@ -106,8 +106,8 @@
     left: 0 !important;
     right: 0 !important;
     bottom: 0 !important;
-    height: min(82dvh, 560px);
-    max-height: 82dvh;
+    height: min(92dvh, 640px);
+    max-height: 92dvh;
     border-radius: 16px 16px 0 0;
     padding-bottom: env(safe-area-inset-bottom, 0);
     transform: translateY(100%);
@@ -121,6 +121,11 @@
     pointer-events: auto;
   }
 
+  .aicw-panel.aicw-mobile.aicw-keyboard-open {
+    border-radius: 0;
+    padding-bottom: 0;
+  }
+
   .aicw-button-wrap.left {
     left: 12px;
   }
@@ -130,9 +135,12 @@
   }
 
   .aicw-panel.aicw-mobile .aicw-footer {
-    position: sticky;
-    bottom: 0;
+    flex-shrink: 0;
     padding-bottom: calc(10px + env(safe-area-inset-bottom, 0));
+  }
+
+  .aicw-input {
+    font-size: 16px;
   }
 }
 
@@ -530,6 +538,18 @@
   font-size: 12px;
   color: #94a3b8;
   margin-left: 4px;
+}
+
+.aicw-typing-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 20px;
+}
+
+.aicw-typing-inline .aicw-typing-dot {
+  width: 5px;
+  height: 5px;
 }
 
 .aicw-footer {

@@ -8,7 +8,7 @@ import {
 import { COMMON_EMOJIS } from './constants/emojis';
 import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
-import { useViewport } from './hooks/useViewport';
+import { useViewport, useVisualViewport } from './hooks/useViewport';
 import { MessageBubble } from './components/MessageBubble';
 import { dedupeMessages } from './utils/messages';
 import { generateUuid } from './utils/uuid';
@@ -150,6 +150,8 @@ export function WidgetApp() {
     useMemo(getParams, []);
   const viewport = useViewport();
   const isMobile = viewport === 'mobile';
+  const visualViewport = useVisualViewport();
+  const keyboardOpen = isMobile && visualViewport.offsetTop > 0;
 
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [open, setOpen] = useState(preview || autoOpen);
@@ -179,6 +181,7 @@ export function WidgetApp() {
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const isStreaming = messages.some((m) => m.streaming);
+  const isPending = isTyping || isStreaming;
 
   const {
     bodyRef,
@@ -277,10 +280,25 @@ export function WidgetApp() {
   }, [open]);
 
   useEffect(() => {
-    if (open && pdConsent) {
+    if (open && pdConsent && !isMobile) {
       inputRef.current?.focus();
     }
-  }, [open, pdConsent]);
+  }, [open, pdConsent, isMobile]);
+
+  const adjustTextareaHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 96)}px`;
+  }, []);
+
+  const handleInputFocus = useCallback(() => {
+    setEmojiOpen(false);
+    requestAnimationFrame(() => {
+      inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      scrollToBottom(false);
+    });
+  }, [scrollToBottom]);
 
   useEffect(() => {
     messagesLengthRef.current = messages.length;
@@ -294,7 +312,14 @@ export function WidgetApp() {
   }, [config.appearance.primaryColor]);
 
   const connectSocket = useCallback(async () => {
-    if (!widgetKey || socketRef.current?.connected) return;
+    if (!widgetKey) return;
+    if (socketRef.current?.connected) return;
+
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners();
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
 
     const { io } = await import('socket.io-client');
     const origin = getSocketOrigin(apiUrl);
@@ -375,10 +400,6 @@ export function WidgetApp() {
     socket.on('stream:start', () => {
       setIsTyping(true);
       streamingRef.current = '';
-      setMessages((m) => {
-        if (m.some((msg) => msg.streaming)) return m;
-        return [...m, { role: 'assistant', content: '', streaming: true }];
-      });
     });
 
     socket.on('stream:token', (data: { token: string }) => {
@@ -389,6 +410,8 @@ export function WidgetApp() {
         const last = copy[copy.length - 1];
         if (last?.streaming) {
           copy[copy.length - 1] = { ...last, content };
+        } else {
+          copy.push({ role: 'assistant', content, streaming: true });
         }
         return copy;
       });
@@ -484,13 +507,15 @@ export function WidgetApp() {
 
     return () => {
       window.clearTimeout(historyTimeout);
-      if (deferSocket) {
-        socketRef.current?.disconnect();
-        socketRef.current = null;
-        setConnected(false);
-      }
     };
   }, [connectSocket, deferSocket, open, preview]);
+
+  useEffect(() => {
+    return () => {
+      socketRef.current?.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
 
   const { appearance, personalization, behavior } = config;
   const isLeft = appearance.position === 'bottom-left';
@@ -507,7 +532,7 @@ export function WidgetApp() {
             type="button"
             className="aicw-chip"
             onClick={() => sendMessage(reply)}
-            disabled={!connected || !pdConsent}
+            disabled={!connected || !pdConsent || isPending}
           >
             {reply}
           </button>
@@ -522,8 +547,16 @@ export function WidgetApp() {
 
   const sendMessage = (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || !socketRef.current?.connected || !pdConsent) return;
+    if (
+      !trimmed ||
+      !socketRef.current?.connected ||
+      !pdConsent ||
+      isPending
+    ) {
+      return;
+    }
 
+    setIsTyping(true);
     setMessages((m) =>
       dedupeMessages([
         ...m,
@@ -537,6 +570,7 @@ export function WidgetApp() {
     );
     setInput('');
     setEmojiOpen(false);
+    requestAnimationFrame(adjustTextareaHeight);
 
     socketRef.current.emit('message', {
       widgetKey,
@@ -560,7 +594,18 @@ export function WidgetApp() {
   };
 
   const panelStyle: React.CSSProperties = isMobile
-    ? { left: 0, right: 0, bottom: 0 }
+    ? {
+        left: 0,
+        right: 0,
+        ...(visualViewport.height
+          ? {
+              top: keyboardOpen ? visualViewport.offsetTop : undefined,
+              bottom: keyboardOpen ? undefined : 0,
+              height: `${visualViewport.height}px`,
+              maxHeight: `${visualViewport.height}px`,
+            }
+          : { bottom: 0 }),
+      }
     : {
         [isLeft ? 'left' : 'right']: appearance.offsetX,
         bottom: appearance.offsetY + 60,
@@ -711,7 +756,12 @@ export function WidgetApp() {
               className="aicw-retry-link"
               onClick={() => {
                 setConnectionError(false);
-                connectSocket();
+                if (socketRef.current) {
+                  socketRef.current.removeAllListeners();
+                  socketRef.current.disconnect();
+                  socketRef.current = null;
+                }
+                void connectSocket();
               }}
             >
               Повторить
@@ -765,18 +815,30 @@ export function WidgetApp() {
         <textarea
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            adjustTextareaHeight();
+          }}
           onKeyDown={handleInputKeyDown}
-          placeholder={connected ? personalization.inputPlaceholder : 'Подключение…'}
-          disabled={!connected || !pdConsent}
+          onFocus={handleInputFocus}
+          placeholder={
+            !connected
+              ? 'Подключение…'
+              : isPending
+                ? 'Ожидайте ответ…'
+                : personalization.inputPlaceholder
+          }
+          disabled={!connected || !pdConsent || isPending}
           aria-label="Сообщение"
           className="aicw-input"
           rows={1}
+          enterKeyHint="send"
+          inputMode="text"
         />
         <button
           type="button"
           onClick={() => sendMessage(input)}
-          disabled={!connected || !pdConsent || !input.trim()}
+          disabled={!connected || !pdConsent || !input.trim() || isPending}
           aria-label="Отправить"
           className="aicw-send"
           style={{ background: appearance.primaryColor, color: appearance.textColor }}
@@ -792,10 +854,11 @@ export function WidgetApp() {
   const panel = (
     <div
       ref={panelRef}
+      id="aicw-chat-panel"
       role="dialog"
       aria-modal="true"
       aria-label="Чат с поддержкой"
-      className={`aicw-panel ${open ? 'open' : ''} aicw-${viewport} ${isDark ? 'dark' : ''} ${isLeft ? 'left' : 'right'}`}
+      className={`aicw-panel ${open ? 'open' : ''} aicw-${viewport} ${isDark ? 'dark' : ''} ${isLeft ? 'left' : 'right'} ${keyboardOpen ? 'aicw-keyboard-open' : ''}`}
       style={panelStyle}
     >
       {header}
