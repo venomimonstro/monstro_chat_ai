@@ -209,6 +209,7 @@ main() {
 
   if wait_for_api; then
     seed_qa_accounts
+    bash "${INSTALL_DIR}/scripts/ensure-boot-stability.sh" 2>/dev/null || warn "ensure-boot-stability пропущен"
     print_success "${ip}"
   else
     print_failure

@@ -207,11 +207,17 @@ print_done() {
   echo ""
 }
 
+ensure_boot_stability() {
+  log "Автозапуск после reboot (Docker, systemd, watchdog)..."
+  bash "${INSTALL_DIR}/scripts/ensure-boot-stability.sh"
+}
+
 main() {
   require_root
   log "Monstro Chat AI — remote update"
   ensure_swap
   pull_code
+  ensure_boot_stability
   ensure_disk_space
   rebuild_api
   wait_for_api || {
