@@ -20,9 +20,11 @@ describe('ReportBuilderService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    const mockConfig = { get: jest.fn().mockReturnValue(90) };
     service = new ReportBuilderService(
       mockPrisma as never,
       mockCache as unknown as AnalyticsCacheService,
+      mockConfig as never,
     );
   });
 

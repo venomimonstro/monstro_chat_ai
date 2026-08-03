@@ -1,17 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchSystemHealth, type AdminSystemHealth } from '../lib/api';
+import { fetchPlatformAnalyticsSummary, fetchSystemHealth, type AdminSystemHealth } from '../lib/api';
+import { localDateRange } from '../lib/dates';
 import { ErrorState, LoadingState } from '../components/UiState';
 
 export function DashboardPage() {
   const [health, setHealth] = useState<AdminSystemHealth | null>(null);
+  const [summary, setSummary] = useState<
+    import('@ai-consultant/shared-types').PlatformAnalyticsSummaryDto | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
-    fetchSystemHealth()
-      .then(setHealth)
+    const range = localDateRange(30);
+    Promise.all([
+      fetchSystemHealth(),
+      fetchPlatformAnalyticsSummary(range.from, range.to).catch(() => null),
+    ])
+      .then(([healthData, summaryData]) => {
+        setHealth(healthData);
+        setSummary(summaryData);
+      })
       .catch(() => setError('Не удалось загрузить статус системы'))
       .finally(() => setLoading(false));
   };
@@ -36,6 +47,18 @@ export function DashboardPage() {
         <QuickCard to="/providers" label="LLM" description="Провайдеры и fallback" />
         <QuickCard to="/analytics" label="Аналитика" description="Дашборды и метрики" />
       </div>
+
+      {summary && (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Выручка (30д)" value={`${summary.revenueRub.toLocaleString('ru-RU')} ₽`} />
+          <MetricCard
+            label="Расход LLM"
+            value={`$${summary.llmCostUsd.toFixed(2)} · ${Math.round(summary.llmCostRub).toLocaleString('ru-RU')} ₽`}
+          />
+          <MetricCard label="Диалоги" value={String(summary.dialogs)} />
+          <MetricCard label="Лиды" value={String(summary.leads)} />
+        </div>
+      )}
 
       {health && (
         <div className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-6">
@@ -115,6 +138,15 @@ function ServiceRow({ label, ok }: { label: string; ok: boolean }) {
     <div className="flex items-center justify-between rounded-lg border border-slate-800 px-4 py-3">
       <span className="text-slate-300">{label}</span>
       <StatusPill label={ok ? 'Подключён' : 'Недоступен'} ok={ok} />
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+      <p className="text-sm text-slate-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-100">{value}</p>
     </div>
   );
 }

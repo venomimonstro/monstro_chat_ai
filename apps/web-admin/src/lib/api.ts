@@ -563,6 +563,13 @@ export async function restoreBackup(id: string) {
   return res.data;
 }
 
+export async function fetchPlatformAnalyticsSummary(from: string, to: string) {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').PlatformAnalyticsSummaryDto
+  >('/admin/analytics/summary', { params: { from, to } });
+  return res.data;
+}
+
 export async function fetchAnalyticsQuery(params: {
   metric: string;
   dimension?: string;

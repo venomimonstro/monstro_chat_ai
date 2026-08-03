@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import type {
   AnalyticsDimension,
@@ -6,6 +7,7 @@ import type {
   AnalyticsQueryRequest,
   AnalyticsQueryResponse,
   AnalyticsSeriesPoint,
+  PlatformAnalyticsSummaryDto,
   TenantStatisticsDto,
 } from '@ai-consultant/shared-types';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -16,12 +18,19 @@ interface DateRange {
   to: Date;
 }
 
+const DEAL_WON_STATUS_NAMES = ['Продажа', 'Закрыт', 'Успешно', 'Won', 'Closed Won'];
+
 @Injectable()
 export class ReportBuilderService {
+  private readonly usdRubRate: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: AnalyticsCacheService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.usdRubRate = config.get<number>('USD_RUB_RATE', 90);
+  }
 
   async query(input: AnalyticsQueryRequest): Promise<AnalyticsQueryResponse> {
     const cached = await this.cache.get<AnalyticsQueryResponse>(input);
@@ -84,8 +93,117 @@ export class ReportBuilderService {
         { stage: 'Лиды', count: leads },
         { stage: 'Сделки', count: wonLeads },
       ],
-      dialogsByDay,
-      leadsByDay,
+      dialogsByDay: this.fillDaySeries(dialogsByDay, range),
+      leadsByDay: this.fillDaySeries(leadsByDay, range),
+    };
+
+    await this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  async getPlatformSummary(
+    from: string,
+    to: string,
+  ): Promise<PlatformAnalyticsSummaryDto> {
+    const cacheKey = { type: 'platform-summary', from, to };
+    const cached = await this.cache.get<PlatformAnalyticsSummaryDto>(cacheKey);
+    if (cached) return cached;
+
+    const range = this.parseRange(from, to);
+
+    const [
+      revenueAgg,
+      llmAgg,
+      dialogs,
+      leads,
+      activeTenants,
+      topTenants,
+      tokenAgg,
+    ] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: {
+          type: { in: ['payment', 'subscription_renewal'] },
+          createdAt: { gte: range.from, lte: range.to },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.lLMUsageLog.aggregate({
+        where: { createdAt: { gte: range.from, lte: range.to } },
+        _sum: { costUsd: true },
+        _count: true,
+      }),
+      this.prisma.dialog.count({
+        where: { createdAt: { gte: range.from, lte: range.to } },
+      }),
+      this.prisma.lead.count({
+        where: {
+          archived: false,
+          createdAt: { gte: range.from, lte: range.to },
+        },
+      }),
+      this.prisma.tenant.count({
+        where: {
+          status: 'active',
+          dialogs: {
+            some: { createdAt: { gte: range.from, lte: range.to } },
+          },
+        },
+      }),
+      this.prisma.$queryRaw<
+        Array<{
+          tenant_id: string;
+          tenant_name: string;
+          llm_cost: Prisma.Decimal;
+          llm_calls: bigint;
+        }>
+      >`
+        SELECT tn.id as tenant_id,
+               tn.name as tenant_name,
+               COALESCE(SUM(l.cost_usd), 0) as llm_cost,
+               COUNT(l.id)::bigint as llm_calls
+        FROM tenants tn
+        LEFT JOIN llm_usage_logs l
+          ON l.tenant_id = tn.id
+         AND l.created_at >= ${range.from}
+         AND l.created_at <= ${range.to}
+        GROUP BY tn.id, tn.name
+        HAVING COUNT(l.id) > 0
+        ORDER BY llm_cost DESC
+        LIMIT 8
+      `,
+      this.prisma.$queryRaw<Array<{ tokens: bigint }>>`
+        SELECT COALESCE(SUM(prompt_tokens + completion_tokens), 0)::bigint as tokens
+        FROM llm_usage_logs
+        WHERE created_at >= ${range.from}
+          AND created_at <= ${range.to}
+      `,
+    ]);
+
+    const revenueRub = Number(revenueAgg._sum.amount ?? 0);
+    const llmCostUsd = Number(llmAgg._sum.costUsd ?? 0);
+    const llmCostRub = llmCostUsd * this.usdRubRate;
+    const marginRub = revenueRub - llmCostRub;
+
+    const result: PlatformAnalyticsSummaryDto = {
+      from,
+      to,
+      revenueRub,
+      llmCostUsd,
+      llmCostRub,
+      marginRub,
+      marginPercent:
+        revenueRub > 0 ? Math.round((marginRub / revenueRub) * 100) : 0,
+      llmCalls: llmAgg._count,
+      llmTokens: Number(tokenAgg[0]?.tokens ?? 0),
+      dialogs,
+      leads,
+      activeTenants,
+      topTenantsByCost: topTenants.map((row) => ({
+        tenantId: row.tenant_id,
+        tenantName: row.tenant_name,
+        llmCostUsd: Number(row.llm_cost),
+        llmCalls: Number(row.llm_calls),
+      })),
     };
 
     await this.cache.set(cacheKey, result);
@@ -105,9 +223,99 @@ export class ReportBuilderService {
         return this.queryLeads(input, range);
       case 'conversion':
         return this.queryConversion(input, range);
+      case 'llm_cost':
+      case 'llm_tokens':
+      case 'llm_calls':
+        return this.queryLlmUsage(input, range);
       default:
         return [];
     }
+  }
+
+  private async queryLlmUsage(
+    input: AnalyticsQueryRequest,
+    range: DateRange,
+  ): Promise<AnalyticsSeriesPoint[]> {
+    const tenantFilter = input.tenantId
+      ? Prisma.sql`AND l.tenant_id = ${input.tenantId}::uuid`
+      : Prisma.empty;
+
+    if (input.dimension === 'tenant') {
+      const valueExpr =
+        input.metric === 'llm_cost'
+          ? Prisma.sql`SUM(l.cost_usd)`
+          : input.metric === 'llm_tokens'
+            ? Prisma.sql`SUM(l.prompt_tokens + l.completion_tokens)`
+            : Prisma.sql`COUNT(*)::bigint`;
+
+      const rows = await this.prisma.$queryRaw<
+        Array<{ label: string; value: Prisma.Decimal | bigint }>
+      >`
+        SELECT tn.name as label, ${valueExpr} as value
+        FROM llm_usage_logs l
+        JOIN tenants tn ON tn.id = l.tenant_id
+        WHERE l.created_at >= ${range.from}
+          AND l.created_at <= ${range.to}
+          ${tenantFilter}
+        GROUP BY tn.name
+        ORDER BY value DESC
+        LIMIT 20
+      `;
+      return rows.map((row) => ({
+        label: row.label,
+        value: Number(row.value),
+      }));
+    }
+
+    if (input.dimension === 'provider') {
+      const valueExpr =
+        input.metric === 'llm_cost'
+          ? Prisma.sql`SUM(l.cost_usd)`
+          : input.metric === 'llm_tokens'
+            ? Prisma.sql`SUM(l.prompt_tokens + l.completion_tokens)`
+            : Prisma.sql`COUNT(*)::bigint`;
+
+      const rows = await this.prisma.$queryRaw<
+        Array<{ label: string; value: Prisma.Decimal | bigint }>
+      >`
+        SELECT COALESCE(l.provider, 'unknown') as label, ${valueExpr} as value
+        FROM llm_usage_logs l
+        WHERE l.created_at >= ${range.from}
+          AND l.created_at <= ${range.to}
+          ${tenantFilter}
+        GROUP BY l.provider
+        ORDER BY value DESC
+      `;
+      return rows.map((row) => ({
+        label: row.label,
+        value: Number(row.value),
+      }));
+    }
+
+    const valueExpr =
+      input.metric === 'llm_cost'
+        ? Prisma.sql`SUM(l.cost_usd)`
+        : input.metric === 'llm_tokens'
+          ? Prisma.sql`SUM(l.prompt_tokens + l.completion_tokens)`
+          : Prisma.sql`COUNT(*)::bigint`;
+
+    const rows = await this.prisma.$queryRaw<
+      Array<{ label: string; value: Prisma.Decimal | bigint }>
+    >`
+      SELECT to_char(date_trunc('day', l.created_at), 'YYYY-MM-DD') as label,
+             ${valueExpr} as value
+      FROM llm_usage_logs l
+      WHERE l.created_at >= ${range.from}
+        AND l.created_at <= ${range.to}
+        ${tenantFilter}
+      GROUP BY 1
+      ORDER BY 1
+    `;
+
+    return this.fillDaySeries(
+      rows.map((row) => ({ label: row.label, value: Number(row.value) })),
+      range,
+    );
   }
 
   private async queryMrr(
@@ -194,7 +402,10 @@ export class ReportBuilderService {
       }));
     }
 
-    return this.countDialogsByDay(input.tenantId, range);
+    return this.fillDaySeries(
+      await this.countDialogsByDay(input.tenantId, range),
+      range,
+    );
   }
 
   private async queryLeads(
@@ -221,7 +432,10 @@ export class ReportBuilderService {
       }));
     }
 
-    return this.countLeadsByDay(input.tenantId, range);
+    return this.fillDaySeries(
+      await this.countLeadsByDay(input.tenantId, range),
+      range,
+    );
   }
 
   private async queryConversion(
@@ -306,10 +520,30 @@ export class ReportBuilderService {
         archived: false,
         createdAt: { gte: range.from, lte: range.to },
         status: {
-          name: { in: ['Продажа', 'Успешно', 'Won', 'Closed Won'] },
+          name: { in: DEAL_WON_STATUS_NAMES },
         },
       },
     });
+  }
+
+  private fillDaySeries(
+    series: AnalyticsSeriesPoint[],
+    range: DateRange,
+  ): AnalyticsSeriesPoint[] {
+    const map = new Map(series.map((row) => [row.label, row.value]));
+    const result: AnalyticsSeriesPoint[] = [];
+    const cursor = new Date(range.from);
+    cursor.setUTCHours(0, 0, 0, 0);
+    const end = new Date(range.to);
+    end.setUTCHours(0, 0, 0, 0);
+
+    while (cursor <= end) {
+      const label = cursor.toISOString().slice(0, 10);
+      result.push({ label, value: map.get(label) ?? 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    return result;
   }
 
   private parseRange(from: string, to: string): DateRange {

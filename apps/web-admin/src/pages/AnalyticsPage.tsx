@@ -10,25 +10,51 @@ import {
   createAnalyticsDashboard,
   fetchAnalyticsDashboards,
   fetchAnalyticsQuery,
+  fetchPlatformAnalyticsSummary,
   updateAnalyticsDashboard,
 } from '../lib/api';
+import { localDateRange } from '../lib/dates';
 import { EmptyState, ErrorState, LoadingState } from '../components/UiState';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
 const metricLabels: Record<AnalyticsMetric, string> = {
-  mrr: 'MRR',
+  mrr: 'Выручка',
   dialogs: 'Диалоги',
   leads: 'Лиды',
   conversion: 'Конверсия',
+  llm_cost: 'Расход LLM ($)',
+  llm_tokens: 'Токены LLM',
+  llm_calls: 'Вызовы LLM',
+};
+
+const metricDimensions: Record<
+  AnalyticsMetric,
+  Array<'date' | 'tariff' | 'tenant' | 'source' | 'provider'>
+> = {
+  mrr: ['date', 'tariff', 'tenant'],
+  dialogs: ['date', 'source', 'tenant'],
+  leads: ['date', 'source', 'tenant'],
+  conversion: ['date'],
+  llm_cost: ['date', 'tenant', 'provider'],
+  llm_tokens: ['date', 'tenant', 'provider'],
+  llm_calls: ['date', 'tenant', 'provider'],
 };
 
 const dimensionLabels: Record<string, string> = {
   date: 'По дате',
   tariff: 'По тарифу',
   tenant: 'По клиенту',
-  source: 'По источнику',
+  provider: 'По провайдеру',
 };
+
+function formatMoney(value: number, currency: 'RUB' | 'USD' = 'RUB') {
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: currency === 'USD' ? 2 : 0,
+  }).format(value);
+}
 
 function previousRange(from: string, to: string) {
   const start = new Date(from);
@@ -47,7 +73,16 @@ function previousRange(from: string, to: string) {
   };
 }
 
-function WidgetChart({ data }: { data: AnalyticsQueryResponse | null }) {
+function WidgetChart({
+  data,
+  error,
+}: {
+  data: AnalyticsQueryResponse | null;
+  error?: string | null;
+}) {
+  if (error) {
+    return <p className="text-sm text-red-400">{error}</p>;
+  }
   if (!data) {
     return <p className="text-sm text-slate-500">Загрузка…</p>;
   }
@@ -77,27 +112,29 @@ function WidgetChart({ data }: { data: AnalyticsQueryResponse | null }) {
 }
 
 export function AnalyticsPage() {
-  const [from, setFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  });
-  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const initialRange = localDateRange(30);
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [compare, setCompare] = useState(false);
+  const [summary, setSummary] = useState<
+    import('@ai-consultant/shared-types').PlatformAnalyticsSummaryDto | null
+  >(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [dashboards, setDashboards] = useState<AnalyticsDashboardDto[]>([]);
   const [active, setActive] = useState<AnalyticsDashboardDto | null>(null);
   const [widgets, setWidgets] = useState<AnalyticsWidgetConfig[]>([]);
   const [widgetData, setWidgetData] = useState<
     Record<string, AnalyticsQueryResponse>
   >({});
+  const [widgetErrors, setWidgetErrors] = useState<Record<string, string>>({});
   const [compareData, setCompareData] = useState<
     Record<string, AnalyticsQueryResponse>
   >({});
   const [showModal, setShowModal] = useState(false);
   const [draftMetric, setDraftMetric] = useState<AnalyticsMetric>('mrr');
   const [draftDimension, setDraftDimension] = useState<
-    'date' | 'tariff' | 'tenant' | 'source'
-  >('tariff');
+    'date' | 'tariff' | 'tenant' | 'source' | 'provider'
+  >('date');
   const [name, setName] = useState('Основной дашборд');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -109,21 +146,29 @@ export function AnalyticsPage() {
     try {
       const rows = await fetchAnalyticsDashboards();
       setDashboards(rows);
-      if (!active && rows.length > 0) {
-        setActive(rows[0]);
+      setActive((current) => {
+        if (current) return current;
+        if (rows.length === 0) return null;
         setWidgets(rows[0].widgets);
         setName(rows[0].name);
-      }
+        return rows[0];
+      });
     } catch {
       setError('Не удалось загрузить дашборды');
     } finally {
       setLoading(false);
     }
-  }, [active]);
+  }, []);
 
   useEffect(() => {
     loadDashboards();
   }, [loadDashboards]);
+
+  useEffect(() => {
+    fetchPlatformAnalyticsSummary(from, to)
+      .then(setSummary)
+      .catch(() => setSummaryError('Не удалось загрузить сводку платформы'));
+  }, [from, to]);
 
   useEffect(() => {
     if (!widgets.length) return;
@@ -135,10 +180,20 @@ export function AnalyticsPage() {
         from,
         to,
       })
-        .then((data) =>
-          setWidgetData((prev) => ({ ...prev, [widget.id]: data })),
-        )
-        .catch(() => undefined);
+        .then((data) => {
+          setWidgetData((prev) => ({ ...prev, [widget.id]: data }));
+          setWidgetErrors((prev) => {
+            const next = { ...prev };
+            delete next[widget.id];
+            return next;
+          });
+        })
+        .catch(() =>
+          setWidgetErrors((prev) => ({
+            ...prev,
+            [widget.id]: 'Ошибка загрузки метрики',
+          })),
+        );
       if (prevRange) {
         fetchAnalyticsQuery({
           metric: widget.metric,
@@ -182,12 +237,14 @@ export function AnalyticsPage() {
 
   const addWidget = () => {
     const id = crypto.randomUUID();
+    const allowed = metricDimensions[draftMetric];
+    const dimension = allowed.includes(draftDimension) ? draftDimension : allowed[0];
     setWidgets((prev) => [
       ...prev,
       {
         id,
         metric: draftMetric,
-        dimension: draftDimension,
+        dimension,
         chartType: 'bar',
         x: (prev.length * 3) % 12,
         y: Infinity,
@@ -249,6 +306,48 @@ export function AnalyticsPage() {
           Сравнить с предыдущим периодом
         </label>
       </div>
+
+      {summary && (
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard label="Выручка" value={formatMoney(summary.revenueRub)} />
+          <KpiCard
+            label="Расход LLM"
+            value={`${formatMoney(summary.llmCostUsd, 'USD')} · ${formatMoney(summary.llmCostRub)}`}
+          />
+          <KpiCard
+            label="Маржа"
+            value={`${formatMoney(summary.marginRub)} (${summary.marginPercent}%)`}
+          />
+          <KpiCard
+            label="Токены / вызовы"
+            value={`${summary.llmTokens.toLocaleString('ru-RU')} / ${summary.llmCalls}`}
+          />
+        </div>
+      )}
+      {summaryError && (
+        <p className="mt-4 text-sm text-amber-400">{summaryError}</p>
+      )}
+
+      {summary && summary.topTenantsByCost.length > 0 && (
+        <div className="mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5">
+          <h2 className="text-sm font-semibold text-slate-200">
+            Топ клиентов по расходу LLM
+          </h2>
+          <div className="mt-3 space-y-2">
+            {summary.topTenantsByCost.map((row) => (
+              <div
+                key={row.tenantId}
+                className="flex items-center justify-between text-sm text-slate-300"
+              >
+                <span>{row.tenantName}</span>
+                <span>
+                  {formatMoney(row.llmCostUsd, 'USD')} · {row.llmCalls} вызовов
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <input
@@ -327,7 +426,10 @@ export function AnalyticsPage() {
                   {metricLabels[widget.metric]}
                   {widget.dimension ? ` · ${dimensionLabels[widget.dimension] ?? widget.dimension}` : ''}
                 </div>
-                <WidgetChart data={widgetData[widget.id] ?? null} />
+                <WidgetChart
+                  data={widgetData[widget.id] ?? null}
+                  error={widgetErrors[widget.id]}
+                />
                 {compare && compareData[widget.id] && (
                   <div className="mt-3 border-t border-slate-800 pt-3">
                     <p className="mb-2 text-xs text-slate-500">Предыдущий период</p>
@@ -348,9 +450,14 @@ export function AnalyticsPage() {
               <select
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
                 value={draftMetric}
-                onChange={(e) =>
-                  setDraftMetric(e.target.value as AnalyticsMetric)
-                }
+                onChange={(e) => {
+                  const metric = e.target.value as AnalyticsMetric;
+                  setDraftMetric(metric);
+                  const allowed = metricDimensions[metric];
+                  if (!allowed.includes(draftDimension)) {
+                    setDraftDimension(allowed[0]);
+                  }
+                }}
               >
                 {Object.entries(metricLabels).map(([value, label]) => (
                   <option key={value} value={value}>
@@ -363,13 +470,13 @@ export function AnalyticsPage() {
                 value={draftDimension}
                 onChange={(e) =>
                   setDraftDimension(
-                    e.target.value as 'date' | 'tariff' | 'tenant' | 'source',
+                    e.target.value as 'date' | 'tariff' | 'tenant' | 'source' | 'provider',
                   )
                 }
               >
-                {Object.entries(dimensionLabels).map(([value, label]) => (
+                {metricDimensions[draftMetric].map((value) => (
                   <option key={value} value={value}>
-                    {label}
+                    {dimensionLabels[value] ?? value}
                   </option>
                 ))}
               </select>
@@ -393,6 +500,15 @@ export function AnalyticsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function KpiCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-slate-100">{value}</p>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import type { BillingOverviewDto, TenantStatisticsDto } from '@ai-consultant/shared-types';
 import { fetchBillingOverview } from '../lib/billing';
 import { fetchTenantStatistics } from '../lib/analytics';
+import { localDateString } from '../lib/dates';
+import { extractErrorMessage } from '../lib/errors';
 import { useAuth } from '../lib/auth';
 import { getVisibleNavItems, hasPermission, PERMISSIONS } from '../lib/permissions';
 import { PageHeader } from '../components/PageHeader';
@@ -10,7 +12,7 @@ import { SkeletonGrid } from '../components/Skeleton';
 import { ErrorState } from '../components/EmptyState';
 
 function todayRange() {
-  const d = new Date().toISOString().slice(0, 10);
+  const d = localDateString();
   return { from: d, to: d };
 }
 
@@ -74,6 +76,7 @@ export function DashboardPage() {
   const [todayStats, setTodayStats] = useState<TenantStatisticsDto | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   const canViewBilling = hasPermission(user, PERMISSIONS.SETTINGS_MANAGE);
   const canViewStats = hasPermission(user, PERMISSIONS.ANALYTICS_VIEW);
@@ -82,24 +85,30 @@ export function DashboardPage() {
   const load = async () => {
     setLoading(true);
     setError(null);
+    setStatsError(null);
     try {
       const { from, to } = todayRange();
-      const [billing, stats] = await Promise.all([
-        canViewBilling
-          ? fetchBillingOverview().catch(() => null)
-          : Promise.resolve(null),
-        canViewStats
-          ? fetchTenantStatistics(from, to).catch(() => null)
-          : Promise.resolve(null),
-      ]);
+      const billingPromise = canViewBilling
+        ? fetchBillingOverview().catch((err) => {
+            throw err;
+          })
+        : Promise.resolve(null);
+      const statsPromise = canViewStats
+        ? fetchTenantStatistics(from, to).catch((err) => {
+            setStatsError(extractErrorMessage(err));
+            return null;
+          })
+        : Promise.resolve(null);
+
+      const [billing, stats] = await Promise.all([billingPromise, statsPromise]);
       setOverview(billing);
       setTodayStats(stats);
 
-      if (!billing && !stats) {
+      if (!billing && !stats && !statsError) {
         setError('Не удалось загрузить обзор аккаунта');
       }
-    } catch {
-      setError('Не удалось загрузить обзор аккаунта');
+    } catch (err) {
+      setError(extractErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -169,6 +178,12 @@ export function DashboardPage() {
           <Link to="/billing" className="font-medium underline">
             Оформите подписку
           </Link>
+        </div>
+      )}
+
+      {statsError && (
+        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Статистика за сегодня недоступна: {statsError}
         </div>
       )}
 

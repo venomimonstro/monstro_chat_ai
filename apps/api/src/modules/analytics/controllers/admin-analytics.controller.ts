@@ -32,6 +32,12 @@ export class AdminAnalyticsController {
     private readonly dashboards: AnalyticsDashboardService,
   ) {}
 
+  @Get('summary')
+  @RequirePermission(PERMISSIONS.ADMIN_ANALYTICS_VIEW)
+  getSummary(@Query('from') from: string, @Query('to') to: string) {
+    return this.reportBuilder.getPlatformSummary(from, to);
+  }
+
   @Get('query')
   @RequirePermission(PERMISSIONS.ADMIN_ANALYTICS_VIEW)
   query(

@@ -1,4 +1,11 @@
-export type AnalyticsMetric = 'mrr' | 'dialogs' | 'leads' | 'conversion';
+export type AnalyticsMetric =
+  | 'mrr'
+  | 'dialogs'
+  | 'leads'
+  | 'conversion'
+  | 'llm_cost'
+  | 'llm_tokens'
+  | 'llm_calls';
 export type AnalyticsDimension =
   | 'date'
   | 'tariff'
@@ -84,4 +91,25 @@ export interface TenantStatisticsDto {
   funnel: Array<{ stage: string; count: number }>;
   dialogsByDay: AnalyticsSeriesPoint[];
   leadsByDay: AnalyticsSeriesPoint[];
+}
+
+export interface PlatformAnalyticsSummaryDto {
+  from: string;
+  to: string;
+  revenueRub: number;
+  llmCostUsd: number;
+  llmCostRub: number;
+  marginRub: number;
+  marginPercent: number;
+  llmCalls: number;
+  llmTokens: number;
+  dialogs: number;
+  leads: number;
+  activeTenants: number;
+  topTenantsByCost: Array<{
+    tenantId: string;
+    tenantName: string;
+    llmCostUsd: number;
+    llmCalls: number;
+  }>;
 }

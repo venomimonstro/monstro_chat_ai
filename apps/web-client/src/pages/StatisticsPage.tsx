@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import type { TenantStatisticsDto } from '@ai-consultant/shared-types';
 import {
   downloadTenantStatisticsCsv,
   fetchTenantStatistics,
 } from '../lib/analytics';
+import { localDateRange } from '../lib/dates';
+import { extractErrorMessage } from '../lib/errors';
+import { useAuth } from '../lib/auth';
+import { hasPermission, PERMISSIONS } from '../lib/permissions';
 import { PageHeader } from '../components/PageHeader';
 import { SkeletonGrid } from '../components/Skeleton';
 import { ErrorState } from '../components/EmptyState';
@@ -11,15 +16,9 @@ import { ErrorState } from '../components/EmptyState';
 type Preset = '7d' | '30d' | '90d' | 'custom';
 
 function rangeForPreset(preset: Preset) {
-  const to = new Date();
-  const from = new Date();
-  if (preset === '7d') from.setDate(from.getDate() - 7);
-  else if (preset === '30d') from.setDate(from.getDate() - 30);
-  else if (preset === '90d') from.setDate(from.getDate() - 90);
-  return {
-    from: from.toISOString().slice(0, 10),
-    to: to.toISOString().slice(0, 10),
-  };
+  if (preset === '7d') return localDateRange(7);
+  if (preset === '30d') return localDateRange(30);
+  return localDateRange(90);
 }
 
 function BarChart({
@@ -77,6 +76,7 @@ function BarChart({
 }
 
 export function StatisticsPage() {
+  const { user } = useAuth();
   const initial = useMemo(() => rangeForPreset('30d'), []);
   const [preset, setPreset] = useState<Preset>('30d');
   const [from, setFrom] = useState(initial.from);
@@ -86,6 +86,9 @@ export function StatisticsPage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const canView = hasPermission(user, PERMISSIONS.ANALYTICS_VIEW);
 
   const applyPreset = (p: Preset) => {
     setPreset(p);
@@ -103,8 +106,8 @@ export function StatisticsPage() {
     try {
       const data = await fetchTenantStatistics(from, to);
       setStats(data);
-    } catch {
-      setError('Не удалось загрузить статистику');
+    } catch (err) {
+      setError(extractErrorMessage(err));
       setStats(null);
     } finally {
       setLoading(false);
@@ -112,11 +115,19 @@ export function StatisticsPage() {
   };
 
   useEffect(() => {
+    if (!canView) return;
     load();
-  }, [from, to]);
+  }, [from, to, canView]);
 
   const exportCsv = async () => {
-    await downloadTenantStatisticsCsv(from, to);
+    setExporting(true);
+    try {
+      await downloadTenantStatisticsCsv(from, to);
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const dayDetail = useMemo(() => {
@@ -125,6 +136,10 @@ export function StatisticsPage() {
     const leads = stats.leadsByDay.find((d) => d.label === selectedDay)?.value ?? 0;
     return { dialogs, leads };
   }, [stats, selectedDay]);
+
+  if (!canView) {
+    return <Navigate to="/" replace />;
+  }
 
   if (loading) {
     return (
@@ -186,9 +201,10 @@ export function StatisticsPage() {
           <button
             type="button"
             onClick={exportCsv}
+            disabled={exporting}
             className="lk-btn-secondary"
           >
-            Экспорт CSV
+            {exporting ? 'Экспорт…' : 'Экспорт CSV'}
           </button>
         </div>
       </div>
