@@ -6,8 +6,8 @@ import { siteConfig } from '@/lib/site';
 
 const links = [
   { href: '/#how', label: 'Как работает' },
+  { href: '/#calculator', label: 'Калькулятор' },
   { href: '/#demo', label: 'Демо' },
-  { href: '/#features', label: 'Возможности' },
   { href: '/#pricing', label: 'Тарифы' },
 ];
 

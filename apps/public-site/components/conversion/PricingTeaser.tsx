@@ -21,11 +21,22 @@ export function PricingTeaser({ tariffs }: { tariffs: TariffDto[] }) {
         </div>
 
         <div className="mt-12 grid gap-5 md:grid-cols-3">
-          {visible.map((tariff) => (
+          {visible.map((tariff, index) => {
+            const isPopular = index === 1 || (visible.length === 1 && index === 0);
+            return (
             <article
               key={tariff.id}
-              className="flex flex-col rounded-2xl border border-line-200 bg-white p-6 shadow-card"
+              className={`relative flex flex-col rounded-2xl border bg-white p-6 shadow-card transition hover:-translate-y-0.5 hover:shadow-soft ${
+                isPopular
+                  ? 'border-brand-300 ring-2 ring-brand-500/20'
+                  : 'border-line-200'
+              }`}
             >
+              {isPopular && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-500 px-3 py-0.5 text-xs font-semibold text-white shadow-cta">
+                  Популярный
+                </span>
+              )}
               <h3 className="text-lg font-semibold text-ink-900">{tariff.name}</h3>
               <p className="mt-4 text-3xl font-bold text-ink-900">
                 {tariff.price.toLocaleString('ru-RU')} ₽
@@ -47,7 +58,8 @@ export function PricingTeaser({ tariffs }: { tariffs: TariffDto[] }) {
                 Начать 7-дневный тест
               </Link>
             </article>
-          ))}
+            );
+          })}
         </div>
 
         <p className="mt-8 text-center">

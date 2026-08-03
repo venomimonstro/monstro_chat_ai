@@ -73,3 +73,32 @@ body {
 .card-hover {
   @apply transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft;
 }
+
+/* ROI calculator range slider */
+.roi-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #ef2b34;
+  box-shadow: 0 2px 8px rgba(239, 43, 52, 0.35);
+  cursor: pointer;
+  margin-top: -5px;
+}
+
+.roi-slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 3px solid #ef2b34;
+  box-shadow: 0 2px 8px rgba(239, 43, 52, 0.35);
+  cursor: pointer;
+}
+
+.roi-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid #ef2b34;
+  outline-offset: 2px;
+}
