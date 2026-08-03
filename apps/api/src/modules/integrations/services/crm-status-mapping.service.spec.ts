@@ -74,7 +74,7 @@ describe('CrmStatusMappingService', () => {
   it('returns webhook url in mapping response', async () => {
     const result = await service.getMapping('t1', 'amocrm');
     expect(result.webhookUrl).toBe(
-      'http://api.test/integrations/webhooks/amocrm/t1',
+      'http://api.test/api/integrations/webhooks/amocrm/t1',
     );
     expect(result.bidirectionalSync).toBe(false);
   });

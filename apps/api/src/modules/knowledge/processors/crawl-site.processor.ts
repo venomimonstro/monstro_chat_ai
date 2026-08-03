@@ -60,10 +60,24 @@ export class CrawlSiteProcessor extends WorkerHost {
         data: { totalPages: pages.length },
       });
 
+      let indexedSuccess = 0;
+      const crawlTotal = pages.length;
       let processed = 0;
       for (const page of pages) {
         if (Date.now() - startedAt > CRAWL_JOB_TIMEOUT_MS) {
           throw new Error('Превышен таймаут индексации (20 мин)');
+        }
+
+        const existing = await this.prisma.knowledgeDocument.findFirst({
+          where: {
+            tenantId,
+            sourceId,
+            type: 'site_page',
+            url: page.url,
+          },
+        });
+        if (existing) {
+          await this.prisma.knowledgeDocument.delete({ where: { id: existing.id } });
         }
 
         const document = await this.prisma.knowledgeDocument.create({
@@ -89,6 +103,7 @@ export class CrawlSiteProcessor extends WorkerHost {
             where: { id: document.id },
             data: { status: 'completed', indexedAt: new Date() },
           });
+          indexedSuccess++;
         } catch (error) {
           await this.prisma.knowledgeDocument.update({
             where: { id: document.id },
@@ -100,24 +115,35 @@ export class CrawlSiteProcessor extends WorkerHost {
         }
 
         processed++;
+        const totalPhases = crawlTotal * 2;
         await this.prisma.indexingJob.update({
           where: { id: jobId },
-          data: { processedPages: processed },
+          data: { processedPages: crawlTotal + processed, totalPages: totalPhases },
         });
-        this.emitProgress(tenantId, jobId, processed, pages.length, 'running');
+        this.emitProgress(
+          tenantId,
+          jobId,
+          crawlTotal + processed,
+          totalPhases,
+          'running',
+        );
+      }
+
+      if (indexedSuccess === 0) {
+        throw new Error('Не удалось проиндексировать ни одной страницы');
       }
 
       await this.prisma.indexingJob.update({
         where: { id: jobId },
         data: {
           status: 'completed',
-          processedPages: processed,
-          totalPages: pages.length,
+          processedPages: crawlTotal * 2,
+          totalPages: crawlTotal * 2,
           completedAt: new Date(),
         },
       });
 
-      this.emitProgress(tenantId, jobId, processed, pages.length, 'completed');
+      this.emitProgress(tenantId, jobId, crawlTotal * 2, crawlTotal * 2, 'completed');
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Crawl job ${jobId} failed: ${message}`);
@@ -138,8 +164,7 @@ export class CrawlSiteProcessor extends WorkerHost {
         pageLimit,
         'failed',
       );
-
-      throw error;
+      return;
     }
   }
 

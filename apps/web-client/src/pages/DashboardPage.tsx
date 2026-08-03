@@ -17,7 +17,7 @@ function todayRange() {
 }
 
 function UsageCard({ usage }: { usage: BillingOverviewDto['usage'] }) {
-  const percent = usage.percent;
+  const percent = Math.min(100, usage.percent);
   const color =
     percent >= 100
       ? 'bg-red-500'
@@ -86,6 +86,7 @@ export function DashboardPage() {
     setLoading(true);
     setError(null);
     setStatsError(null);
+    let statsLoadError: string | null = null;
     try {
       const { from, to } = todayRange();
       const billingPromise = canViewBilling
@@ -95,7 +96,7 @@ export function DashboardPage() {
         : Promise.resolve(null);
       const statsPromise = canViewStats
         ? fetchTenantStatistics(from, to).catch((err) => {
-            setStatsError(extractErrorMessage(err));
+            statsLoadError = extractErrorMessage(err);
             return null;
           })
         : Promise.resolve(null);
@@ -103,9 +104,16 @@ export function DashboardPage() {
       const [billing, stats] = await Promise.all([billingPromise, statsPromise]);
       setOverview(billing);
       setTodayStats(stats);
+      setStatsError(statsLoadError);
 
-      if (!billing && !stats && !statsError) {
-        setError('Не удалось загрузить обзор аккаунта');
+      const billingFailed = canViewBilling && !billing;
+      const statsFailed = canViewStats && !stats && statsLoadError;
+      if (billingFailed || statsFailed) {
+        setError(
+          billingFailed
+            ? 'Не удалось загрузить данные тарифа'
+            : statsLoadError ?? 'Не удалось загрузить статистику',
+        );
       }
     } catch (err) {
       setError(extractErrorMessage(err));

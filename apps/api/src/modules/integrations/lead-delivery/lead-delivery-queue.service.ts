@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -7,6 +7,7 @@ import {
   QUEUE_LEAD_DELIVERY,
 } from '../constants';
 import type { LeadDeliveryJobPayload } from './lead-delivery.types';
+import { LeadDeliveryService } from './lead-delivery.service';
 
 @Injectable()
 export class LeadDeliveryQueueService {
@@ -15,9 +16,13 @@ export class LeadDeliveryQueueService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectQueue(QUEUE_LEAD_DELIVERY) private readonly queue: Queue,
+    @Inject(forwardRef(() => LeadDeliveryService))
+    private readonly leadDelivery: LeadDeliveryService,
   ) {}
 
   async enqueueForLead(tenantId: string, leadId: string) {
+    await this.leadDelivery.ensureCrmChannels(tenantId);
+
     const channels = await this.prisma.leadDeliveryChannel.findMany({
       where: { tenantId, enabled: true },
     });

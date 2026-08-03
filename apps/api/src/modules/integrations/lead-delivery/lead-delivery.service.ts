@@ -398,7 +398,7 @@ export class LeadDeliveryService {
     };
   }
 
-  private async ensureCrmChannels(tenantId: string) {
+  async ensureCrmChannels(tenantId: string) {
     const integrations = await this.prisma.integration.findMany({
       where: {
         tenantId,
@@ -439,12 +439,13 @@ export class LeadDeliveryService {
     name: string;
     enabled: boolean;
     configJson: unknown;
+    credentialsEncrypted?: string | null;
     createdAt: Date;
     updatedAt: Date;
   }): LeadDeliveryChannelDto {
     const config = (row.configJson ?? {}) as LeadDeliveryConfig;
     if (row.type === LeadDeliveryChannelType.telegram) {
-      (config as { hasToken?: boolean }).hasToken = true;
+      (config as { hasToken?: boolean }).hasToken = Boolean(row.credentialsEncrypted);
     }
     return {
       id: row.id,

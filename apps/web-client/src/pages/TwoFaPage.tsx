@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { verify2fa } from '../lib/api';
+import { verify2fa, setCsrfToken } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { extractErrorMessage } from '../lib/errors';
 
@@ -35,6 +35,9 @@ export function TwoFaPage() {
     try {
       const result = await verify2fa(data.code, twoFaToken);
       setUser(result.user);
+      if (result.csrfToken) {
+        setCsrfToken(result.csrfToken);
+      }
       navigate('/', { replace: true });
     } catch (err: unknown) {
       setServerError(extractErrorMessage(err));

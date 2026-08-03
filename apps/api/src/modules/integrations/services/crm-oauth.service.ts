@@ -105,6 +105,17 @@ export class CrmOAuthService {
   ) {
     const integrationType = type as IntegrationType;
     const encrypted = this.crypto.encrypt(JSON.stringify(tokens));
+    const existing = await this.prisma.integration.findUnique({
+      where: { tenantId_type: { tenantId, type: integrationType } },
+    });
+    const prevConfig = (existing?.configJson ?? {}) as Record<string, unknown>;
+    const configJson = {
+      ...prevConfig,
+      accountDomain: tokens.accountDomain,
+      portalDomain: tokens.portalDomain,
+      mock: Boolean(tokens.mock),
+    };
+
     await this.prisma.integration.upsert({
       where: { tenantId_type: { tenantId, type: integrationType } },
       create: {
@@ -112,20 +123,12 @@ export class CrmOAuthService {
         type: integrationType,
         status: IntegrationStatus.active,
         credentialsEncrypted: encrypted,
-        configJson: {
-          accountDomain: tokens.accountDomain,
-          portalDomain: tokens.portalDomain,
-          mock: Boolean(tokens.mock),
-        },
+        configJson,
       },
       update: {
         status: IntegrationStatus.active,
         credentialsEncrypted: encrypted,
-        configJson: {
-          accountDomain: tokens.accountDomain,
-          portalDomain: tokens.portalDomain,
-          mock: Boolean(tokens.mock),
-        },
+        configJson,
       },
     });
   }

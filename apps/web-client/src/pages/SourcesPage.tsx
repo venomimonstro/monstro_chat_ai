@@ -53,14 +53,23 @@ export function SourcesPage() {
 
   const handleToggle = async (source: SourceDto) => {
     const status = source.status === 'active' ? 'inactive' : 'active';
-    await updateSource(source.id, { status });
-    await load();
+    try {
+      await updateSource(source.id, { status });
+      await load();
+    } catch (err: unknown) {
+      showToast(extractErrorMessage(err), 'error');
+      await load();
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Удалить источник?')) return;
-    await deleteSource(id);
-    await load();
+    try {
+      await deleteSource(id);
+      await load();
+    } catch (err: unknown) {
+      showToast(extractErrorMessage(err), 'error');
+    }
   };
 
   const handleClone = async (id: string) => {

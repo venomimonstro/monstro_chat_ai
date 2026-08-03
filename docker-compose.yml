@@ -115,6 +115,8 @@ services:
       STABILITY_CLIENT_URL: ${STABILITY_CLIENT_URL:-http://host.docker.internal:5173}
       STABILITY_ADMIN_URL: ${STABILITY_ADMIN_URL:-http://host.docker.internal:5174}
       STABILITY_PUBLIC_URL: ${STABILITY_PUBLIC_URL:-http://host.docker.internal:4321}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://host.docker.internal:4321}
+      CRAWL_INTERNAL_ORIGIN: ${CRAWL_INTERNAL_ORIGIN:-http://host.docker.internal:4321}
       STABILITY_WIDGET_URL: ${STABILITY_WIDGET_URL:-http://host.docker.internal:5175}
     ports:
       - "3000:3000"

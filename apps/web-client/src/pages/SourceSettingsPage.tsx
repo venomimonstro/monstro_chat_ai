@@ -4,6 +4,7 @@ import type { SourceConfig, SourceDto, LeadProfileMode } from '@ai-consultant/sh
 import { DEFAULT_SOURCE_CONFIG, mergeSourceConfig } from '@ai-consultant/shared-types';
 import { api } from '../lib/api';
 import { updateSource } from '../lib/sources';
+import { extractErrorMessage } from '../lib/errors';
 import { TrainingTab } from '../components/TrainingTab';
 import { PromptTab } from '../components/PromptTab';
 import { SkeletonCard } from '../components/Skeleton';
@@ -19,7 +20,7 @@ function getPreviewApiUrl(): string {
     return envUrl.replace(/\/$/, '');
   }
   if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3000/api`;
+    return `${window.location.origin}/api`;
   }
   return 'http://127.0.0.1:3000/api';
 }
@@ -112,10 +113,13 @@ export function SourceSettingsPage() {
   const save = async () => {
     if (!id) return;
     setSaving(true);
+    setLoadError(null);
     try {
       const updated = await updateSource(id, { config });
       setSource(updated);
       setSaved(true);
+    } catch (err) {
+      setLoadError(extractErrorMessage(err));
     } finally {
       setSaving(false);
     }

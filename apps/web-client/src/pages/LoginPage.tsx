@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { loginUser } from '../lib/api';
+import { loginUser, setCsrfToken } from '../lib/api';
 import { extractErrorMessage } from '../lib/errors';
 import { useAuth } from '../lib/auth';
 
@@ -45,6 +45,9 @@ export function LoginPage() {
       }
 
       setUser(result.user);
+      if (result.csrfToken) {
+        setCsrfToken(result.csrfToken);
+      }
       const from = (location.state as { from?: { pathname: string } })?.from?.pathname ?? '/';
       navigate(from, { replace: true });
     } catch (err: unknown) {

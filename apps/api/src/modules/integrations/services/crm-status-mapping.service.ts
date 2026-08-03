@@ -157,9 +157,11 @@ export class CrmStatusMappingService {
   private buildWebhookUrl(tenantId: string, type: CrmProviderType) {
     const base = this.config.get<string>(
       'API_PUBLIC_URL',
-      'http://localhost:3000',
+      'http://localhost:3000/api',
     );
-    return `${base.replace(/\/$/, '')}/integrations/webhooks/${type}/${tenantId}`;
+    const normalized = base.replace(/\/$/, '');
+    const withApi = normalized.endsWith('/api') ? normalized : `${normalized}/api`;
+    return `${withApi}/integrations/webhooks/${type}/${tenantId}`;
   }
 
   private async getIntegration(tenantId: string, type: CrmProviderType) {

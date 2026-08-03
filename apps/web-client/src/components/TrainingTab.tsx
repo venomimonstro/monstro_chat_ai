@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { KnowledgeDocumentDto, IndexingJobDto } from '../lib/knowledge';
+import { extractErrorMessage } from '../lib/errors';
 import {
   connectIndexingSocket,
   excludeDocument,
@@ -28,7 +29,7 @@ function isManualText(doc: KnowledgeDocumentDto) {
 }
 
 export function TrainingTab({ sourceId }: { sourceId: string }) {
-  const [crawlUrl, setCrawlUrl] = useState('https://');
+  const [crawlUrl, setCrawlUrl] = useState('');
   const [manualTitle, setManualTitle] = useState('');
   const [manualContent, setManualContent] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -49,7 +50,9 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
     const running =
       jobList.find((j) => j.status === 'running' || j.status === 'queued') ??
       null;
-    setActiveJob(running);
+    const lastFailed =
+      jobList.find((j) => j.status === 'failed' && j.type === 'crawl') ?? null;
+    setActiveJob(running ?? lastFailed);
   }, [sourceId]);
 
   useEffect(() => {
@@ -92,10 +95,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
       setActiveJob(job);
       await reload();
     } catch (e: unknown) {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? 'Не удалось запустить индексацию';
-      setError(msg);
+      setError(extractErrorMessage(e, 'Не удалось запустить индексацию'));
     } finally {
       setLoading(false);
     }
@@ -131,10 +131,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
       setManualContent('');
       await reload();
     } catch (e: unknown) {
-      const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? 'Не удалось сохранить текст';
-      setError(msg);
+      setError(extractErrorMessage(e, 'Не удалось сохранить текст'));
     } finally {
       setLoading(false);
     }
@@ -182,7 +179,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
           <button
             type="button"
             onClick={handleCrawl}
-            disabled={loading}
+            disabled={loading || !crawlUrl.trim() || crawlUrl === 'https://'}
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             Индексировать

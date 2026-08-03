@@ -4,6 +4,8 @@ import { AppLayout } from './components/AppLayout';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from './components/Toast';
 import { ProtectedRoute, GuestRoute } from './components/ProtectedRoute';
+import { PermissionRoute } from './components/PermissionRoute';
+import { PERMISSIONS } from './lib/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { TwoFaPage } from './pages/TwoFaPage';
@@ -41,17 +43,80 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/sources" element={<SourcesPage />} />
-              <Route path="/sources/:id" element={<SourceSettingsPage />} />
+              <Route
+                path="/sources"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SOURCES_MANAGE}>
+                    <SourcesPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/sources/:id"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SOURCES_MANAGE}>
+                    <SourceSettingsPage />
+                  </PermissionRoute>
+                }
+              />
               <Route path="/chats" element={<PlaceholderPage title="Чаты" />} />
-              <Route path="/crm" element={<CrmPage />} />
-              <Route path="/billing" element={<BillingPage />} />
-              <Route path="/billing/success" element={<BillingSuccessPage />} />
-              <Route path="/billing/failed" element={<BillingFailedPage />} />
-              <Route path="/integrations" element={<IntegrationsPage />} />
+              <Route
+                path="/crm"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.CRM_LEADS_VIEW}>
+                    <CrmPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/billing"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <BillingPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/billing/success"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <BillingSuccessPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/billing/failed"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <BillingFailedPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/integrations"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <IntegrationsPage />
+                  </PermissionRoute>
+                }
+              />
               <Route path="/statistics" element={<StatisticsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/team" element={<TeamPage />} />
+              <Route
+                path="/settings"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <SettingsPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/team"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SETTINGS_MANAGE}>
+                    <TeamPage />
+                  </PermissionRoute>
+                }
+              />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

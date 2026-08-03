@@ -84,7 +84,7 @@ export class CrawlerService {
         }
 
         if (current.depth < CRAWL_MAX_DEPTH) {
-          const links = this.extractLinks(page.html, origin);
+          const links = this.extractLinks(page.html, canonical);
           for (const link of links) {
             if (!visited.has(link) && this.isSameOrigin(link, origin)) {
               queue.push({ url: link, depth: current.depth + 1 });
@@ -141,7 +141,10 @@ export class CrawlerService {
     }
 
     const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html')) {
+    if (
+      !contentType.includes('text/html') &&
+      !contentType.includes('application/xhtml')
+    ) {
       throw new Error('Not HTML');
     }
 
@@ -150,7 +153,7 @@ export class CrawlerService {
     return { url, title, text, html };
   }
 
-  private extractLinks(html: string, origin: string): string[] {
+  private extractLinks(html: string, baseUrl: string): string[] {
     const $ = cheerio.load(html);
     const links = new Set<string>();
 
@@ -158,7 +161,7 @@ export class CrawlerService {
       const href = $(el).attr('href');
       if (!href || href.startsWith('#') || href.startsWith('mailto:')) return;
       try {
-        const absolute = new URL(href, origin).href;
+        const absolute = new URL(href, baseUrl).href;
         links.add(this.normalizeUrl(absolute));
       } catch {
         // skip invalid URLs
@@ -186,7 +189,9 @@ export class CrawlerService {
   }
 
   private getInternalFallbackUrl(url: string): string | null {
-    const publicSite = this.config.get<string>('PUBLIC_SITE_URL');
+    const publicSite =
+      this.config.get<string>('PUBLIC_SITE_URL') ??
+      this.config.get<string>('STABILITY_PUBLIC_URL');
     const internal =
       this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
       'http://host.docker.internal:4321';
