@@ -23,7 +23,10 @@ export function TestimonialsSection() {
   return (
     <div className="grid gap-6 md:grid-cols-3">
       {items.map((t) => (
-        <blockquote key={t.name} className="card flex flex-col">
+        <blockquote key={t.name} className="card card-hover flex flex-col">
+          <div className="mb-4 flex gap-0.5 text-brand-400" aria-label="5 из 5">
+            {'★★★★★'}
+          </div>
           <p className="flex-1 text-sm leading-relaxed text-ink-700">&ldquo;{t.quote}&rdquo;</p>
           <footer className="mt-4 border-t border-line-200 pt-4">
             <p className="font-semibold text-ink-900">{t.name}</p>

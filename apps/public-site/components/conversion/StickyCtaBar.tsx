@@ -31,7 +31,7 @@ export function StickyCtaBar() {
 
   return (
     <div
-      className="fixed bottom-[72px] left-3 right-3 z-40 rounded-2xl border border-line-200 bg-white/95 p-2 shadow-xl backdrop-blur-md md:hidden"
+      className="fixed bottom-[72px] left-3 right-3 z-40 rounded-2xl border border-line-200 bg-white/95 p-2 shadow-xl backdrop-blur-md md:bottom-4 md:left-auto md:right-4 md:max-w-sm"
       role="region"
       aria-label="Быстрый старт"
     >

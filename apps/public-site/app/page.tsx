@@ -5,8 +5,14 @@ import { FaqAccordion } from '@/components/FaqAccordion';
 import { ChatMockup } from '@/components/ChatMockup';
 import { LiveDemoSection } from '@/components/conversion/LiveDemoSection';
 import { PricingTeaser } from '@/components/conversion/PricingTeaser';
+import { BeforeAfterSection } from '@/components/conversion/BeforeAfterSection';
+import { RoiCalculatorSection } from '@/components/conversion/RoiCalculatorSection';
+import { ObjectionsSection } from '@/components/conversion/ObjectionsSection';
+import { TestimonialsSection } from '@/components/conversion/TestimonialsSection';
+import { SocialProofBar } from '@/components/conversion/SocialProofBar';
 import { siteConfig } from '@/lib/site';
 import { fetchPublicTariffs } from '@/lib/tariffs';
+import { faqData } from '@/lib/faq';
 import {
   ChatIcon,
   BrainIcon,
@@ -19,27 +25,54 @@ import {
 const situations = [
   {
     title: 'Вопрос возник после рабочего дня',
-    text: 'Посетитель готов уточнить цену или условия, но ответ менеджера будет только утром.',
+    text: 'Посетитель готов уточнить цену или условия, но ответ менеджера будет только утром — к этому моменту он уже купил у конкурента.',
   },
   {
     title: 'Ответ спрятан на странице',
-    text: 'Информация есть на сайте, но посетителю приходится искать её самостоятельно.',
+    text: 'Информация есть на сайте, но посетителю приходится искать её самостоятельно. 7 из 10 уходят, не дождавшись.',
   },
   {
     title: 'Команда повторяет одно и то же',
-    text: 'Время менеджеров уходит на цены, сроки, доставку, запись и другие типовые вопросы.',
+    text: 'Время менеджеров уходит на цены, сроки, доставку — вместо работы с горячими клиентами, готовыми платить.',
   },
   {
     title: 'Контакт приходит без контекста',
-    text: 'Менеджеру приходится заново выяснять, что интересовало посетителя и что он уже узнал.',
+    text: 'Менеджеру приходится заново выяснять, что интересовало посетителя. Клиент теряет терпение и уходит.',
   },
 ];
 
 const useCases = [
-  ['Запись и консультации', 'Услуги, клиники, салоны и сервисные компании'],
-  ['Подбор товара', 'Интернет-магазины, каталоги и производители'],
-  ['Квалификация запроса', 'Недвижимость, B2B и профессиональные услуги'],
-  ['Цены и условия', 'Онлайн-обучение, доставка и подписные сервисы'],
+  ['Запись и консультации', 'Услуги, клиники, салоны — чат записывает и собирает контакт 24/7'],
+  ['Подбор товара', 'Интернет-магазины и каталоги — AI помогает выбрать и оформить заказ'],
+  ['Квалификация запроса', 'B2B и недвижимость — чат уточняет бюджет и сроки до передачи менеджеру'],
+  ['Цены и условия', 'Онлайн-обучение, доставка — мгновенные ответы на типовые вопросы'],
+];
+
+const faqItems = [
+  {
+  question: 'Сколько стоит подключение?',
+  answer: 'Семь дней бесплатно, без банковской карты. Платный тариф выбираете после теста.',
+  },
+  {
+  question: 'Как быстро можно запустить?',
+  answer: 'Подключение занимает около 15 минут: добавьте знания, проверьте ответы и вставьте код на сайт.',
+  },
+  {
+  question: 'Заменит ли чат менеджеров?',
+  answer: 'Нет. AI берёт рутину и мгновенные ответы, менеджеры работают только с готовыми клиентами.',
+  },
+  {
+  question: 'Что если ответа нет в базе знаний?',
+  answer: 'Чат честно сообщает об этом и предлагает передать вопрос менеджеру вместе с контекстом диалога.',
+  },
+  {
+  question: 'Можно ли протестировать до оплаты?',
+  answer: 'Да. Создайте консультанта, проверьте ответы на своих материалах и только потом решайте об оплате.',
+  },
+  {
+  question: 'Какие интеграции есть?',
+  answer: 'Экспорт лидов в amoCRM и Bitrix24, аналитика Яндекс.Метрики и Google Analytics.',
+  },
 ];
 
 export default async function HomePage() {
@@ -56,33 +89,46 @@ export default async function HomePage() {
           brand: { '@type': 'Brand', name: siteConfig.name },
         }}
       />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'FAQPage',
+          mainEntity: faqData.map((item) => ({
+            '@type': 'Question',
+            name: item.question,
+            acceptedAnswer: { '@type': 'Answer', text: item.answer },
+          })),
+        }}
+      />
 
+      {/* Hero */}
       <section className="hero-light">
         <div className="mx-auto max-w-6xl px-4 py-16 md:py-24 lg:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <div>
               <span className="badge">
                 <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                AI-консультант для вашего сайта
+                AI-консультант, который продаёт 24/7
               </span>
               <h1 className="mt-6 text-4xl font-extrabold leading-[1.08] tracking-tight text-ink-900 md:text-5xl lg:text-[3.25rem]">
-                Отвечайте посетителям и собирайте обращения,{' '}
-                <span className="gradient-text">даже когда менеджеры офлайн</span>
+                Превращайте посетителей в клиентов,{' '}
+                <span className="gradient-text">пока менеджеры спят</span>
               </h1>
               <p className="mt-6 text-lg leading-relaxed text-ink-700">
-                Monstro Chat AI отвечает по материалам вашей компании, уточняет запрос
-                и передаёт контакт менеджеру вместе с историей диалога.
+                Monstro Chat AI мгновенно отвечает по материалам вашей компании,
+                уточняет запрос и передаёт контакт менеджеру вместе с историей диалога.
+                Без потерянных обращений и пустых ночных визитов.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link href="/register" className="btn-primary text-center">
                   Попробовать 7 дней бесплатно
                 </Link>
-                <a href="#demo" className="btn-secondary text-center">
-                  Открыть демо-диалог
+                <a href="#calculator" className="btn-secondary text-center">
+                  Посчитать упущенную выгоду
                 </a>
               </div>
               <p className="mt-3 text-sm text-ink-500">
-                Без банковской карты · Решение об оплате — после теста
+                Без банковской карты · Подключение за 15 минут · Отмена в любой момент
               </p>
               <ul className="mt-9 grid gap-3 sm:grid-cols-2">
                 {[
@@ -103,33 +149,19 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="border-y border-line-200 bg-surface-50">
-        <div className="mx-auto grid max-w-6xl gap-5 px-4 py-8 sm:grid-cols-3">
-          {[
-            ['Знания под контролем', 'Сайт, файлы и собственные инструкции'],
-            ['Обращение не теряется', 'Контакт сохраняется с историей диалога'],
-            ['Безопасный старт', 'Сначала проверка, затем публикация'],
-          ].map(([title, text]) => (
-            <div key={title} className="flex gap-3">
-              <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
-                ✓
-              </span>
-              <div>
-                <p className="font-semibold text-ink-900">{title}</p>
-                <p className="mt-1 text-sm text-ink-500">{text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <SocialProofBar />
 
       <LiveDemoSection />
 
+      {/* Pain points */}
       <section className="bg-surface-50 py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-2xl text-center">
             <p className="section-eyebrow">Знакомая ситуация?</p>
-            <h2 className="section-title mt-3">Где сайт теряет готовые обращения</h2>
+            <h2 className="section-title mt-3">Где ваш сайт теряет готовых клиентов</h2>
+            <p className="section-subtitle">
+              Каждый из этих сценариев — реальные деньги, которые уходят к конкурентам
+            </p>
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2">
             {situations.map((item, index) => (
@@ -147,6 +179,22 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Before / After */}
+      <section className="bg-white py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">До и после</p>
+            <h2 className="section-title mt-3">Что меняется после запуска чата</h2>
+          </div>
+          <div className="mt-12">
+            <BeforeAfterSection />
+          </div>
+        </div>
+      </section>
+
+      <RoiCalculatorSection />
+
+      {/* Journey */}
       <section className="bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="mx-auto max-w-2xl text-center">
@@ -157,9 +205,9 @@ export default async function HomePage() {
           </div>
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              ['01', 'Посетитель получает ответ', 'AI ищет информацию в подключённых материалах.'],
+              ['01', 'Посетитель получает ответ', 'AI ищет информацию в подключённых материалах — мгновенно, без ожидания.'],
               ['02', 'Запрос уточняется', 'Диалог помогает понять задачу и интерес посетителя.'],
-              ['03', 'Контакт передаётся', 'Менеджер получает обращение вместе с разговором.'],
+              ['03', 'Контакт передаётся', 'Менеджер получает обращение вместе с полным разговором.'],
               ['04', 'Диалоги улучшают сайт', 'Вы видите, каких ответов не хватает клиентам.'],
             ].map(([step, title, text]) => (
               <article key={step} className="card">
@@ -186,9 +234,14 @@ export default async function HomePage() {
               типовые и сложные вопросы, исправьте материалы — и только потом покажите
               чат посетителям.
             </p>
-            <Link href="/register" className="mt-7 inline-flex rounded-xl bg-brand-500 px-6 py-3 font-semibold hover:bg-brand-600">
-              Проверить на своих материалах
-            </Link>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+              <Link href="/register" className="inline-flex justify-center rounded-xl bg-brand-500 px-6 py-3 font-semibold hover:bg-brand-600">
+                Проверить на своих материалах
+              </Link>
+              <a href="#demo" className="inline-flex justify-center rounded-xl border border-white/20 px-6 py-3 font-medium transition hover:bg-white/10">
+                Открыть демо
+              </a>
+            </div>
           </div>
           <div className="space-y-3">
             {[
@@ -210,7 +263,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="features" className="bg-white py-20 md:py-28">
+      <section id="features" className="scroll-mt-20 bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <p className="section-eyebrow">Возможности</p>
@@ -235,7 +288,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-12 grid gap-5 md:grid-cols-2">
             {useCases.map(([title, text]) => (
-              <article key={title} className="card">
+              <article key={title} className="card card-hover">
                 <h3 className="font-semibold text-ink-900">{title}</h3>
                 <p className="mt-2 text-sm text-ink-700">{text}</p>
               </article>
@@ -244,11 +297,38 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <PricingTeaser tariffs={tariffs} />
-
+      {/* Testimonials */}
       <section className="bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
-          <div className="rounded-3xl border border-brand-100 bg-brand-50 px-7 py-12 text-center md:px-16">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">Результаты клиентов</p>
+            <h2 className="section-title mt-3">Что говорят после запуска</h2>
+          </div>
+          <div className="mt-12">
+            <TestimonialsSection />
+          </div>
+        </div>
+      </section>
+
+      <PricingTeaser tariffs={tariffs} />
+
+      {/* Objections */}
+      <section className="bg-white py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="mx-auto max-w-2xl text-center">
+            <p className="section-eyebrow">Сомнения?</p>
+            <h2 className="section-title mt-3">Отвечаем на главные вопросы</h2>
+          </div>
+          <div className="mt-12">
+            <ObjectionsSection />
+          </div>
+        </div>
+      </section>
+
+      {/* Risk-free CTA */}
+      <section className="bg-surface-50 py-20 md:py-28">
+        <div className="mx-auto max-w-6xl px-4">
+          <div className="overflow-hidden rounded-3xl border border-brand-100 bg-gradient-to-br from-brand-50 via-white to-brand-50 px-7 py-12 text-center shadow-soft md:px-16">
             <p className="section-eyebrow">Без риска</p>
             <h2 className="mt-3 text-3xl font-bold text-ink-900 md:text-4xl">
               Сначала проверьте — потом решайте
@@ -259,13 +339,13 @@ export default async function HomePage() {
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Link href="/register" className="btn-primary">Начать бесплатный тест</Link>
-              <a href="#demo" className="btn-secondary">Открыть демо</a>
+              <a href="#calculator" className="btn-secondary">Посчитать выгоду</a>
             </div>
           </div>
         </div>
       </section>
 
-      <section id="faq" className="bg-surface-50 py-20 md:py-28">
+      <section id="faq" className="scroll-mt-20 bg-white py-20 md:py-28">
         <div className="mx-auto max-w-6xl px-4">
           <div className="text-center">
             <p className="section-eyebrow">Перед стартом</p>
