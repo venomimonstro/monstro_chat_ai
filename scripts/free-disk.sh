@@ -25,8 +25,13 @@ need_cleanup() {
 
 prune_docker_build_cache() {
   log "Очищаю Docker build cache и dangling-образы..."
+  # Битые tmp от прошлой сборки «no space left»
+  rm -f /root/.docker/buildx/activity/.tmp-* 2>/dev/null || true
   docker builder prune -af 2>/dev/null || true
+  docker buildx prune -af 2>/dev/null || true
   docker image prune -af 2>/dev/null || true
+  # Незавершённые pull-слои
+  docker system prune -af 2>/dev/null || true
 }
 
 prune_frontend_artifacts() {
@@ -72,16 +77,19 @@ main() {
 
   show_disk
 
+  # Перед Docker-сборкой всегда чистим builder — иначе снова «no space left on device»
+  if [[ "${FORCE_DOCKER_PRUNE:-0}" == "1" ]] || need_cleanup; then
+    warn "Очистка Docker cache (FORCE_DOCKER_PRUNE=${FORCE_DOCKER_PRUNE:-0}, свободно=$(free_gb)G)..."
+    prune_docker_build_cache
+    show_disk
+  fi
+
   if ! need_cleanup; then
     log "Места достаточно (нужно ≥ ${MIN_FREE_GB} GB)."
     exit 0
   fi
 
-  warn "Мало места (< ${MIN_FREE_GB} GB). Запускаю очистку..."
-
-  prune_docker_build_cache
-  show_disk
-  if ! need_cleanup; then exit 0; fi
+  warn "Мало места (< ${MIN_FREE_GB} GB). Запускаю глубокую очистку..."
 
   prune_frontend_artifacts
   show_disk
@@ -101,7 +109,7 @@ main() {
     exit 1
   fi
 
-  log "Готово. Можно деплоить: sudo bash scripts/deploy-latest.sh"
+  log "Готово. Деплой: cd ${INSTALL_DIR} && sudo bash scripts/fast-update.sh --full"
 }
 
 main "$@"

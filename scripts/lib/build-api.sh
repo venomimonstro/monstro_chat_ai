@@ -36,8 +36,31 @@ try_ghcr_pull() {
   return 1
 }
 
+ensure_space_for_build() {
+  # Локальная сборка жрёт buildx-кэш — чистим ДО docker compose build
+  if [[ -f "${INSTALL_DIR}/scripts/free-disk.sh" ]]; then
+    deploy_log "Проверка места на диске перед сборкой API..."
+    MIN_FREE_GB="${MIN_FREE_GB:-5}" FORCE_DOCKER_PRUNE=1 \
+      bash "${INSTALL_DIR}/scripts/free-disk.sh" \
+      || deploy_fail "Нет места на диске. Освободите: sudo bash scripts/free-disk.sh"
+  else
+    deploy_warn "Чищу Docker builder cache..."
+    docker builder prune -af 2>/dev/null || true
+    docker image prune -af 2>/dev/null || true
+  fi
+
+  local avail
+  avail="$(df -BG / | awk 'NR==2 {gsub(/G/,"",$4); print int($4)}')"
+  if [[ "${avail:-0}" -lt 3 ]]; then
+    deploy_fail "Свободно < 3 GB (${avail}G). Увеличьте диск или: sudo bash scripts/free-disk.sh"
+  fi
+}
+
 rebuild_local() {
+  ensure_space_for_build
   deploy_log "Локальная сборка API (Docker BuildKit cache)..."
+  # Сбрасываем «битый» buildx activity при no space left
+  rm -f /root/.docker/buildx/activity/.tmp-* 2>/dev/null || true
   docker compose build api
 }
 

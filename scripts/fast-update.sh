@@ -147,7 +147,10 @@ main() {
 
   pull_code
 
-  [[ "${MODE}" == "full" ]] && ensure_disk_space
+  # После pull — актуальный free-disk.sh; чистим до любой Docker/npm сборки
+  if [[ "${MODE}" == "full" ]]; then
+    ensure_disk_space
+  fi
 
   local new_sha components
   new_sha="$(git -C "${INSTALL_DIR}" rev-parse HEAD)"
@@ -162,7 +165,9 @@ main() {
   deploy_log "Компоненты: ${components}"
   [[ -n "${prev_sha}" ]] && deploy_log "Diff: ${prev_sha:0:8} → ${new_sha:0:8}"
 
+  # API / auto: всегда проверяем диск (иначе buildx падает с no space left)
   if needs "${components}" "api"; then
+    ensure_disk_space
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
