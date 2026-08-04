@@ -325,7 +325,7 @@ export class SystemUpdatesService {
     const current = this.release.getCurrent();
     const isStale = this.isOlderVersion(update.version, current.version);
     const recommendedCommand =
-      'sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh';
+      'sudo bash /opt/monstro_chat_ai/scripts/quick-update.sh';
 
     return {
       updateId: update.id,

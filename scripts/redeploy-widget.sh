@@ -16,8 +16,8 @@ git checkout main
 git reset --hard origin/main
 echo "Коммит: $(git log -1 --oneline)"
 
-echo "==> Пересборка и перезапуск виджета"
-bash "${INSTALL_DIR}/scripts/start-widget.sh"
+echo "==> Пересборка виджета"
+bash "${INSTALL_DIR}/scripts/lib/build-widget.sh"
 
 echo ""
 echo "==> Проверка"
