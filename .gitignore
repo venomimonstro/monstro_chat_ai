@@ -4,6 +4,7 @@ node_modules/
 .pnp.js
 
 # Build
+.deploy/
 dist/
 build/
 .next/

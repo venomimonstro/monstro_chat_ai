@@ -31,13 +31,9 @@ pull_code() {
 }
 
 rebuild_api() {
-  log "Пересобираю API (Docker)..."
+  log "Пересобираю API..."
   cd "${INSTALL_DIR}"
-  export DOCKER_BUILDKIT=1
-  export COMPOSE_DOCKER_CLI_BUILD=1
-  rm -rf node_modules apps/*/node_modules packages/*/node_modules 2>/dev/null || true
-  docker compose build api
-  docker compose up -d --force-recreate api
+  bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
 }
 
 wait_for_api() {
@@ -55,41 +51,15 @@ wait_for_api() {
 }
 
 rebuild_admin() {
-  log "Пересобираю админку..."
-  cd "${INSTALL_DIR}"
-  if ! command -v node >/dev/null 2>&1; then
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y -qq nodejs
-  fi
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/web-admin \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
-  npm run build -w @ai-consultant/shared-types
-  npm run build -w @ai-consultant/web-admin
-  if systemctl is-active --quiet monstro-web-admin 2>/dev/null; then
-    systemctl restart monstro-web-admin
-  else
-    bash "${INSTALL_DIR}/scripts/start-frontend.sh"
-  fi
+  bash "${INSTALL_DIR}/scripts/lib/build-frontends.sh"
 }
 
 rebuild_public_site() {
-  log "Пересобираю публичный сайт..."
-  cd "${INSTALL_DIR}"
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/public-site \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
-  npm run build -w @ai-consultant/shared-types
-  npm run build -w @ai-consultant/public-site
-  if systemctl is-active --quiet monstro-public-site 2>/dev/null; then
-    systemctl restart monstro-public-site
-  else
-    bash "${INSTALL_DIR}/scripts/start-public-site.sh"
-  fi
+  bash "${INSTALL_DIR}/scripts/lib/build-site.sh"
+}
+
+rebuild_widget() {
+  bash "${INSTALL_DIR}/scripts/lib/build-widget.sh"
 }
 
 print_status() {
@@ -115,6 +85,7 @@ main() {
   pull_code
   rebuild_api
   wait_for_api || fail "API не поднялся — смотрите: docker compose logs api --tail 50"
+  rebuild_widget
   rebuild_admin
   rebuild_public_site
   print_status

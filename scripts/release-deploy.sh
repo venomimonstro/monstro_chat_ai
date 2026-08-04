@@ -130,7 +130,10 @@ main() {
 
   export APP_VERSION="${VERSION}"
   export SPRINT_NUMBER="${SPRINT}"
-  if [[ -f "${INSTALL_DIR}/scripts/remote-update.sh" ]]; then
+  if [[ -f "${INSTALL_DIR}/scripts/fast-update.sh" ]]; then
+    report "deploy" "info" "Запуск fast-update.sh --auto"
+    PARALLEL_BUILDS=1 API_USE_GHCR=1 bash "${INSTALL_DIR}/scripts/fast-update.sh" --auto
+  elif [[ -f "${INSTALL_DIR}/scripts/remote-update.sh" ]]; then
     report "deploy" "info" "Запуск remote-update.sh"
     bash "${INSTALL_DIR}/scripts/remote-update.sh"
   else

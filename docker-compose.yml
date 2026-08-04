@@ -81,7 +81,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    image: monstro_chat_ai-api
+    image: ${API_IMAGE:-monstro_chat_ai-api}
     container_name: aicw-api
     restart: unless-stopped
     extra_hosts:

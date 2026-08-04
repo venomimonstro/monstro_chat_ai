@@ -204,7 +204,7 @@ export function UpdatesPage() {
               Автоматически берёт последний спринт из SPRINTS.md — не нужно вводить версию вручную
             </p>
             <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
-              sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh
+              sudo bash /opt/monstro_chat_ai/scripts/quick-update.sh
             </pre>
           </div>
         </div>
@@ -365,10 +365,14 @@ export function UpdatesPage() {
               {deployInstr.warning}
             </p>
           )}
-          <p className="mt-3 text-sm font-medium text-emerald-300">✓ Используйте эту команду:</p>
-          <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-emerald-100">
-            {deployInstr.recommendedCommand}
-          </pre>
+            <p className="mt-3 text-sm font-medium text-emerald-300">✓ Быстрое обновление (только изменённые части):</p>
+            <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-200">
+              sudo bash /opt/monstro_chat_ai/scripts/quick-update.sh
+            </pre>
+            <p className="mt-2 text-xs text-slate-500">
+              Только виджет (~1–2 мин): <code className="text-slate-400">quick-update.sh --widget</code>
+              · Полный деплой: <code className="text-slate-400">fast-update.sh --full</code>
+            </p>
           <p className="mt-4 text-sm text-amber-100/60">
             Команда для конкретного релиза (только если версия совпадает с текущей на сервере v
             {deployInstr.currentVersion}):
