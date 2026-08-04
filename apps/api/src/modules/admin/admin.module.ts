@@ -10,6 +10,7 @@ import { AdminTenantsService } from './services/admin-tenants.service';
 import { AuditLogService } from './services/audit-log.service';
 import { BackupSnapshotService } from './services/backup-snapshot.service';
 import { DeploymentRunnerService } from './services/deployment-runner.service';
+import { HostDeployQueueService } from './services/host-deploy-queue.service';
 import { SystemUpdatesService } from './services/system-updates.service';
 import { SystemUpdateProcessor } from './processors/system-update.processor';
 import { UpdatesGateway } from './gateways/updates.gateway';
@@ -58,6 +59,7 @@ import { SourcesModule } from '../sources/sources.module';
     AuditLogService,
     BackupSnapshotService,
     DeploymentRunnerService,
+    HostDeployQueueService,
     SystemUpdatesService,
     SystemUpdateProcessor,
     UpdatesGateway,

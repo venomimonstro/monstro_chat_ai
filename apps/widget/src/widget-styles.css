@@ -47,7 +47,7 @@
 
 .aicw-panel {
   position: fixed;
-  z-index: 2147483646;
+  z-index: 2147483647;
   width: min(360px, calc(100vw - 24px));
   height: min(500px, calc(100dvh - 100px));
   max-height: calc(100dvh - 80px);

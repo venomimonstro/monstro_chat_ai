@@ -15,6 +15,7 @@ import type {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { BackupSnapshotService } from './backup-snapshot.service';
 import { DeploymentRunnerService } from './deployment-runner.service';
+import { HostDeployQueueService } from './host-deploy-queue.service';
 import { ReleaseService } from '../../release/release.service';
 import { UpdatesGateway } from '../gateways/updates.gateway';
 import { DEPLOY_LOG_MAX, QUEUE_SYSTEM_UPDATES } from '../constants';
@@ -35,6 +36,7 @@ export class SystemUpdatesService {
     private readonly prisma: PrismaService,
     private readonly backups: BackupSnapshotService,
     private readonly runner: DeploymentRunnerService,
+    private readonly hostDeployQueue: HostDeployQueueService,
     private readonly release: ReleaseService,
     private readonly updatesGateway: UpdatesGateway,
     @InjectQueue(QUEUE_SYSTEM_UPDATES)
@@ -116,6 +118,125 @@ export class SystemUpdatesService {
     this.updatesGateway.emitStatus(id, 'awaiting_approval');
 
     return this.get(id);
+  }
+
+  async syncSprintsFromDocs() {
+    const sprints = this.release
+      .listSprints()
+      .filter((row) => row.status.toLowerCase() === 'done');
+    const created: SystemUpdateDto[] = [];
+
+    for (const sprint of sprints) {
+      const version = this.release.getSuggestedVersion(sprint.number);
+      const exists = await this.prisma.systemUpdate.findFirst({
+        where: { version },
+      });
+      if (exists) continue;
+      const row = await this.create({
+        version,
+        sprintNumber: sprint.number,
+        changelog: sprint.description,
+      });
+      created.push(row);
+    }
+
+    return {
+      synced: sprints.length,
+      created: created.length,
+      updates: created,
+    };
+  }
+
+  async executeHostDeploy(id: string) {
+    let update = await this.requireUpdate(id);
+
+    if (update.status === 'test_passed') {
+      await this.enqueueProductionDeploy(id);
+      update = await this.requireUpdate(id);
+    }
+
+    if (update.status !== 'awaiting_approval') {
+      throw new BadRequestException(
+        'Установка доступна после успешного теста и одобрения',
+      );
+    }
+
+    await this.hostDeployQueue.queueJob({
+      type: 'deploy',
+      updateId: id,
+      version: update.version,
+      sprint: update.sprintNumber ?? 0,
+    });
+
+    await this.startHostDeploy(id);
+    await this.appendLog(id, {
+      at: new Date().toISOString(),
+      level: 'info',
+      message: 'Задача установки поставлена в очередь host-agent',
+    });
+
+    return this.get(id);
+  }
+
+  async installUpdate(id: string) {
+    const update = await this.requireUpdate(id);
+
+    if (['pending', 'test_failed'].includes(update.status)) {
+      await this.enqueueStagingTest(id);
+      return {
+        status: 'testing' as const,
+        update: await this.get(id),
+        message: 'Запущены автоматические тесты',
+      };
+    }
+
+    if (update.status === 'testing') {
+      return {
+        status: 'testing' as const,
+        update: await this.get(id),
+        message: 'Тесты выполняются',
+      };
+    }
+
+    if (['test_passed', 'awaiting_approval'].includes(update.status)) {
+      const deployed = await this.executeHostDeploy(id);
+      return {
+        status: 'deploying' as const,
+        update: deployed,
+        message: 'Установка запущена на сервере',
+      };
+    }
+
+    throw new BadRequestException(
+      `Установка недоступна для статуса «${update.status}»`,
+    );
+  }
+
+  async queueHostRollback(version: string, updateId?: string) {
+    const current = this.release.getCurrent();
+    const rollbackTarget = version === 'previous' ? '' : version;
+
+    await this.hostDeployQueue.queueJob({
+      type: 'rollback',
+      updateId,
+      version: current.version,
+      sprint: current.sprint,
+      rollbackTarget: rollbackTarget || undefined,
+    });
+
+    if (updateId) {
+      await this.appendLog(updateId, {
+        at: new Date().toISOString(),
+        level: 'warn',
+        message: `Откат на версию ${version} поставлен в очередь host-agent`,
+      });
+    }
+
+    return {
+      ok: true,
+      version,
+      message: `Откат на ${version} поставлен в очередь. Host-agent выполнит release-rollback.sh`,
+    };
   }
 
   async startHostDeploy(id: string) {
@@ -243,7 +364,7 @@ export class SystemUpdatesService {
       where: { id },
       data: { status: 'deploying', rollbackVersion },
     });
-    this.updatesGateway.emitStatus(id, 'rolling_back');
+    this.updatesGateway.emitStatus(id, 'deploying');
 
     await this.queue.add(
       'rollback',
@@ -347,14 +468,12 @@ export class SystemUpdatesService {
   }
 
   private async runRollback(updateId: string, rollbackVersion: string) {
-    await this.runner.rollback(rollbackVersion, (entry) =>
-      this.appendLog(updateId, entry),
-    );
+    await this.queueHostRollback(rollbackVersion, updateId);
     await this.prisma.systemUpdate.update({
       where: { id: updateId },
-      data: { status: 'rolled_back', rollbackVersion },
+      data: { status: 'deploying', rollbackVersion },
     });
-    this.updatesGateway.emitStatus(updateId, 'rolled_back');
+    this.updatesGateway.emitStatus(updateId, 'deploying');
   }
 
   private async appendLog(updateId: string, entry: DeployLogEntry) {

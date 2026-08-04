@@ -12,7 +12,8 @@ describe('SystemUpdatesService', () => {
   };
   const mockBackups = { create: jest.fn() };
   const mockRunner = {};
-  const mockRelease = { syncManifest: jest.fn() };
+  const mockHostDeployQueue = { queueJob: jest.fn() };
+  const mockRelease = { syncManifest: jest.fn(), getCurrent: jest.fn(() => ({ version: '0.1.0', sprint: 1 })), listSprints: jest.fn(() => []), getSuggestedVersion: jest.fn((n: number) => `0.${n}.0`) };
   const mockGateway = { emitStatus: jest.fn(), emitLog: jest.fn(), emitCanary: jest.fn() };
   const mockQueue = { add: jest.fn() };
 
@@ -24,6 +25,7 @@ describe('SystemUpdatesService', () => {
       mockPrisma as never,
       mockBackups as never,
       mockRunner as never,
+      mockHostDeployQueue as never,
       mockRelease as never,
       mockGateway as never,
       mockQueue as never,

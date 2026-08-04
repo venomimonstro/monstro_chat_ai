@@ -3,12 +3,15 @@ import type { ReleaseDeployInstructionsDto, SystemUpdateDto } from '@ai-consulta
 import {
   approveUpdate,
   createSystemUpdate,
+  deployUpdate,
   fetchCurrentRelease,
   fetchDeployInstructions,
   fetchSystemUpdate,
   fetchSystemUpdates,
+  installUpdate,
   rollbackUpdate,
   startUpdateTest,
+  syncSprintUpdates,
 } from '../lib/api';
 import { EmptyState, ErrorState, LoadingState, StatusBadge } from '../components/UiState';
 
@@ -49,7 +52,8 @@ export function UpdatesPage() {
   const [activeDetail, setActiveDetail] = useState<SystemUpdateDto | null>(null);
   const [deployInstr, setDeployInstr] = useState<ReleaseDeployInstructionsDto | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [installingId, setInstallingId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -68,8 +72,30 @@ export function UpdatesPage() {
     }
   };
 
+  const syncSprints = async () => {
+    setSyncMsg(null);
+    try {
+      const result = await syncSprintUpdates();
+      setSyncMsg(
+        result.created > 0
+          ? `Добавлено ${result.created} спринтов из SPRINTS.md`
+          : 'Новых спринтов для регистрации нет',
+      );
+      await load();
+    } catch {
+      setSyncMsg('Не удалось синхронизировать спринты');
+    }
+  };
+
   useEffect(() => {
-    load();
+    void syncSprintUpdates()
+      .then((result) => {
+        if (result.created > 0) {
+          setSyncMsg(`Автозагрузка: ${result.created} спринтов из SPRINTS.md`);
+        }
+        return load();
+      })
+      .catch(() => load());
   }, []);
 
   useEffect(() => {
@@ -120,6 +146,39 @@ export function UpdatesPage() {
     await load();
   };
 
+  const deploy = async (id: string) => {
+    setActiveId(id);
+    setInstallingId(id);
+    try {
+      await deployUpdate(id);
+      await load();
+    } finally {
+      setInstallingId(null);
+    }
+  };
+
+  const install = async (id: string) => {
+    setActiveId(id);
+    setInstallingId(id);
+    try {
+      let result = await installUpdate(id);
+      let attempts = 0;
+      while (result.status === 'testing' && attempts < 60) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const detail = await fetchSystemUpdate(id);
+        if (detail.status === 'test_failed') break;
+        if (detail.status === 'test_passed' || detail.status === 'awaiting_approval') {
+          result = await installUpdate(id);
+          break;
+        }
+        attempts += 1;
+      }
+      await load();
+    } finally {
+      setInstallingId(null);
+    }
+  };
+
   if (loading) return <LoadingState message="Загрузка обновлений…" />;
   if (error) return <ErrorState message={error} onRetry={load} />;
 
@@ -152,6 +211,20 @@ export function UpdatesPage() {
       )}
 
       <div className="mt-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={syncSprints}
+          className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          Синхронизировать спринты
+        </button>
+      </div>
+
+      {syncMsg && (
+        <p className="mt-3 text-sm text-slate-400">{syncMsg}</p>
+      )}
+
+      <div className="mt-4 flex flex-wrap gap-2">
         <input
           className="w-28 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
           placeholder="Спринт"
@@ -222,24 +295,46 @@ export function UpdatesPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {['pending', 'test_failed'].includes(item.status) && (
-                    <button
-                      type="button"
-                      onClick={() => runTest(item.id)}
-                      className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
-                    >
-                      Проверить (staging)
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => runTest(item.id)}
+                        className="rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                      >
+                        Тест
+                      </button>
+                      <button
+                        type="button"
+                        disabled={installingId === item.id}
+                        onClick={() => install(item.id)}
+                        className="rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                      >
+                        {installingId === item.id ? 'Установка…' : 'Тест + Установить'}
+                      </button>
+                    </>
                   )}
                   {item.status === 'test_passed' && (
                     <button
                       type="button"
                       onClick={() => approve(item.id)}
-                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                      className="rounded-lg border border-emerald-700 px-3 py-2 text-sm text-emerald-300 hover:bg-emerald-950/30"
                     >
-                      Одобрить выкатку
+                      Одобрить
                     </button>
                   )}
-                  {['applied', 'deploying', 'canary_monitoring'].includes(item.status) && (
+                  {['test_passed', 'awaiting_approval'].includes(item.status) && (
+                    <button
+                      type="button"
+                      disabled={installingId === item.id}
+                      onClick={() => deploy(item.id)}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {installingId === item.id ? 'Установка…' : 'Установить'}
+                    </button>
+                  )}
+                  {['applied', 'deploying', 'canary_monitoring'].includes(
+                    item.status,
+                  ) && (
                     <button
                       type="button"
                       onClick={() => rollback(item.id, item.rollbackVersion)}
