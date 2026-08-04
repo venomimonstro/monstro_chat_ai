@@ -9,8 +9,8 @@ describe('buildPersonaInstruction', () => {
 
     expect(instruction).toContain('[Стиль общения]');
     expect(instruction).toContain('не предлагай «передать менеджеру»');
-    expect(instruction).toContain('Дружелюбный');
-    expect(instruction).toContain('Сбалансированно');
+    expect(instruction).toContain('живой менеджер');
+    expect(instruction).toContain('возражениях');
   });
 
   it('includes custom forbidden phrases', () => {
