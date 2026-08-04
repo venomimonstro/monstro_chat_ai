@@ -214,16 +214,12 @@ export class AiOrchestratorService {
       return;
     }
 
-    const chunks = await this.retrieval.searchSimilar(
+    const retrieval = await this.retrieval.search(
       input.tenantId,
       input.sourceId,
       input.content,
     );
-
-    const contextBlock =
-      chunks.length > 0
-        ? chunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')
-        : 'Контекст не найден.';
+    const contextBlock = this.retrieval.formatRagContext(retrieval);
 
     const experimentPrompt = await this.promptExperiments.resolveClientPrompt(
       input.tenantId,
@@ -246,6 +242,7 @@ export class AiOrchestratorService {
       antiInjectionInstruction: injection.instruction,
       leadGoalInstruction: leadState.instruction,
       personaConfig: input.sourceConfig.ai,
+      insufficientContext: !retrieval.sufficient,
     });
 
     const history = await this.dialogService.getMessages(

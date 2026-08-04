@@ -50,16 +50,12 @@ export class PlaygroundService {
       params.message,
     );
 
-    const chunks = await this.retrieval.searchSimilar(
+    const retrieval = await this.retrieval.search(
       params.tenantId,
       params.sourceId,
       params.message,
     );
-
-    const contextBlock =
-      chunks.length > 0
-        ? chunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n')
-        : 'Контекст не найден.';
+    const contextBlock = this.retrieval.formatRagContext(retrieval);
 
     const assembled = await this.assembly.assemble({
       tenantId: params.tenantId,
@@ -69,6 +65,7 @@ export class PlaygroundService {
       personaConfig: mergeSourceConfig(
         source.configJson as unknown as SourceConfig,
       ).ai,
+      insufficientContext: !retrieval.sufficient,
     });
 
     const historyMessages: ChatMessage[] = (params.history ?? []).map((m) => ({
@@ -112,6 +109,7 @@ export class PlaygroundService {
       provider: usedProvider.name,
       model: usedModel,
       isSuspicious,
+      retrieval: this.retrieval.toDiagnostic(retrieval),
     };
   }
 

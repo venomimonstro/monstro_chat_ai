@@ -1,6 +1,9 @@
 import type { AxiosError } from 'axios';
 
-export function extractErrorMessage(error: unknown): string {
+export function extractErrorMessage(
+  error: unknown,
+  fallback = 'Что-то пошло не так. Проверьте соединение и попробуйте снова.',
+): string {
   const axiosError = error as AxiosError<{
     message?: string | string[];
     retryAfterSeconds?: number;
@@ -13,10 +16,10 @@ export function extractErrorMessage(error: unknown): string {
       ? `${text} Повторите через ${retryAfter} сек.`
       : text;
   }
-  if (error instanceof Error) {
+  if (error instanceof Error && error.message) {
     return error.message;
   }
-  return 'Что-то пошло не так. Проверьте соединение и попробуйте снова.';
+  return fallback;
 }
 
 export function getErrorCode(error: unknown): string | undefined {

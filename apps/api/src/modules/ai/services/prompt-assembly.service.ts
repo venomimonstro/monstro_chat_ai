@@ -58,6 +58,8 @@ export class PromptAssemblyService {
     antiInjectionInstruction?: string | null;
     leadGoalInstruction?: string | null;
     personaConfig?: PersonaConfig | null;
+    /** When true, reinforce honest "don't know" behavior. */
+    insufficientContext?: boolean;
   }): Promise<AssembledPrompt> {
     const dbClient = await this.getActivePrompt('tenant', params.tenantId);
     const clientPrompt =
@@ -79,6 +81,15 @@ export class PromptAssemblyService {
     }
 
     parts.push(`[Контекст из базы знаний]\n${params.ragContext}`);
+
+    if (params.insufficientContext) {
+      parts.push(
+        `[Недостаточно знаний]\n` +
+          `Релевантных материалов по вопросу нет или score ниже порога. ` +
+          `Не выдумывай цены, сроки и факты. Честно скажи, что точных данных нет, ` +
+          `предложи уточнить вопрос или оставить контакт. Не предлагай передать оператору.`,
+      );
+    }
 
     if (params.dialogSummary) {
       parts.push(`[Резюме предыдущего диалога]\n${params.dialogSummary}`);

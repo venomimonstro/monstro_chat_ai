@@ -21,6 +21,7 @@ export interface PlaygroundTestResponse {
   provider: string;
   model: string;
   isSuspicious: boolean;
+  retrieval?: import('./retrieval').RetrievalDiagnosticDto;
 }
 
 export interface LeadExtractDto {
