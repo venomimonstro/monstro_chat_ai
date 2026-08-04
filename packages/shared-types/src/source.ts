@@ -54,6 +54,10 @@ export interface SourceLeadConfig {
 export interface SourceAiConfig {
   clientPrompt?: string;
   leadExtraction?: SourceLeadConfig;
+  /** Стиль общения и обработка возражений (Sprint 56). */
+  personaStyle?: import('./persona').PersonaStyle;
+  objectionHandling?: import('./persona').ObjectionHandling;
+  forbiddenPhrases?: string[];
 }
 
 export interface SourceConfig {
@@ -123,18 +127,25 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   personalization: {
     companyName: 'Поддержка',
     managerName: 'Анна',
-    welcomeMessage: 'Здравствуйте! Чем могу помочь?',
+    welcomeMessage:
+      'Здравствуйте! Я Анна, помогу разобраться с вопросами по нашему сервису. Что вас интересует?',
     inputPlaceholder: 'Напишите сообщение...',
   },
   behavior: {
     exitIntent: false,
     lazyLoad: true,
-    quickReplies: ['Какие тарифы?', 'Как подключить?', 'Оставить заявку'],
+    quickReplies: [
+      'Сколько это стоит?',
+      'Как быстро подключить?',
+      'Хочу оставить заявку',
+    ],
   },
   security: {
     allowedOrigins: [],
   },
   ai: {
+    personaStyle: 'friendly_pro',
+    objectionHandling: 'balanced',
     leadExtraction: {
       enabled: true,
       profileMode: 'phone',

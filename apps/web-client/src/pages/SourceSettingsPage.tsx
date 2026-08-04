@@ -7,6 +7,7 @@ import { updateSource } from '../lib/sources';
 import { extractErrorMessage } from '../lib/errors';
 import { TrainingTab } from '../components/TrainingTab';
 import { PromptTab } from '../components/PromptTab';
+import { PersonaSettings } from '../components/PersonaSettings';
 import { SkeletonCard } from '../components/Skeleton';
 
 const WIDGET_PREVIEW_BASE = (() => {
@@ -32,7 +33,9 @@ export function SourceSettingsPage() {
   const [source, setSource] = useState<SourceDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
-  const [tab, setTab] = useState<'appearance' | 'general' | 'training' | 'prompt'>('appearance');
+  const [tab, setTab] = useState<
+    'appearance' | 'general' | 'training' | 'prompt' | 'persona'
+  >('appearance');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [previewLoaded, setPreviewLoaded] = useState(false);
@@ -164,7 +167,7 @@ export function SourceSettingsPage() {
       <h1 className="mt-2 text-2xl font-bold text-slate-900">{source.name}</h1>
 
       <div className="mt-4 flex gap-2 border-b border-slate-200">
-        {(['appearance', 'training', 'prompt', 'general'] as const).map((t) => (
+        {(['appearance', 'persona', 'training', 'prompt', 'general'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -177,6 +180,8 @@ export function SourceSettingsPage() {
           >
             {t === 'appearance'
               ? 'Внешний вид'
+              : t === 'persona'
+                ? 'Стиль общения'
               : t === 'training'
                 ? 'Обучение агента'
                 : t === 'prompt'
@@ -197,6 +202,29 @@ export function SourceSettingsPage() {
             initialPrompt={config.ai?.clientPrompt ?? ''}
             onPromptChange={(prompt) => patchAi({ clientPrompt: prompt })}
           />
+        </div>
+      ) : tab === 'persona' ? (
+        <div className="mt-6 max-w-2xl">
+          <PersonaSettings
+            personaStyle={config.ai?.personaStyle ?? 'friendly_pro'}
+            objectionHandling={config.ai?.objectionHandling ?? 'balanced'}
+            forbiddenPhrases={config.ai?.forbiddenPhrases ?? []}
+            onPersonaStyleChange={(personaStyle) => patchAi({ personaStyle })}
+            onObjectionHandlingChange={(objectionHandling) =>
+              patchAi({ objectionHandling })
+            }
+            onForbiddenPhrasesChange={(forbiddenPhrases) =>
+              patchAi({ forbiddenPhrases })
+            }
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {saving ? 'Сохранение...' : saved ? 'Сохранено ✓' : 'Сохранить'}
+          </button>
         </div>
       ) : (
       <div className="mt-6 grid gap-8 lg:grid-cols-2">
