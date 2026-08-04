@@ -25,13 +25,33 @@ describe('PromptAssemblyService', () => {
       fallbackClientPrompt: 'Client rules',
     });
 
+    const personaIdx = result.systemContent.indexOf('[Стиль общения]');
     const clientIdx = result.systemContent.indexOf('[Инструкции клиента]');
     const ragIdx = result.systemContent.indexOf('[Контекст из базы знаний]');
     const globalIdx = result.systemContent.indexOf('[ПРИОРИТЕТ');
 
+    expect(personaIdx).toBeGreaterThanOrEqual(0);
+    expect(personaIdx).toBeLessThan(clientIdx);
     expect(clientIdx).toBeLessThan(ragIdx);
     expect(ragIdx).toBeLessThan(globalIdx);
     expect(result.systemContent).toContain('наивысший приоритет');
     expect(result.systemContent).toContain('GLOBAL RULES');
+    expect(result.systemContent).toContain('не предлагай «передать менеджеру»');
+  });
+
+  it('applies persona config from source', async () => {
+    mockPrisma.prompt.findFirst.mockResolvedValue(null);
+
+    const result = await service.assemble({
+      tenantId: 't1',
+      ragContext: 'Test context',
+      personaConfig: {
+        personaStyle: 'expert',
+        objectionHandling: 'empathy_first',
+      },
+    });
+
+    expect(result.systemContent).toContain('эксперт');
+    expect(result.systemContent).toContain('понимание');
   });
 });

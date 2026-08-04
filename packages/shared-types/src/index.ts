@@ -60,6 +60,20 @@ export * from './notifications';
 export * from './team';
 export * from './channels';
 export * from './prompt-experiment';
+export * from './persona';
+export {
+  buildPersonaInstruction,
+  DEFAULT_FORBIDDEN_PHRASES,
+  PERSONA_STYLE_LABELS,
+  PERSONA_STYLE_DESCRIPTIONS,
+  OBJECTION_HANDLING_LABELS,
+  CORE_PERSONA_RULES,
+} from './persona';
+export type {
+  PersonaStyle,
+  ObjectionHandling,
+  PersonaConfig,
+} from './persona';
 export * from './push';
 export {
   DEFAULT_SOURCE_CONFIG,
