@@ -63,12 +63,17 @@ export function missingLeadFields(
   return missing;
 }
 
-export function leadGoalInstruction(
+/** Enough to open a CRM card early (Sprint 59 partial leads). */
+export function canCreatePartialLead(data: {
+  phone?: string | null;
+}): boolean {
+  return Boolean(data.phone?.trim());
+}
+
+function missingLabels(
   mode: LeadProfileMode,
   missing: LeadField[],
-): string | null {
-  if (!missing.length) return null;
-
+): string {
   const labels: Record<LeadField, string> = {
     phone: 'телефон для связи',
     name: 'имя',
@@ -82,7 +87,26 @@ export function leadGoalInstruction(
     nameHint = 'имя, фамилию и email';
   }
 
-  const need = missing.map((f) => (f === 'name' ? nameHint : labels[f])).join(', ');
+  return missing.map((f) => (f === 'name' ? nameHint : labels[f])).join(', ');
+}
+
+export function leadGoalInstruction(
+  mode: LeadProfileMode,
+  missing: LeadField[],
+  options?: { askNow?: boolean },
+): string | null {
+  if (!missing.length) return null;
+
+  const need = missingLabels(mode, missing);
+  const askNow = options?.askNow !== false;
+
+  if (!askNow) {
+    return (
+      `[Цель диалога — лид]\n` +
+      `Консультируй по делу. Пока НЕ запрашивай контакт и НЕ используй блок ---contact---. ` +
+      `Сначала ответь на вопрос. Когда посетитель проявит интерес (цена, сроки, подключение) — тогда мягко запроси: ${need}.`
+    );
+  }
 
   return (
     `[Цель диалога — лид]\n` +
@@ -92,7 +116,7 @@ export function leadGoalInstruction(
     `---contact---\n` +
     `Короткий запрос недостающих данных: ${need} (1–2 предложения).\n` +
     `---end---\n` +
-    `Не навязывайся агрессивно, но не завершай диалог без попытки получить контакт. ` +
-    `Когда все данные получены — подтверди заявку и поблагодари.`
+    `Не навязывайся агрессивно. Когда все данные получены — подтверди заявку и поблагодари. ` +
+    `Не предлагай передать диалог оператору.`
   );
 }

@@ -362,8 +362,51 @@ export function SourceSettingsPage() {
                   </option>
                 </select>
                 <p className="mt-1 text-xs text-slate-500">
-                  Агент будет мягко запрашивать недостающие поля в диалоге
+                  Агент мягко запросит недостающие поля в подходящий момент
                 </p>
+              </Field>
+
+              <Field label="Когда просить контакт">
+                <select
+                  value={config.ai?.leadExtraction?.askAfterTurns ?? 2}
+                  onChange={(e) =>
+                    patchAi({
+                      leadExtraction: {
+                        ...config.ai?.leadExtraction,
+                        enabled: config.ai?.leadExtraction?.enabled !== false,
+                        askAfterTurns: Number(e.target.value),
+                      },
+                    })
+                  }
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value={1}>С первого сообщения</option>
+                  <option value={2}>После 2 сообщений (рекомендуется)</option>
+                  <option value={3}>После 3 сообщений</option>
+                  <option value={4}>После 4 сообщений</option>
+                </select>
+                <p className="mt-1 text-xs text-slate-500">
+                  При вопросах о цене/тарифе запрос контакта может появиться раньше
+                </p>
+              </Field>
+
+              <Field label="Частичные лиды">
+                <label className="flex items-center gap-2 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={config.ai?.leadExtraction?.allowPartial !== false}
+                    onChange={(e) =>
+                      patchAi({
+                        leadExtraction: {
+                          ...config.ai?.leadExtraction,
+                          enabled: config.ai?.leadExtraction?.enabled !== false,
+                          allowPartial: e.target.checked,
+                        },
+                      })
+                    }
+                  />
+                  Создавать лид сразу при получении телефона, остальное дозаполнять
+                </label>
               </Field>
 
               <Field label="Защита от спама (сообщений в минуту)">

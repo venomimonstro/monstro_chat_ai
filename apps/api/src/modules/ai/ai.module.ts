@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
@@ -27,7 +27,15 @@ import { PromptExperimentModule } from '../prompts/prompt-experiment.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
-  imports: [KnowledgeModule, CrmModule, BillingModule, RedisModule, IntegrationsModule, PromptExperimentModule, AnalyticsModule],
+  imports: [
+    KnowledgeModule,
+    forwardRef(() => CrmModule),
+    BillingModule,
+    RedisModule,
+    IntegrationsModule,
+    PromptExperimentModule,
+    AnalyticsModule,
+  ],
   controllers: [AiController],
   providers: [
     AiService,

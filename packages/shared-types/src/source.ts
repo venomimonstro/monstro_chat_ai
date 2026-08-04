@@ -49,6 +49,15 @@ export interface SourceLeadConfig {
   enabled?: boolean;
   requiredFields?: Array<'phone' | 'email' | 'name'>;
   profileMode?: LeadProfileMode;
+  /**
+   * Min user turns before asking for contact (default 2).
+   * Intent keywords (цена, тариф…) can ask earlier.
+   */
+  askAfterTurns?: number;
+  /**
+   * Create lead as soon as phone is known; enrich name/email later (default true).
+   */
+  allowPartial?: boolean;
 }
 
 export interface SourceAiConfig {
@@ -149,6 +158,8 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
     leadExtraction: {
       enabled: true,
       profileMode: 'phone',
+      askAfterTurns: 2,
+      allowPartial: true,
     },
   },
 };
