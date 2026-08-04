@@ -1,4 +1,5 @@
 import {
+  canCreatePartialLead,
   leadGoalInstruction,
   missingLeadFields,
   resolveLeadProfileMode,
@@ -21,5 +22,19 @@ describe('lead-profile.util', () => {
     const instruction = leadGoalInstruction('phone_name', ['phone', 'name']);
     expect(instruction).toContain('телефон');
     expect(instruction).toContain('лид');
+    expect(instruction).toContain('---contact---');
+  });
+
+  it('builds soft instruction when askNow is false', () => {
+    const instruction = leadGoalInstruction('phone', ['phone'], {
+      askNow: false,
+    });
+    expect(instruction).toContain('НЕ запрашивай контакт');
+    expect(instruction).not.toMatch(/---contact---\n/);
+  });
+
+  it('allows partial lead when phone present', () => {
+    expect(canCreatePartialLead({ phone: '+79991234567' })).toBe(true);
+    expect(canCreatePartialLead({ phone: null })).toBe(false);
   });
 });

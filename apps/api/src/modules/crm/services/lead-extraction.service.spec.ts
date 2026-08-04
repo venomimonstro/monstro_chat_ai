@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { LeadExtractionService } from './lead-extraction.service';
 import { NerService } from './ner.service';
+import { LlmNerService } from './llm-ner.service';
 import { PipelinesService } from './pipelines.service';
 import { ConversionTrackingService } from '../../integrations/services/conversion-tracking.service';
 import { LeadDeliveryQueueService } from '../../integrations/lead-delivery/lead-delivery-queue.service';
@@ -14,9 +15,11 @@ describe('LeadExtractionService', () => {
       findUnique: jest.fn(),
       findFirst: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
     },
     message: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     leadStatusHistory: {
       create: jest.fn(),
@@ -52,6 +55,7 @@ describe('LeadExtractionService', () => {
   const mockAnalyticsCache = { invalidateTenant: jest.fn() };
 
   let service: LeadExtractionService;
+  let llmNer: LlmNerService;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -66,9 +70,14 @@ describe('LeadExtractionService', () => {
       yandexClientId: 'ym-1',
       gaClientId: 'ga-1',
     });
+    mockPrisma.message.count.mockResolvedValue(2);
+    mockPrisma.message.findMany.mockResolvedValue([]);
+    const ner = new NerService();
+    llmNer = new LlmNerService(ner);
     service = new LeadExtractionService(
       mockPrisma as never,
-      new NerService(),
+      ner,
+      llmNer,
       mockPipelines as unknown as PipelinesService,
       mockConversion,
       mockLeadDelivery,
@@ -84,6 +93,14 @@ describe('LeadExtractionService', () => {
 
   it('does not create duplicate lead for same dialog', async () => {
     mockPrisma.lead.findUnique.mockResolvedValue({ id: 'lead-1' });
+    mockPrisma.lead.findFirst.mockResolvedValue({
+      id: 'lead-1',
+      name: null,
+      phone: '+79991234567',
+      email: null,
+      tags: [],
+      notes: null,
+    });
 
     const result = await service.processMessage({
       tenantId: 't1',
@@ -126,5 +143,115 @@ describe('LeadExtractionService', () => {
     expect(mockConversion.trackLeadCreated).toHaveBeenCalledWith('t1', 'lead-new');
     expect(mockLeadDelivery.enqueueForLead).toHaveBeenCalledWith('t1', 'lead-new');
     expect(mockPrisma.leadStatusHistory.create).toHaveBeenCalled();
+  });
+
+  it('creates partial lead when only phone present in phone_name mode', async () => {
+    mockPrisma.lead.findUnique.mockResolvedValue(null);
+    mockPrisma.lead.findFirst.mockResolvedValue(null);
+    mockPrisma.message.findMany.mockResolvedValue([]);
+    mockPrisma.lead.create.mockResolvedValue({ id: 'lead-partial' });
+
+    const result = await service.processMessage({
+      tenantId: 't1',
+      sourceId: 's1',
+      dialogId: 'd1',
+      content: 'телефон +79991234567',
+      sourceConfig: {
+        ai: {
+          leadExtraction: {
+            enabled: true,
+            profileMode: 'phone_name',
+            allowPartial: true,
+          },
+        },
+      } as never,
+    });
+
+    expect(result.created).toBe(true);
+    expect(result.partial).toBe(true);
+    expect(mockPrisma.lead.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          phone: '+79991234567',
+          tags: ['partial'],
+        }),
+      }),
+    );
+  });
+
+  it('enriches existing partial lead with name', async () => {
+    mockPrisma.lead.findUnique.mockResolvedValue({
+      id: 'lead-1',
+      phone: '+79991234567',
+      name: null,
+      email: null,
+      tags: ['partial'],
+      notes: 'Частичный лид: дозаполнить поля из диалога',
+    });
+    mockPrisma.lead.findFirst.mockResolvedValue({
+      id: 'lead-1',
+      phone: '+79991234567',
+      name: null,
+      email: null,
+      tags: ['partial'],
+      notes: 'Частичный лид: дозаполнить поля из диалога',
+    });
+    mockPrisma.message.findMany.mockResolvedValue([
+      { content: '+79991234567' },
+      { content: 'Меня зовут Иван' },
+    ]);
+    mockPrisma.lead.update.mockResolvedValue({});
+
+    const result = await service.processMessage({
+      tenantId: 't1',
+      sourceId: 's1',
+      dialogId: 'd1',
+      content: 'Меня зовут Иван',
+      sourceConfig: {
+        ai: {
+          leadExtraction: { enabled: true, profileMode: 'phone_name' },
+        },
+      } as never,
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.updated).toBe(true);
+    expect(mockPrisma.lead.update).toHaveBeenCalled();
+  });
+
+  it('defers contact ask on first turn without intent', async () => {
+    mockPrisma.lead.findUnique.mockResolvedValue(null);
+    mockPrisma.message.count.mockResolvedValue(1);
+    mockPrisma.message.findMany.mockResolvedValue([]);
+
+    const state = await service.getLeadState({
+      tenantId: 't1',
+      dialogId: 'd1',
+      lastUserMessage: 'Здравствуйте',
+      sourceConfig: {
+        ai: { leadExtraction: { enabled: true, askAfterTurns: 2 } },
+      } as never,
+    });
+
+    expect(state.askNow).toBe(false);
+    expect(state.instruction).toContain('НЕ запрашивай контакт');
+  });
+
+  it('asks for contact when intent detected', async () => {
+    mockPrisma.lead.findUnique.mockResolvedValue(null);
+    mockPrisma.message.count.mockResolvedValue(1);
+    mockPrisma.message.findMany.mockResolvedValue([]);
+
+    const state = await service.getLeadState({
+      tenantId: 't1',
+      dialogId: 'd1',
+      lastUserMessage: 'Сколько стоит тариф?',
+      sourceConfig: {
+        ai: { leadExtraction: { enabled: true, askAfterTurns: 2 } },
+      } as never,
+    });
+
+    expect(state.askNow).toBe(true);
+    expect(state.instruction).toContain('---contact---');
   });
 });

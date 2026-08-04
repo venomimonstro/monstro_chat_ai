@@ -230,6 +230,7 @@ export class AiOrchestratorService {
       tenantId: input.tenantId,
       dialogId: dialog.id,
       sourceConfig: input.sourceConfig,
+      lastUserMessage: input.content,
     });
 
     const assembled = await this.promptAssembly.assemble({
