@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { KnowledgeDocumentDto, IndexingJobDto } from '../lib/knowledge';
+import type {
+  KnowledgeDocumentDto,
+  IndexingJobDto,
+  RetrievalDiagnosticDto,
+} from '../lib/knowledge';
 import { extractErrorMessage } from '../lib/errors';
 import {
   connectIndexingSocket,
@@ -12,6 +16,7 @@ import {
   addManualText,
   getManualText,
   updateManualText,
+  testRetrieval,
 } from '../lib/knowledge';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,6 +44,11 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [probeQuery, setProbeQuery] = useState('');
+  const [probeResult, setProbeResult] = useState<RetrievalDiagnosticDto | null>(
+    null,
+  );
+  const [probeLoading, setProbeLoading] = useState(false);
 
   const reload = useCallback(async () => {
     const [docs, jobList] = await Promise.all([
@@ -157,8 +167,116 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
       ? Math.round((activeJob.processedPages / activeJob.totalPages) * 100)
       : 0;
 
+  const handleProbe = async () => {
+    if (!probeQuery.trim()) return;
+    setProbeLoading(true);
+    setError(null);
+    try {
+      const result = await testRetrieval(sourceId, probeQuery.trim());
+      setProbeResult(result);
+    } catch (e: unknown) {
+      setProbeResult(null);
+      setError(extractErrorMessage(e, 'Не удалось проверить поиск'));
+    } finally {
+      setProbeLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-900">
+          Проверка поиска (RAG)
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Задайте вопрос посетителя — увидите, какие фрагменты знаний агент
+          найдёт, и хватает ли релевантности для ответа.
+        </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            type="text"
+            value={probeQuery}
+            onChange={(e) => setProbeQuery(e.target.value)}
+            placeholder="Например: Сколько стоит подключение?"
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleProbe();
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => void handleProbe()}
+            disabled={probeLoading || probeQuery.trim().length < 2}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {probeLoading ? 'Поиск…' : 'Проверить'}
+          </button>
+        </div>
+
+        {probeResult && (
+          <div className="mt-4 space-y-3">
+            <div
+              className={`rounded-lg px-3 py-2 text-sm ${
+                probeResult.sufficient
+                  ? 'bg-emerald-50 text-emerald-800'
+                  : 'bg-amber-50 text-amber-800'
+              }`}
+            >
+              {probeResult.sufficient
+                ? `Контекста достаточно · max similarity ${probeResult.maxSimilarity.toFixed(2)} (порог ${probeResult.threshold})`
+                : `Недостаточно релевантности · max ${probeResult.maxSimilarity.toFixed(2)} < порог ${probeResult.threshold} — агент честно скажет «не знаю»`}
+            </div>
+            <p className="text-xs text-slate-500">
+              Кандидатов: {probeResult.candidateCount} → отобрано:{' '}
+              {probeResult.selectedCount} (topK={probeResult.topK})
+            </p>
+            {probeResult.chunks.length > 0 && (
+              <ul className="space-y-2">
+                {probeResult.chunks.map((chunk, i) => (
+                  <li
+                    key={chunk.id}
+                    className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs"
+                  >
+                    <div className="mb-1 flex flex-wrap gap-2 font-medium text-slate-700">
+                      <span>#{i + 1}</span>
+                      <span>
+                        sim {chunk.similarity.toFixed(2)} · score{' '}
+                        {chunk.score.toFixed(2)}
+                      </span>
+                      {chunk.documentTitle && (
+                        <span className="text-slate-500">
+                          {chunk.documentTitle}
+                        </span>
+                      )}
+                    </div>
+                    <p className="whitespace-pre-wrap text-slate-600">
+                      {chunk.content}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!probeResult.sufficient && probeResult.rejected.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-600">
+                  Отклонены (ниже порога):
+                </p>
+                <ul className="space-y-1 text-xs text-slate-500">
+                  {probeResult.rejected.map((chunk) => (
+                    <li key={chunk.id}>
+                      sim {chunk.similarity.toFixed(2)} —{' '}
+                      {chunk.documentTitle ?? 'фрагмент'}:{' '}
+                      {chunk.content.slice(0, 120)}
+                      {chunk.content.length > 120 ? '…' : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-900">
           Индексация сайта

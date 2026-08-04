@@ -52,6 +52,7 @@ export function UpdatesPage() {
   const [activeDetail, setActiveDetail] = useState<SystemUpdateDto | null>(null);
   const [deployInstr, setDeployInstr] = useState<ReleaseDeployInstructionsDto | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [installingId, setInstallingId] = useState<string | null>(null);
 

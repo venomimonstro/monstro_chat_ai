@@ -74,6 +74,12 @@ export type {
   ObjectionHandling,
   PersonaConfig,
 } from './persona';
+export * from './retrieval';
+export type {
+  RetrievalDiagnosticDto,
+  RetrievalChunkDiagnostic,
+  RetrievalRejectedChunk,
+} from './retrieval';
 export * from './push';
 export {
   DEFAULT_SOURCE_CONFIG,

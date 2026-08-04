@@ -117,6 +117,40 @@ export async function updateManualText(
   return res.data;
 }
 
+export interface RetrievalDiagnosticDto {
+  query: string;
+  sufficient: boolean;
+  maxSimilarity: number;
+  threshold: number;
+  topK: number;
+  candidateK: number;
+  selectedCount: number;
+  candidateCount: number;
+  chunks: Array<{
+    id: string;
+    content: string;
+    similarity: number;
+    score: number;
+    documentTitle: string | null;
+    documentUrl?: string | null;
+  }>;
+  rejected: Array<{
+    id: string;
+    content: string;
+    similarity: number;
+    score: number;
+    documentTitle: string | null;
+  }>;
+}
+
+export async function testRetrieval(sourceId: string, query: string) {
+  const res = await api.post<RetrievalDiagnosticDto>('/ai/retrieval-test', {
+    sourceId,
+    query,
+  });
+  return res.data;
+}
+
 export function connectIndexingSocket(
   onProgress: (event: IndexingProgressEvent) => void,
 ): () => void {

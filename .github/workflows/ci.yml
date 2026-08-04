@@ -24,14 +24,16 @@ jobs:
       - name: Build shared-types
         run: npm run build -w @ai-consultant/shared-types
 
+      - name: Generate Prisma client
+        working-directory: apps/api
+        run: npx prisma generate
+
       - name: Lint
         run: npm run lint
 
       - name: API tests
         working-directory: apps/api
-        run: |
-          npx prisma generate
-          npm test
+        run: npm test
 
       - name: Build API
         run: npm run build -w @ai-consultant/api

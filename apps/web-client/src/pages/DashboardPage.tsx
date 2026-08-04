@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { BillingOverviewDto, TenantStatisticsDto } from '@ai-consultant/shared-types';
 import { fetchBillingOverview } from '../lib/billing';
 import { fetchTenantStatistics } from '../lib/analytics';

@@ -54,4 +54,17 @@ describe('PromptAssemblyService', () => {
     expect(result.systemContent).toContain('эксперт');
     expect(result.systemContent).toContain('понимание');
   });
+
+  it('adds insufficient-context instruction when flagged', async () => {
+    mockPrisma.prompt.findFirst.mockResolvedValue(null);
+
+    const result = await service.assemble({
+      tenantId: 't1',
+      ragContext: 'empty',
+      insufficientContext: true,
+    });
+
+    expect(result.systemContent).toContain('[Недостаточно знаний]');
+    expect(result.systemContent).toContain('Не выдумывай');
+  });
 });
