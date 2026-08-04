@@ -333,6 +333,18 @@ export class AdminController {
     return this.updates.enqueueProductionDeploy(id);
   }
 
+  @Post('updates/:id/deploy')
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  deployUpdate(@Param('id') id: string) {
+    return this.updates.executeHostDeploy(id);
+  }
+
+  @Post('updates/:id/install')
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  installUpdate(@Param('id') id: string) {
+    return this.updates.installUpdate(id);
+  }
+
   @Post('updates/:id/rollback')
   @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
   rollbackUpdate(

@@ -481,6 +481,29 @@ export async function approveUpdate(id: string) {
   return res.data;
 }
 
+export async function deployUpdate(id: string) {
+  const res = await api.post<SystemUpdateDto>(`/admin/updates/${id}/deploy`);
+  return res.data;
+}
+
+export async function installUpdate(id: string) {
+  const res = await api.post<{
+    status: 'testing' | 'deploying';
+    message: string;
+    update: SystemUpdateDto;
+  }>(`/admin/updates/${id}/install`);
+  return res.data;
+}
+
+export async function syncSprintUpdates() {
+  const res = await api.post<{
+    synced: number;
+    created: number;
+    updates: SystemUpdateDto[];
+  }>('/admin/release/sync-sprints');
+  return res.data;
+}
+
 export async function rollbackUpdate(id: string, rollbackVersion?: string) {
   const res = await api.post<SystemUpdateDto>(`/admin/updates/${id}/rollback`, {
     rollbackVersion: rollbackVersion ?? 'previous',

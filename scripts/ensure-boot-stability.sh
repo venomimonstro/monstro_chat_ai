@@ -85,6 +85,19 @@ ensure_docker_stack() {
   fi
 }
 
+install_deploy_agent_cron() {
+  local cron_file="/etc/cron.d/aicw-deploy-agent"
+  log "Cron deploy-agent → ${cron_file}"
+  cat > "${cron_file}" << EOF
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+* * * * * root ${INSTALL_DIR}/scripts/host-deploy-agent.sh >> /var/log/aicw-deploy-agent.log 2>&1
+EOF
+  chmod 644 "${cron_file}"
+  touch /var/log/aicw-deploy-agent.log 2>/dev/null || true
+  chmod 644 /var/log/aicw-deploy-agent.log 2>/dev/null || true
+}
+
 main() {
   require_root
   log "Monstro — ensure boot stability"
@@ -92,8 +105,9 @@ main() {
   install_boot_unit
   enable_monstro_units
   install_watchdog_cron
+  install_deploy_agent_cron
   ensure_docker_stack
-  log "Готово. После reboot: monstro-boot-recovery + watchdog каждые 2 мин."
+  log "Готово. После reboot: boot-recovery, watchdog (2 мин), deploy-agent (1 мин)."
 }
 
 main "$@"

@@ -209,9 +209,8 @@ export function WidgetApp() {
   }, [notifyParent]);
 
   useEffect(() => {
-    if (!hostLauncher) return;
     notifyParent(open ? 'aicw:panel-open' : 'aicw:panel-close');
-  }, [open, hostLauncher, notifyParent]);
+  }, [open, notifyParent]);
 
   useEffect(() => {
     dialogIdRef.current = dialogId;
@@ -257,6 +256,11 @@ export function WidgetApp() {
         setOpen(true);
         return;
       }
+      if (event.data?.type === 'aicw:close') {
+        setOpen(false);
+        setEmojiOpen(false);
+        return;
+      }
       if (!isTrustedParentMessage(event, preview)) return;
       if (event.data?.type === 'aicw:config' && event.data.config) {
         setConfig(mergeSourceConfig(event.data.config as Partial<SourceConfig>));
@@ -277,6 +281,18 @@ export function WidgetApp() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(event.target as Node)) return;
+      setOpen(false);
+      setEmojiOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
   useEffect(() => {

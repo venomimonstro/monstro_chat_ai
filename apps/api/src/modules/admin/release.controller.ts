@@ -15,6 +15,7 @@ import { ReleaseService } from '../release/release.service';
 import { SystemUpdatesService } from './services/system-updates.service';
 import { DeploymentRecordsService } from './services/deployment-records.service';
 import { StabilityMonitorService } from './services/stability-monitor.service';
+import { HostDeployQueueService } from './services/host-deploy-queue.service';
 import {
   ReleaseCompleteDto,
   ReleaseReportDto,
@@ -28,6 +29,7 @@ export class ReleaseController {
     private readonly updates: SystemUpdatesService,
     private readonly deployments: DeploymentRecordsService,
     private readonly stability: StabilityMonitorService,
+    private readonly hostDeployQueue: HostDeployQueueService,
   ) {}
 
   @Get('current')
@@ -96,6 +98,20 @@ export class ReleaseController {
     );
   }
 
+  @Post('rollback/:version/execute')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  async executeRollback(@Param('version') version: string) {
+    const record = await this.deployments.findByVersion(version);
+    if (!record) {
+      return {
+        ok: false,
+        message: `Деплой версии ${version} не найден в истории`,
+      };
+    }
+    return this.updates.queueHostRollback(version);
+  }
+
   @Post('rollback/:version')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
@@ -108,14 +124,78 @@ export class ReleaseController {
         command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
       };
     }
-    await this.deployments.markRolledBack(version);
+    const result = await this.updates.queueHostRollback(version);
     return {
-      ok: true,
-      version: record.version,
+      ...result,
       sprint: record.sprint,
       command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
-      message: `Выполните на сервере: release-rollback.sh ${version}`,
     };
+  }
+
+  @Public()
+  @Get('host-job/next')
+  async claimHostJob(@Headers('x-release-token') token: string) {
+    this.release.validateDeployToken(token);
+    const job = await this.hostDeployQueue.claimJob();
+    return { job };
+  }
+
+  @Public()
+  @Get('host-job/pending')
+  async peekHostJob(@Headers('x-release-token') token: string) {
+    this.release.validateDeployToken(token);
+    const job = await this.hostDeployQueue.peekJob();
+    return { job };
+  }
+
+  @Public()
+  @Post('host-job/finished')
+  async finishHostJob(
+    @Headers('x-release-token') token: string,
+    @Body()
+    body: {
+      updateId?: string;
+      success: boolean;
+      version: string;
+      sprint: number;
+      type: 'deploy' | 'rollback';
+      rollbackTarget?: string;
+    },
+  ) {
+    this.release.validateDeployToken(token);
+
+    if (body.type === 'deploy' && body.updateId) {
+      return this.updates.completeHostDeploy(
+        body.updateId,
+        body.success,
+        body.version,
+        body.sprint,
+      );
+    }
+
+    if (body.type === 'rollback' && body.success) {
+      const active = await this.deployments.getActive();
+      if (active) {
+        await this.deployments.markRolledBack(active.version);
+      }
+      if (body.updateId) {
+        await this.updates.completeHostDeploy(
+          body.updateId,
+          false,
+          body.version,
+          body.sprint,
+        );
+      }
+    }
+
+    return { ok: body.success };
+  }
+
+  @Post('sync-sprints')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
+  syncSprints() {
+    return this.updates.syncSprintsFromDocs();
   }
 }
 

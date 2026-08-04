@@ -41,11 +41,8 @@ export function SprintsPage() {
     try {
       const result = await requestRollbackToVersion(version);
       setRollbackMsg(result.message);
-      if (result.command) {
-        await navigator.clipboard.writeText(result.command).catch(() => undefined);
-      }
     } catch {
-      setRollbackMsg(`Не удалось подготовить откат для ${version}`);
+      setRollbackMsg(`Не удалось запустить откат для ${version}`);
     }
   };
 

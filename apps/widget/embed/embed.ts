@@ -148,6 +148,12 @@ interface AicwApi {
     }
   }
 
+  function setIframeInteractivity(active: boolean) {
+    if (iframe) {
+      iframe.style.pointerEvents = active ? 'auto' : 'none';
+    }
+  }
+
   function removeLauncher() {
     launcherBtn?.remove();
     launcherBtn = null;
@@ -205,13 +211,14 @@ interface AicwApi {
       if (!isFromWidgetIframe(event) || !state) return;
       const type = event.data?.type;
       if (type === 'aicw:panel-open') {
+        setIframeInteractivity(true);
         removeLauncher();
         window.dispatchEvent(new Event('aicw:opened'));
       }
       if (type === 'aicw:panel-close') {
-        launcherBtn?.setAttribute('aria-expanded', 'false');
+        setIframeInteractivity(false);
         window.dispatchEvent(new Event('aicw:closed'));
-        if (lazyLoadEnabled) {
+        if (lazyLoadEnabled && state) {
           createLauncher(state);
         }
       }
@@ -407,6 +414,11 @@ interface AicwApi {
     const [cmd, payload] = args;
     if (cmd === 'init') handleInit(payload as InitOptions);
     if (cmd === 'open' && state) activateWidget(state, true);
+    if (cmd === 'close') {
+      iframe?.contentWindow?.postMessage({ type: 'aicw:close' }, '*');
+      setIframeInteractivity(false);
+      if (lazyLoadEnabled && state) createLauncher(state);
+    }
     if (cmd === 'destroy') handleDestroy();
   }
 
