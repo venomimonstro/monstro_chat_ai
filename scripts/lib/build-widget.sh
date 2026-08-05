@@ -10,9 +10,11 @@ source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
 
 cd "${INSTALL_DIR}"
 
-deploy_npm_install widget \
-  --workspace=@ai-consultant/shared-types \
-  --workspace=@ai-consultant/widget
+if [[ "${DEPLOY_SKIP_NPM_INSTALL:-0}" != "1" ]]; then
+  deploy_npm_install widget \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/widget
+fi
 
 deploy_log "Сборка виджета..."
 npm run build -w @ai-consultant/shared-types

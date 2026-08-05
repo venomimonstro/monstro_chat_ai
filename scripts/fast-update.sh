@@ -59,6 +59,7 @@ pull_code() {
   git checkout "${BRANCH}"
   git reset --hard "origin/${BRANCH}"
   deploy_log "Коммит: $(git log -1 --oneline)"
+  deploy_after_git_pull
 }
 
 resolve_components() {
@@ -171,6 +172,12 @@ main() {
   if needs "${components}" "api"; then
     ensure_disk_space
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
+  fi
+
+  if needs "${components}" "widget" \
+    || needs "${components}" "frontends" \
+    || needs "${components}" "site"; then
+    deploy_npm_install_for_components "${components}"
   fi
 
   if [[ "${PARALLEL_BUILDS}" == "1" ]]; then

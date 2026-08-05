@@ -11,10 +11,12 @@ source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
 cd "${INSTALL_DIR}"
 deploy_export_frontend_env
 
-deploy_npm_install frontends \
-  --workspace=@ai-consultant/shared-types \
-  --workspace=@ai-consultant/web-client \
-  --workspace=@ai-consultant/web-admin
+if [[ "${DEPLOY_SKIP_NPM_INSTALL:-0}" != "1" ]]; then
+  deploy_npm_install frontends \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/web-client \
+    --workspace=@ai-consultant/web-admin
+fi
 
 deploy_log "Сборка ЛК и админки..."
 npm run build -w @ai-consultant/shared-types
