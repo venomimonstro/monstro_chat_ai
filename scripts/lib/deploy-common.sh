@@ -103,6 +103,13 @@ deploy_lock_changed() {
   return 0
 }
 
+deploy_after_git_pull() {
+  if [[ ! -f "${INSTALL_DIR}/node_modules/typescript/package.json" ]]; then
+    rm -rf "${LOCK_STAMP_DIR}" 2>/dev/null || true
+    deploy_warn "node_modules отсутствуют после git pull — npm install будет выполнен при сборке"
+  fi
+}
+
 deploy_npm_deps_present() {
   [[ -f "${INSTALL_DIR}/node_modules/typescript/package.json" ]]
 }

@@ -57,6 +57,7 @@ pull_code() {
   git checkout "${BRANCH}"
   git reset --hard "origin/${BRANCH}"
   deploy_log "Коммит: $(git log -1 --oneline)"
+  deploy_after_git_pull
 }
 
 resolve_components() {

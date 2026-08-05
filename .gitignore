@@ -1,5 +1,6 @@
-# Dependencies
+# Dependencies (never commit — breaks Linux deploy when tracked from Windows)
 node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
