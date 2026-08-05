@@ -106,22 +106,13 @@ certbot --nginx -d "${DOMAIN}" -d "${WWW}" --non-interactive --agree-tos \
   warn "  certbot --nginx -d ${DOMAIN} -d ${WWW}"
 }
 
-log "Обновите ${INSTALL_DIR}/.env (production):"
-cat << ENV
+log "Автонастройка .env для ${DOMAIN}..."
+bash "${INSTALL_DIR}/scripts/apply-redflow-env.sh"
 
-COOKIE_SECURE=true
-PUBLIC_SITE_URL=https://${DOMAIN}
-WEB_CLIENT_URL=https://${DOMAIN}/app
-WEB_ADMIN_URL=https://${DOMAIN}/admin
-WIDGET_URL=https://${DOMAIN}/widget
-API_PUBLIC_URL=https://${DOMAIN}/api
-NEXT_PUBLIC_SITE_URL=https://${DOMAIN}
-NEXT_PUBLIC_CLIENT_URL=https://${DOMAIN}/app
-NEXT_PUBLIC_WIDGET_URL=https://${DOMAIN}/widget
-NEXT_PUBLIC_API_URL=https://${DOMAIN}/api
-HOST_INSTALL_DIR=${INSTALL_DIR}
+log "Пересборка с production URL..."
+bash "${INSTALL_DIR}/scripts/fast-update.sh" --full --no-pull
 
-ENV
+log "Проверка RedFlow..."
+bash "${INSTALL_DIR}/scripts/verify-redflow.sh" || warn "Есть предупреждения — см. выше"
 
-log "После правки .env:"
-echo "  cd ${INSTALL_DIR} && sudo bash scripts/fast-update.sh --full --no-pull"
+log "Готово: https://${DOMAIN}/admin/sprints"
