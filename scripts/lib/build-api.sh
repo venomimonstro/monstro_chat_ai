@@ -65,11 +65,25 @@ rebuild_local() {
 }
 
 up_api() {
-  if [[ -n "${API_IMAGE:-}" ]]; then
-    docker compose up -d --no-build --force-recreate api
-  else
-    docker compose up -d --force-recreate api
-  fi
+  deploy_log "Перезапуск API (migrate + api)..."
+  # force-recreate иногда падает с «No such container» на одноразовом aicw-migrate
+  docker rm -f aicw-api aicw-migrate 2>/dev/null || true
+
+  local attempt=1
+  while [[ "${attempt}" -le 3 ]]; do
+    if [[ -n "${API_IMAGE:-}" ]]; then
+      if docker compose up -d --no-build --remove-orphans api; then
+        return 0
+      fi
+    elif docker compose up -d --remove-orphans api; then
+      return 0
+    fi
+    deploy_warn "docker compose up api — попытка ${attempt}/3 не удалась, повтор..."
+    docker rm -f aicw-api aicw-migrate 2>/dev/null || true
+    sleep 2
+    attempt=$((attempt + 1))
+  done
+  deploy_fail "docker compose up api не удался после 3 попыток"
 }
 
 if try_ghcr_pull; then
