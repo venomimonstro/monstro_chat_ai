@@ -5,6 +5,7 @@ import {
   MessageBody,
   ConnectedSocket,
   OnGatewayConnection,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
@@ -12,6 +13,8 @@ import { SourcesService } from '../sources/sources.service';
 import { AiOrchestratorService } from '../ai/services/ai-orchestrator.service';
 import { WidgetRateLimitService } from '../ai/services/widget-rate-limit.service';
 import { DialogService } from '../ai/services/dialog.service';
+import { FollowUpPushService } from '../crm/follow-up/follow-up-push.service';
+import { FollowUpSchedulerService } from '../crm/follow-up/follow-up-scheduler.service';
 import type { Source } from '@prisma/client';
 import {
   DEFAULT_SOURCE_CONFIG,
@@ -68,7 +71,7 @@ function normalizeAttribution(
   namespace: '/widget',
   cors: { origin: '*' },
 })
-export class ChatGateway implements OnGatewayConnection {
+export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   private readonly logger = new Logger(ChatGateway.name);
 
   @WebSocketServer()
@@ -79,7 +82,13 @@ export class ChatGateway implements OnGatewayConnection {
     private readonly orchestrator: AiOrchestratorService,
     private readonly rateLimit: WidgetRateLimitService,
     private readonly dialogService: DialogService,
+    private readonly followUpPush: FollowUpPushService,
+    private readonly followUpScheduler: FollowUpSchedulerService,
   ) {}
+
+  afterInit() {
+    this.followUpPush.setServer(this.server);
+  }
 
   private isOriginAllowed(client: Socket, source: Source): boolean {
     const allowed = this.sourcesService.getAllowedOrigins(source);
@@ -269,6 +278,16 @@ export class ChatGateway implements OnGatewayConnection {
       normalizeAttribution(data.attribution) ?? client.data.attribution;
 
     try {
+      let followUpReset = false;
+      const resetFollowUpSchedule = (dialogId: string) => {
+        if (followUpReset) return;
+        followUpReset = true;
+        void this.followUpScheduler.onUserMessage(dialogId, source.tenantId);
+      };
+      if (data.dialogId) {
+        resetFollowUpSchedule(data.dialogId);
+      }
+
       const stream = this.orchestrator.streamResponse({
         tenantId: source.tenantId,
         sourceId: source.id,
@@ -286,6 +305,7 @@ export class ChatGateway implements OnGatewayConnection {
       for await (const chunk of stream) {
         if (chunk.type === 'dialog' && chunk.dialogId) {
           activeDialogId = chunk.dialogId;
+          resetFollowUpSchedule(chunk.dialogId);
           client.join(`dialog:${chunk.dialogId}`);
           client.emit('dialog:created', { dialogId: chunk.dialogId });
           if (!streamStarted) {
@@ -313,6 +333,14 @@ export class ChatGateway implements OnGatewayConnection {
             content: chunk.content,
             provider: chunk.provider,
           });
+          if (activeDialogId) {
+            void this.followUpScheduler.onAssistantMessage({
+              dialogId: activeDialogId,
+              tenantId: source.tenantId,
+              sourceId: source.id,
+              sourceConfig: config,
+            });
+          }
         }
 
         if (chunk.type === 'error') {

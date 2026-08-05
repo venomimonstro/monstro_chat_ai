@@ -70,6 +70,8 @@ export interface SourceLeadConfig {
 export interface SourceAiConfig {
   clientPrompt?: string;
   leadExtraction?: SourceLeadConfig;
+  /** Автономный дожим лидов — follow-up без оператора (Sprint 66). */
+  closer?: import('./closer').SourceCloserConfig;
   /** Стиль общения и обработка возражений (Sprint 56). */
   personaStyle?: import('./persona').PersonaStyle;
   objectionHandling?: import('./persona').ObjectionHandling;
@@ -124,7 +126,18 @@ export function patchSourceConfig(
     security: patch.security
       ? { ...base.security, ...patch.security }
       : base.security,
-    ai: patch.ai ? { ...base.ai, ...patch.ai } : base.ai,
+    ai: patch.ai
+      ? {
+          ...base.ai,
+          ...patch.ai,
+          leadExtraction: patch.ai.leadExtraction
+            ? { ...base.ai?.leadExtraction, ...patch.ai.leadExtraction }
+            : base.ai?.leadExtraction,
+          closer: patch.ai.closer
+            ? { ...base.ai?.closer, ...patch.ai.closer }
+            : base.ai?.closer,
+        }
+      : base.ai,
     channel: patch.channel ?? base.channel,
   });
 }
@@ -162,6 +175,12 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   ai: {
     personaStyle: 'friendly_pro',
     objectionHandling: 'balanced',
+    closer: {
+      enabled: true,
+      delaysMinutes: [5, 60, 1440],
+      maxAttempts: 3,
+      onlyIncompleteLeads: true,
+    },
     leadExtraction: {
       enabled: true,
       profileMode: 'phone',

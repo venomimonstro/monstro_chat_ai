@@ -487,6 +487,36 @@ export function WidgetApp() {
       streamingRef.current = '';
     });
 
+    socket.on(
+      'follow_up:message',
+      (data: {
+        dialogId: string;
+        messageId: string;
+        content: string;
+        createdAt: string;
+      }) => {
+        if (data.dialogId) {
+          setDialogId(data.dialogId);
+          dialogIdRef.current = data.dialogId;
+          if (widgetKey) storeDialogId(widgetKey, data.dialogId);
+        }
+        setMessages((m) =>
+          dedupeMessages([
+            ...m.filter((msg) => !msg.streaming),
+            {
+              role: 'assistant',
+              content: data.content,
+              id: data.messageId,
+              createdAt: data.createdAt,
+            },
+          ]),
+        );
+        if (!open && !preview) {
+          setOpen(true);
+        }
+      },
+    );
+
     const appendError = (text: string) => {
       setIsTyping(false);
       setMessages((m) =>

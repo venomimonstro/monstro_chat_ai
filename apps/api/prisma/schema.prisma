@@ -363,6 +363,10 @@ model Dialog {
   yandexClientId  String?      @map("yandex_client_id")
   gaClientId      String?      @map("ga_client_id")
   status          DialogStatus @default(active)
+  followUpCount   Int          @default(0) @map("follow_up_count")
+  nextFollowUpAt  DateTime?    @map("next_follow_up_at")
+  closerState     String?      @map("closer_state")
+  lastUserMessageAt DateTime?  @map("last_user_message_at")
   startedAt DateTime     @default(now()) @map("started_at")
   endedAt   DateTime?    @map("ended_at")
   createdAt DateTime     @default(now()) @map("created_at")
@@ -378,6 +382,7 @@ model Dialog {
   @@index([tenantId])
   @@index([sourceId])
   @@index([visitorId])
+  @@index([nextFollowUpAt, status])
   @@map("dialogs")
 }
 

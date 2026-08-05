@@ -8,6 +8,7 @@ import { extractErrorMessage } from '../lib/errors';
 import { TrainingTab } from '../components/TrainingTab';
 import { PromptTab } from '../components/PromptTab';
 import { PersonaSettings } from '../components/PersonaSettings';
+import { CloserSettings } from '../components/CloserSettings';
 import { SkeletonCard } from '../components/Skeleton';
 
 const WIDGET_PREVIEW_BASE = (() => {
@@ -225,6 +226,12 @@ export function SourceSettingsPage() {
               patchAi({ forbiddenPhrases })
             }
           />
+          <div className="mt-8">
+            <CloserSettings
+              closer={config.ai?.closer ?? {}}
+              onChange={(closer) => patchAi({ closer: { ...config.ai?.closer, ...closer } })}
+            />
+          </div>
           <button
             type="button"
             onClick={save}

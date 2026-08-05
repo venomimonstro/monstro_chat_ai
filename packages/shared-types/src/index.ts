@@ -61,6 +61,7 @@ export * from './team';
 export * from './channels';
 export * from './prompt-experiment';
 export * from './persona';
+export * from './closer';
 export {
   buildPersonaInstruction,
   DEFAULT_FORBIDDEN_PHRASES,
