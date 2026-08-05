@@ -321,7 +321,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   position: relative;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -382,7 +382,10 @@
   display: flex;
   gap: 8px;
   max-width: 88%;
-  animation: aicw-fade-in 0.2s ease;
+}
+
+.aicw-message.aicw-new {
+  animation: aicw-fade-in 0.22s ease;
 }
 
 .aicw-message.user {
@@ -485,6 +488,11 @@
   word-break: break-word;
   background: #f1f5f9;
   color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.aicw-message.user .aicw-bubble {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
 }
 
 .aicw-message.user .aicw-bubble {
@@ -554,7 +562,7 @@
 }
 
 .aicw-footer {
-  padding: 12px;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom, 0));
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   flex-shrink: 0;
   background: #ffffff;
@@ -573,6 +581,12 @@
   border-radius: 24px;
   padding: 4px 4px 4px 8px;
   border: 1px solid #e2e8f0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aicw-input-wrap:focus-within {
+  border-color: var(--aicw-primary, #EF2B34);
+  box-shadow: 0 0 0 3px rgba(239, 43, 52, 0.12);
 }
 
 .aicw-input {
@@ -785,8 +799,36 @@
 .aicw-loading {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 10px 0;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 16px;
+  min-height: 120px;
+}
+
+.aicw-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid #e2e8f0;
+  border-top-color: var(--aicw-primary, #EF2B34);
+  border-radius: 50%;
+  animation: aicw-spin 0.7s linear infinite;
+}
+
+.aicw-loading-text {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+  text-align: center;
+}
+
+.aicw-panel.dark .aicw-loading-text {
+  color: #94a3b8;
+}
+
+.aicw-panel.dark .aicw-loading-spinner {
+  border-color: #475569;
+  border-top-color: var(--aicw-primary, #EF2B34);
 }
 
 .aicw-skeleton {
@@ -824,6 +866,12 @@
   cursor: pointer;
   font-size: inherit;
   padding: 0;
+}
+
+@keyframes aicw-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes aicw-fade-in {

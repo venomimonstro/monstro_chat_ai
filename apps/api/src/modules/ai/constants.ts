@@ -21,6 +21,7 @@ export const WIDGET_IP_RATE_LIMIT_MAX = 40;
 export const WIDGET_MAX_MESSAGE_LENGTH = 2000;
 export const WIDGET_DUPLICATE_WINDOW_MS = 30_000;
 export const WIDGET_DUPLICATE_MAX = 3;
+export const WIDGET_JOIN_RATE_LIMIT_MAX = 20;
 
 export const PROVIDER_COST_PER_1K: Record<
   string,

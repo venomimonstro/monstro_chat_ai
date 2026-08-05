@@ -5,6 +5,7 @@ import {
   WIDGET_DUPLICATE_MAX,
   WIDGET_DUPLICATE_WINDOW_MS,
   WIDGET_IP_RATE_LIMIT_MAX,
+  WIDGET_JOIN_RATE_LIMIT_MAX,
   WIDGET_RATE_LIMIT_MAX,
   WIDGET_RATE_LIMIT_WINDOW_MS,
 } from '../constants';
@@ -59,6 +60,22 @@ export class WidgetRateLimitService {
     }
 
     return { allowed: true, remaining: visitor.remaining };
+  }
+
+  async checkJoinLimit(visitorId: string, ip?: string | null): Promise<boolean> {
+    const visitor = await this.checkKey(
+      `rate:widget:join:v:${visitorId}`,
+      WIDGET_JOIN_RATE_LIMIT_MAX,
+    );
+    if (!visitor.allowed) return false;
+    if (ip) {
+      const ipResult = await this.checkKey(
+        `rate:widget:join:ip:${ip}`,
+        WIDGET_JOIN_RATE_LIMIT_MAX * 2,
+      );
+      if (!ipResult.allowed) return false;
+    }
+    return true;
   }
 
   async checkDuplicate(

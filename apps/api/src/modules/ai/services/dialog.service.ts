@@ -79,11 +79,17 @@ export class DialogService {
     });
   }
 
-  async getMessages(dialogId: string, tenantId: string) {
-    return this.prisma.message.findMany({
+  async getMessages(
+    dialogId: string,
+    tenantId: string,
+    limit = 50,
+  ) {
+    const messages = await this.prisma.message.findMany({
       where: { dialogId, tenantId },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
     });
+    return messages.reverse();
   }
 
   async addMessage(params: {
@@ -166,6 +172,32 @@ export class DialogService {
     return targetDialogId || dialogId;
   }
 
+  private async resolveEffectiveDialogIds(
+    tenantId: string,
+    dialogIds: string[],
+  ): Promise<Map<string, string>> {
+    const map = new Map<string, string>();
+    for (const id of dialogIds) map.set(id, id);
+    if (!dialogIds.length) return map;
+
+    const markers = await this.prisma.message.findMany({
+      where: {
+        dialogId: { in: dialogIds },
+        tenantId,
+        role: 'system',
+        content: { startsWith: '__DEDUP_LINK__:' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { dialogId: true, content: true },
+    });
+
+    for (const marker of markers) {
+      const targetDialogId = marker.content.split(':')[1];
+      if (targetDialogId) map.set(marker.dialogId, targetDialogId);
+    }
+    return map;
+  }
+
   /** Resume last conversation for a returning visitor (Sprint 61). */
   async findResumableDialog(
     tenantId: string,
@@ -204,14 +236,22 @@ export class DialogService {
         updatedAt: { gte: since },
       },
       orderBy: { updatedAt: 'desc' },
-      take: 10,
+      take: 5,
     });
 
-    for (const dialog of recent) {
-      const effectiveId = await this.resolveEffectiveDialogId(
-        tenantId,
-        dialog.id,
+    const effectiveMap = await this.resolveEffectiveDialogIds(
+      tenantId,
+      recent.map((d) => d.id),
+    );
+    if (preferredDialogId) {
+      effectiveMap.set(
+        preferredDialogId,
+        effectiveMap.get(preferredDialogId) ?? preferredDialogId,
       );
+    }
+
+    for (const dialog of recent) {
+      const effectiveId = effectiveMap.get(dialog.id) ?? dialog.id;
       const effective = await this.prisma.dialog.findFirst({
         where: { id: effectiveId, tenantId, sourceId, visitorId },
       });
@@ -219,10 +259,7 @@ export class DialogService {
     }
 
     if (recent[0]) {
-      const effectiveId = await this.resolveEffectiveDialogId(
-        tenantId,
-        recent[0].id,
-      );
+      const effectiveId = effectiveMap.get(recent[0].id) ?? recent[0].id;
       return (
         (await this.prisma.dialog.findFirst({
           where: { id: effectiveId, tenantId, sourceId, visitorId },
@@ -243,12 +280,23 @@ export class DialogService {
     });
     if (!source) throw new NotFoundException();
 
-    const dialog = await this.findResumableDialog(
-      source.tenantId,
-      source.id,
-      visitorId,
-      dialogId,
-    );
+    let dialog = await this.prisma.dialog.findFirst({
+      where: {
+        id: dialogId,
+        tenantId: source.tenantId,
+        sourceId: source.id,
+        visitorId,
+      },
+    });
+
+    if (!dialog) {
+      dialog = await this.findResumableDialog(
+        source.tenantId,
+        source.id,
+        visitorId,
+        dialogId,
+      );
+    }
     if (!dialog) throw new NotFoundException();
 
     const effectiveDialogId = await this.resolveEffectiveDialogId(

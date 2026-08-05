@@ -112,11 +112,33 @@ export class ChatGateway implements OnGatewayConnection {
       return;
     }
 
+    const ip = this.clientIp(client);
+    const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
+    if (!joinAllowed) {
+      client.emit('error', { code: 'rate_limited' });
+      return;
+    }
+
     client.data.widgetKey = data.widgetKey;
     client.data.visitorId = data.visitorId;
     client.data.attribution = normalizeAttribution(data.attribution);
     client.join(`visitor:${data.visitorId}`);
 
+    client.emit('joined', {
+      visitorId: data.visitorId,
+      dialogId: data.dialogId,
+    });
+
+    void this.loadJoinHistory(client, source, data).catch((error) => {
+      this.logger.warn(`Join history failed: ${String(error)}`);
+    });
+  }
+
+  private async loadJoinHistory(
+    client: Socket,
+    source: Source,
+    data: WidgetJoinPayload,
+  ) {
     if (data.dialogId) {
       try {
         if (client.data.attribution) {
@@ -135,6 +157,7 @@ export class ChatGateway implements OnGatewayConnection {
         );
         client.emit('history', history);
         client.join(`dialog:${history.dialogId}`);
+        return;
       } catch {
         const resumed = await this.dialogService.findResumableDialog(
           source.tenantId,
@@ -152,32 +175,28 @@ export class ChatGateway implements OnGatewayConnection {
         } else {
           client.emit('error', { code: 'dialog_not_found' });
         }
-      }
-    } else {
-      const resumed = await this.dialogService.findResumableDialog(
-        source.tenantId,
-        source.id,
-        data.visitorId,
-      );
-      if (resumed) {
-        try {
-          const history = await this.dialogService.getPublicHistory(
-            resumed.id,
-            data.widgetKey,
-            data.visitorId,
-          );
-          client.emit('history', history);
-          client.join(`dialog:${history.dialogId}`);
-        } catch {
-          /* no history */
-        }
+        return;
       }
     }
 
-    client.emit('joined', {
-      visitorId: data.visitorId,
-      dialogId: data.dialogId,
-    });
+    const resumed = await this.dialogService.findResumableDialog(
+      source.tenantId,
+      source.id,
+      data.visitorId,
+    );
+    if (!resumed) return;
+
+    try {
+      const history = await this.dialogService.getPublicHistory(
+        resumed.id,
+        data.widgetKey,
+        data.visitorId,
+      );
+      client.emit('history', history);
+      client.join(`dialog:${history.dialogId}`);
+    } catch {
+      /* no history */
+    }
   }
 
   private clientIp(client: Socket): string {

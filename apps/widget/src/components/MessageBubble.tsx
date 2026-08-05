@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { parseAssistantMessage } from '../utils/messageContent';
 
 interface MessageBubbleProps {
@@ -17,18 +18,21 @@ export function MessageBubble({
   primaryColor,
   textColor,
 }: MessageBubbleProps) {
+  const parsed = useMemo(
+    () => parseAssistantMessage(content, streaming),
+    [content, streaming],
+  );
+
   if (isUser) {
     return (
       <div
-        className="aicw-bubble"
+        className="aicw-bubble aicw-bubble-user"
         style={{ background: primaryColor, color: textColor }}
       >
         {content}
       </div>
     );
   }
-
-  const parsed = parseAssistantMessage(content, streaming);
 
   return (
     <>
@@ -39,6 +43,13 @@ export function MessageBubble({
             <span className="aicw-typing-dot" />
             <span className="aicw-typing-dot" />
           </span>
+        ) : streaming ? (
+          <p className="aicw-bubble-paragraph">
+            {parsed.body || content}
+            <span className="aicw-cursor" aria-hidden>
+              ▍
+            </span>
+          </p>
         ) : (
           <>
             {parsed.paragraphs.length > 0 ? (
@@ -50,7 +61,6 @@ export function MessageBubble({
             ) : (
               <p className="aicw-bubble-paragraph">{parsed.body || content}</p>
             )}
-            {streaming && <span className="aicw-cursor" aria-hidden>▍</span>}
           </>
         )}
       </div>
