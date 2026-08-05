@@ -47,6 +47,7 @@ prune_frontend_artifacts() {
     "${INSTALL_DIR}/apps/web-admin/dist" \
     "${INSTALL_DIR}/apps/public-site/.next" \
     2>/dev/null || true
+  rm -rf "${INSTALL_DIR}/.deploy/lock-stamps" 2>/dev/null || true
   npm cache clean --force 2>/dev/null || true
 }
 

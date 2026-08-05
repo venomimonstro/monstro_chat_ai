@@ -103,6 +103,10 @@ deploy_lock_changed() {
   return 0
 }
 
+deploy_npm_deps_present() {
+  [[ -f "${INSTALL_DIR}/node_modules/typescript/package.json" ]]
+}
+
 deploy_npm_install() {
   local scope="$1"
   shift
@@ -111,15 +115,20 @@ deploy_npm_install() {
   deploy_setup_npm_cache
   cd "${INSTALL_DIR}"
 
-  if ! deploy_lock_changed "${scope}"; then
+  if ! deploy_lock_changed "${scope}" && deploy_npm_deps_present; then
     deploy_log "npm install пропущен (${scope}, package-lock.json не менялся)"
-    bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+    bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
     return 0
   fi
 
-  deploy_log "npm install (${scope})..."
+  if ! deploy_npm_deps_present; then
+    deploy_warn "node_modules отсутствуют или неполные — выполняю npm install (${scope})"
+  else
+    deploy_log "npm install (${scope})..."
+  fi
+
   npm install "${workspaces[@]}" --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
 }
 
 deploy_restart_if_active() {
