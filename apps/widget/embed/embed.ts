@@ -1,3 +1,9 @@
+import {
+  armConversionTriggers,
+  markTriggerEngaged,
+  type ConversionTriggerBehavior,
+} from './conversion-triggers';
+
 type InitOptions = {
   widgetKey: string;
   apiUrl?: string;
@@ -48,6 +54,11 @@ interface AicwApi {
   let lazyLoadEnabled = true;
   let preconnected = false;
   let interactionCleanups: Array<() => void> = [];
+  let triggerCleanup: (() => void) | null = null;
+
+  function triggerStorageKey(widgetKey: string) {
+    return `aicw_trigger_${widgetKey}`;
+  }
 
   function rewriteLocalhostApiUrl(url: string): string {
     try {
@@ -198,7 +209,7 @@ interface AicwApi {
     launcherBtn.addEventListener('focus', () => preconnectOrigins(opts), {
       once: true,
     });
-    launcherBtn.addEventListener('click', () => activateWidget(opts, true));
+    launcherBtn.addEventListener('click', () => activateWidget(opts, true, { manual: true }));
     document.body.appendChild(launcherBtn);
   }
 
@@ -339,15 +350,58 @@ interface AicwApi {
     startConfigPolling(apiUrl, opts.widgetKey);
   }
 
-  function activateWidget(opts: InitOptions, fromUser = false) {
+  function activateWidget(
+    opts: InitOptions,
+    openPanel = false,
+    opts2?: { manual?: boolean },
+  ) {
     preconnectOrigins(opts);
-    if (fromUser) {
+    const manual = opts2?.manual === true;
+    if (manual) {
       launcherBtn?.setAttribute('aria-expanded', 'true');
+      markTriggerEngaged(triggerStorageKey(opts.widgetKey));
+      if (triggerCleanup) {
+        triggerCleanup();
+        triggerCleanup = null;
+      }
+    } else if (openPanel && triggerCleanup) {
+      triggerCleanup();
+      triggerCleanup = null;
     }
-    if (lazyLoadEnabled && fromUser) {
+    if (lazyLoadEnabled && openPanel) {
       startNetworkActivity(opts);
     }
-    loadIframe(opts, fromUser);
+    loadIframe(opts, openPanel);
+  }
+
+  function setupConversionTriggers(opts: InitOptions) {
+    if (triggerCleanup) {
+      triggerCleanup();
+      triggerCleanup = null;
+    }
+
+    const apiUrl = getApiUrl(opts);
+    fetch(`${apiUrl}/widget/config/${encodeURIComponent(opts.widgetKey)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.config || state?.widgetKey !== opts.widgetKey) return;
+
+        updateLauncherFromConfig(data.config);
+
+        const behavior = (data.config.behavior ?? {}) as ConversionTriggerBehavior;
+        const hideOnMobile = data.config.appearance?.hideOnMobile === true;
+
+        triggerCleanup = armConversionTriggers(
+          behavior,
+          {
+            storageKey: triggerStorageKey(opts.widgetKey),
+            hideOnMobile,
+            isMobile: () => window.matchMedia('(max-width: 768px)').matches,
+          },
+          () => activateWidget(opts, true),
+        );
+      })
+      .catch(() => undefined);
   }
 
   function registerInteractionFallback(opts: InitOptions) {
@@ -378,16 +432,22 @@ interface AicwApi {
 
     if (lazyLoadEnabled) {
       createLauncher(opts);
+      setupConversionTriggers(opts);
       return;
     }
 
     startNetworkActivity(opts);
     registerInteractionFallback(opts);
     scheduleLoad(opts);
+    setupConversionTriggers(opts);
   }
 
   function handleDestroy() {
     cleanupInteractions();
+    if (triggerCleanup) {
+      triggerCleanup();
+      triggerCleanup = null;
+    }
     if (configPollTimer) {
       clearInterval(configPollTimer);
       configPollTimer = null;
@@ -413,7 +473,7 @@ interface AicwApi {
   function dispatch(args: QueuedCall) {
     const [cmd, payload] = args;
     if (cmd === 'init') handleInit(payload as InitOptions);
-    if (cmd === 'open' && state) activateWidget(state, true);
+    if (cmd === 'open' && state) activateWidget(state, true, { manual: true });
     if (cmd === 'close') {
       iframe?.contentWindow?.postMessage({ type: 'aicw:close' }, '*');
       setIframeInteractivity(false);
