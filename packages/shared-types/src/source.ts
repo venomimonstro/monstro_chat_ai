@@ -31,8 +31,11 @@ export interface WidgetPersonalizationConfig {
 }
 
 export interface WidgetBehaviorConfig {
+  /** Auto-open chat after N seconds on page (0 = disabled). */
   autoOpenDelaySeconds?: number;
+  /** Auto-open when visitor scrolled at least N% of page (0 = disabled). */
   autoOpenOnScrollPercent?: number;
+  /** Open when mouse leaves viewport top (desktop exit intent). */
   exitIntent: boolean;
   quickReplies?: string[];
   /** When true (default), embed makes no API/iframe requests until user clicks launcher */

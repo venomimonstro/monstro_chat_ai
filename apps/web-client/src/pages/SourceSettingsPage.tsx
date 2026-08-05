@@ -76,6 +76,14 @@ export function SourceSettingsPage() {
     setSaved(false);
   };
 
+  const patchBehavior = (patch: Partial<SourceConfig['behavior']>) => {
+    setConfig((c) => ({
+      ...c,
+      behavior: { ...c.behavior, ...patch },
+    }));
+    setSaved(false);
+  };
+
   const patchAi = (patch: Partial<NonNullable<SourceConfig['ai']>>) => {
     setConfig((c) => ({
       ...c,
@@ -285,6 +293,57 @@ export function SourceSettingsPage() {
                   rows={3}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
+              </Field>
+              <Field label="Проактивное открытие чата">
+                <div className="space-y-3">
+                  <label className="block text-sm text-slate-700">
+                    Автооткрытие через (секунд, 0 — выкл.)
+                    <input
+                      type="number"
+                      min={0}
+                      max={120}
+                      value={config.behavior.autoOpenDelaySeconds ?? 0}
+                      onChange={(e) =>
+                        patchBehavior({
+                          autoOpenDelaySeconds: Math.max(0, Number(e.target.value) || 0),
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm text-slate-700">
+                    Автооткрытие при скролле (%, 0 — выкл.)
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={config.behavior.autoOpenOnScrollPercent ?? 0}
+                      onChange={(e) =>
+                        patchBehavior({
+                          autoOpenOnScrollPercent: Math.min(
+                            100,
+                            Math.max(0, Number(e.target.value) || 0),
+                          ),
+                        })
+                      }
+                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.behavior.exitIntent === true}
+                      onChange={(e) =>
+                        patchBehavior({ exitIntent: e.target.checked })
+                      }
+                    />
+                    Exit intent — открывать при попытке уйти со страницы
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Срабатывает один раз за сессию. Не показывается на мобильных, если
+                  включено «Скрыть на мобильных».
+                </p>
               </Field>
               <Field label="Быстрые ответы">
                 <div className="space-y-2">
