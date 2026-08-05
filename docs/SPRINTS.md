@@ -70,6 +70,7 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
+| 69 | Done | Кастомизация чата: анимация кнопки, подпись, раскрытый чат, страницы, конверсия |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
