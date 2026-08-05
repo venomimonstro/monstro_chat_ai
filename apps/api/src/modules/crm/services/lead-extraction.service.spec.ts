@@ -49,6 +49,10 @@ describe('LeadExtractionService', () => {
   const mockPromptExperiments = { markConverted: jest.fn() };
   const mockPush = { notifyTenant: jest.fn() };
   const mockAnalyticsCache = { invalidateTenant: jest.fn() };
+  const mockChatFunnel = {
+    trackLeadCreated: jest.fn(),
+    trackContactShared: jest.fn(),
+  };
   const mockDedup = {
     resolveEffectiveDialog: jest
       .fn()
@@ -74,6 +78,7 @@ describe('LeadExtractionService', () => {
       pipelineId: 'pipeline-1',
     });
     mockPrisma.dialog.findUnique.mockResolvedValue({
+      visitorId: 'visitor-1',
       utmJson: { utm_source: 'test', utm_campaign: 'demo' },
       referrer: 'https://example.com',
       landingPage: 'https://example.com/landing',
@@ -98,6 +103,7 @@ describe('LeadExtractionService', () => {
       mockPromptExperiments as never,
       mockPush as never,
       mockAnalyticsCache as never,
+      mockChatFunnel as never,
     );
   });
 

@@ -28,6 +28,19 @@ export class AnalyticsExportService {
       for (const row of stats.funnel) {
         lines.push(`funnel,${row.stage},${row.count}`);
       }
+      for (const stage of stats.chatFunnel.stages) {
+        lines.push(`chatFunnel,${stage.label},${stage.count}`);
+      }
+      for (const row of stats.chatFunnel.byUtmSource) {
+        lines.push(
+          `chatFunnelUtm,${this.escape(row.label)},${row.widgetOpen},${row.firstMessage},${row.contactShared},${row.leadCreated}`,
+        );
+      }
+      for (const row of stats.chatFunnel.byLandingPage) {
+        lines.push(
+          `chatFunnelPage,${this.escape(row.label)},${row.widgetOpen},${row.firstMessage},${row.contactShared},${row.leadCreated}`,
+        );
+      }
       return lines.join('\n');
     }
 

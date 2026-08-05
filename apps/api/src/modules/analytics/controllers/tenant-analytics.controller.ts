@@ -23,8 +23,14 @@ export class TenantAnalyticsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('from') from: string,
     @Query('to') to: string,
+    @Query('sourceId') sourceId?: string,
   ) {
-    return this.reportBuilder.getTenantStatistics(user.tenantId!, from, to);
+    return this.reportBuilder.getTenantStatistics(
+      user.tenantId!,
+      from,
+      to,
+      sourceId,
+    );
   }
 
   @Get('export.csv')
@@ -33,12 +39,14 @@ export class TenantAnalyticsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query('from') from: string,
     @Query('to') to: string,
+    @Query('sourceId') sourceId: string | undefined,
     @Res() res: Response,
   ) {
     const data = await this.reportBuilder.getTenantStatistics(
       user.tenantId!,
       from,
       to,
+      sourceId,
     );
     const csv = this.exportService.toCsv(data, 'tenant');
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

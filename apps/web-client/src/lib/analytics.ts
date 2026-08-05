@@ -2,15 +2,35 @@ import { api } from './api';
 import { withRetry } from './retry';
 import type { TenantStatisticsDto } from '@ai-consultant/shared-types';
 
-export async function fetchTenantStatistics(from: string, to: string) {
+export async function fetchTenantStatistics(
+  from: string,
+  to: string,
+  sourceId?: string,
+) {
   return withRetry(() =>
-    api.get<TenantStatisticsDto>('/analytics/statistics', { params: { from, to } }).then((r) => r.data),
+    api
+      .get<TenantStatisticsDto>('/analytics/statistics', {
+        params: {
+          from,
+          to,
+          ...(sourceId ? { sourceId } : {}),
+        },
+      })
+      .then((r) => r.data),
   );
 }
 
-export async function downloadTenantStatisticsCsv(from: string, to: string) {
+export async function downloadTenantStatisticsCsv(
+  from: string,
+  to: string,
+  sourceId?: string,
+) {
   const res = await api.get('/analytics/export.csv', {
-    params: { from, to },
+    params: {
+      from,
+      to,
+      ...(sourceId ? { sourceId } : {}),
+    },
     responseType: 'blob',
   });
   const url = window.URL.createObjectURL(new Blob([res.data]));

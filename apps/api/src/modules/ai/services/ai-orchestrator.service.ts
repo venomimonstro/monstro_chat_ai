@@ -17,6 +17,7 @@ import { TariffResolverService } from '../../billing/services/tariff-resolver.se
 import { ModelRouterService } from './model-router.service';
 import { SemanticCacheService } from './semantic-cache.service';
 import { PromptExperimentService } from '../../prompts/prompt-experiment.service';
+import { ChatFunnelService } from '../../analytics/services/chat-funnel.service';
 import {
   TrialExpiredException,
   UsageLimitExceededException,
@@ -65,6 +66,7 @@ export class AiOrchestratorService {
     private readonly modelRouter: ModelRouterService,
     private readonly semanticCache: SemanticCacheService,
     private readonly promptExperiments: PromptExperimentService,
+    private readonly chatFunnel: ChatFunnelService,
   ) {}
 
   async processMessage(
@@ -126,12 +128,25 @@ export class AiOrchestratorService {
 
     yield { type: 'dialog', dialogId: activeDialogId };
 
+    const priorUserMessages = await this.prisma.message.count({
+      where: { dialogId: activeDialogId, tenantId: input.tenantId, role: 'user' },
+    });
+
     await this.dialogService.addMessage({
       dialogId: activeDialogId,
       tenantId: input.tenantId,
       role: 'user',
       content: input.content,
     });
+
+    if (priorUserMessages === 0) {
+      void this.chatFunnel.trackFirstMessage({
+        tenantId: input.tenantId,
+        sourceId: input.sourceId,
+        dialogId: activeDialogId,
+        visitorId: input.visitorId,
+      });
+    }
 
     await this.leadExtraction.processMessage({
       tenantId: input.tenantId,
