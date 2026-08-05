@@ -122,6 +122,14 @@ export function SourceSettingsPage() {
     setSaved(false);
   };
 
+  const patchTraining = (patch: Partial<NonNullable<SourceConfig['training']>>) => {
+    setConfig((c) => ({
+      ...c,
+      training: { ...c.training, ...patch },
+    }));
+    setSaved(false);
+  };
+
   const save = async () => {
     if (!id) return;
     setSaving(true);
@@ -201,8 +209,20 @@ export function SourceSettingsPage() {
       </div>
 
       {tab === 'training' && id ? (
-        <div className="mt-6">
-          <TrainingTab sourceId={id} />
+        <div className="mt-6 max-w-2xl">
+          <TrainingTab
+            sourceId={id}
+            training={config.training}
+            onTrainingChange={patchTraining}
+          />
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {saving ? 'Сохранение...' : saved ? 'Сохранено ✓' : 'Сохранить настройки'}
+          </button>
         </div>
       ) : tab === 'prompt' && id ? (
         <div className="mt-6">

@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { RequestLoggingInterceptor } from './common/interceptors/request-logging.interceptor';
+import { isAdminOrigin, parseAppUrls } from './common/utils/app-urls.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,19 +26,22 @@ async function bootstrap() {
   );
 
   const port = config.get<number>('API_PORT', 3000);
-  const clientUrl = config.get<string>('WEB_CLIENT_URL', 'http://localhost:5173');
-  const adminUrl = config.get<string>('WEB_ADMIN_URL', 'http://localhost:5174');
-  const widgetUrl = config.get<string>('WIDGET_URL', 'http://localhost:5175');
-  const publicSiteUrl = config.get<string>(
-    'PUBLIC_SITE_URL',
-    'http://localhost:4321',
-  );
+  const clientUrls = parseAppUrls(config, 'WEB_CLIENT_URL', 'http://localhost:5173');
+  const adminUrls = parseAppUrls(config, 'WEB_ADMIN_URL', 'http://localhost:5174');
+  const widgetUrls = parseAppUrls(config, 'WIDGET_URL', 'http://localhost:5175');
+  const publicSiteUrls = parseAppUrls(config, 'PUBLIC_SITE_URL', 'http://localhost:4321');
+  const allowedOrigins = [...clientUrls, ...adminUrls, ...widgetUrls, ...publicSiteUrls];
 
   app.enableCors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      const allowed = [clientUrl, adminUrl, widgetUrl, publicSiteUrl];
-      if (allowed.includes(origin)) return callback(null, true);
+      const normalized = origin.replace(/\/$/, '');
+      if (allowedOrigins.some((entry) => normalized === entry || normalized.startsWith(`${entry}/`))) {
+        return callback(null, true);
+      }
+      if (isAdminOrigin(normalized, adminUrls)) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS: origin ${origin} not allowed`), false);
     },
     credentials: true,

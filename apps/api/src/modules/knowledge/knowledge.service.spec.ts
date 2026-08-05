@@ -10,7 +10,7 @@ describe('KnowledgeService', () => {
   let service: KnowledgeService;
 
   const mockPrisma = {
-    source: { findFirst: jest.fn() },
+    source: { findFirst: jest.fn(), update: jest.fn() },
     indexingJob: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -54,7 +54,11 @@ describe('KnowledgeService', () => {
   });
 
   it('queues crawl job when source exists', async () => {
-    mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.source.findFirst.mockResolvedValue({
+      id: 's1',
+      tenantId: 't1',
+      configJson: { training: { siteProfile: 'small', excludeBlog: true } },
+    });
     mockPrisma.indexingJob.findFirst.mockResolvedValue(null);
     mockPrisma.tenant.findUnique.mockResolvedValue({
       tariff: { kbLimitMb: 100, featuresJson: {} },
@@ -84,7 +88,13 @@ describe('KnowledgeService', () => {
 
     expect(mockCrawlQueue.add).toHaveBeenCalledWith(
       'crawl',
-      expect.objectContaining({ mode: 'full' }),
+      expect.objectContaining({
+        mode: 'full',
+        crawlOptions: expect.objectContaining({
+          pageLimit: 20,
+          strategy: expect.objectContaining({ siteProfile: 'small' }),
+        }),
+      }),
       expect.any(Object),
     );
     expect(result.id).toBe('j1');
@@ -100,7 +110,11 @@ describe('KnowledgeService', () => {
   });
 
   it('startReindex uses last completed crawl url in incremental mode', async () => {
-    mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.source.findFirst.mockResolvedValue({
+      id: 's1',
+      tenantId: 't1',
+      configJson: {},
+    });
     mockPrisma.indexingJob.findFirst.mockImplementation((args: unknown) => {
       const where = (args as { where?: Record<string, unknown> })?.where;
       if (Array.isArray((where?.status as { in?: unknown })?.in)) {

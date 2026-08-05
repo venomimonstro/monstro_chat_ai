@@ -15,13 +15,13 @@ import { resolveAppKind } from '../../../common/utils/request-app.util';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(config: ConfigService) {
+  constructor(private readonly config: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => {
           const cookies = req?.cookies;
           if (!cookies) return null;
-          const kind = resolveAppKind(req, config.get('WEB_ADMIN_URL', 'http://localhost:5174'));
+          const kind = resolveAppKind(req, config);
           if (kind === 'admin') {
             return (
               (cookies[ACCESS_COOKIE_ADMIN] as string | undefined) ??
