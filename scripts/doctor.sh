@@ -39,5 +39,19 @@ curl -s -o /dev/null -w "5174: %{http_code}\n" http://localhost:5174/ 2>/dev/nul
 curl -s -o /dev/null -w "4321: %{http_code}\n" http://localhost:4321/ 2>/dev/null || echo "4321: нет"
 
 echo ""
+echo "=== Git / node_modules ==="
+tracked_nm="$(git ls-files node_modules 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "${tracked_nm}" -gt 0 ]]; then
+  echo "!! node_modules в git (${tracked_nm} файлов) — выполните: git rm -r --cached node_modules && git pull"
+else
+  echo "OK: node_modules не отслеживается git"
+fi
+if [[ ! -f node_modules/typescript/package.json ]]; then
+  echo "!! node_modules не установлены — sudo bash scripts/fix-npm-install.sh"
+elif ! node -e "require('esbuild'); require('typescript')" 2>/dev/null; then
+  echo "!! node_modules повреждены — sudo bash scripts/fix-npm-install.sh"
+fi
+
+echo ""
 echo "=== .env (ключевые) ==="
 grep -E '^(NODE_ENV|COOKIE_SECURE|SKIP_2FA|WEB_)' .env 2>/dev/null || true
