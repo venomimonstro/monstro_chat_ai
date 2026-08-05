@@ -11,6 +11,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 # shellcheck source=lib/nginx-redflow.sh
 source "${SCRIPT_DIR}/lib/nginx-redflow.sh"
+# shellcheck source=lib/open-firewall.sh
+source "${SCRIPT_DIR}/lib/open-firewall.sh"
+# shellcheck source=lib/ensure-api.sh
+source "${SCRIPT_DIR}/lib/ensure-api.sh"
+# shellcheck source=lib/certbot-webroot.sh
+source "${SCRIPT_DIR}/lib/certbot-webroot.sh"
 
 log()  { echo -e "\n\033[1;32m==>\033[0m $*"; }
 warn() { echo -e "\033[1;33m!!\033[0m $*"; }
@@ -23,55 +29,68 @@ log "RedFlow — nginx + SSL для ${DOMAIN}"
 apt-get update -qq
 apt-get install -y -qq nginx certbot python3-certbot-nginx curl dnsutils
 
-log "Проверка DNS..."
+log "1. Firewall (порты 80/443)"
+open_redflow_firewall
+
+log "2. DNS"
 APEX_IP="$(dig +short "${DOMAIN}" @8.8.8.8 | tail -1)"
 WWW_IP="$(dig +short "${WWW}" @8.8.8.8 | tail -1)"
 log "${DOMAIN} → ${APEX_IP:-?}"
 log "${WWW} → ${WWW_IP:-?}"
-
 if [[ "${APEX_IP}" != "${SERVER_IP}" ]]; then
-  warn "${DOMAIN} не указывает на ${SERVER_IP} — certbot может не сработать"
+  warn "${DOMAIN} не указывает на ${SERVER_IP}"
 fi
 if [[ -n "${WWW_IP}" && "${WWW_IP}" != "${SERVER_IP}" ]]; then
-  warn "${WWW} → ${WWW_IP}, а нужен ${SERVER_IP}. Исправьте A-запись www в Beget!"
-  warn "Пока www неверный — certbot только для ${DOMAIN}"
+  warn "${WWW} → ${WWW_IP} (нужен ${SERVER_IP}). Certbot только для ${DOMAIN}"
   WWW=""
 fi
 
-log "Проверка backend :4321 (публичный сайт)..."
+log "3. API (Docker)"
+ensure_api_stack "${INSTALL_DIR}"
+
+log "4. Публичный сайт :4321"
 if ! curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:4321/"; then
-  warn "Сайт на :4321 не отвечает — пересборка..."
-  bash "${INSTALL_DIR}/scripts/apply-redflow-env.sh"
-  bash "${INSTALL_DIR}/scripts/lib/build-site.sh" || bash "${INSTALL_DIR}/scripts/start-public-site.sh"
+  warn "Сайт не отвечает — пересборка..."
+  bash "${INSTALL_DIR}/scripts/apply-redflow-env.sh" 2>/dev/null || true
+  bash "${INSTALL_DIR}/scripts/lib/build-site.sh" 2>/dev/null \
+    || bash "${INSTALL_DIR}/scripts/start-public-site.sh" || true
   sleep 5
-  curl -sf --max-time 10 -o /dev/null "http://127.0.0.1:4321/" \
-    || fail "Публичный сайт не запустился. Логи: journalctl -u monstro-public-site -n 40"
 fi
 
-log "Nginx конфиг..."
+log "5. Nginx (HTTP, webroot для certbot)"
 redflow_nginx_apply "${DOMAIN}" "${WWW:-www.${DOMAIN}}"
 
-if [[ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
-  log "Получение SSL Let's Encrypt..."
-  cert_args=(-d "${DOMAIN}")
-  [[ -n "${WWW}" ]] && cert_args+=(-d "${WWW}")
-  certbot --nginx "${cert_args[@]}" --non-interactive --agree-tos \
-    -m "admin@${DOMAIN}" --redirect || {
-    warn "Certbot не выпустил сертификат — сайт доступен по http://${DOMAIN}"
-    warn "Повторите: certbot --nginx -d ${DOMAIN}"
-  }
-  # Перезаписываем конфиг с SSL-блоком (certbot мог изменить файл)
-  redflow_nginx_apply "${DOMAIN}" "${WWW:-www.${DOMAIN}}"
+log "6. Проверка webroot локально"
+mkdir -p /var/www/html/.well-known/acme-challenge
+echo ok > /var/www/html/.well-known/acme-challenge/ping
+if curl -sf --max-time 5 -H "Host: ${DOMAIN}" \
+  "http://127.0.0.1/.well-known/acme-challenge/ping" | grep -q ok; then
+  log "webroot OK"
+else
+  warn "webroot не отдаётся nginx — certbot может не сработать"
 fi
 
-log "Автонастройка .env..."
-bash "${INSTALL_DIR}/scripts/apply-redflow-env.sh"
+if [[ ! -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]]; then
+  log "7. SSL (certbot webroot)"
+  if redflow_certbot_webroot "${DOMAIN}" "${WWW:-www.${DOMAIN}}"; then
+    log "Сертификат получен"
+  else
+    warn "Certbot не смог выпустить сертификат"
+    warn "Причина часто — firewall Beget: панель → VPS → открыть TCP 80 и 443"
+    warn "Сайт временно доступен: http://${DOMAIN}/"
+  fi
+  redflow_nginx_apply "${DOMAIN}" "${WWW:-www.${DOMAIN}}"
+else
+  log "7. SSL уже установлен"
+fi
 
-log "Синхронизация systemd + пересборка..."
+log "8. .env + пересборка"
+bash "${INSTALL_DIR}/scripts/apply-redflow-env.sh"
 bash "${INSTALL_DIR}/scripts/lib/sync-systemd-units.sh" "${INSTALL_DIR}"
+ensure_api_stack "${INSTALL_DIR}"
 bash "${INSTALL_DIR}/scripts/fast-update.sh" --full --no-pull
 
-log "Проверка..."
+log "9. Проверка"
 bash "${INSTALL_DIR}/scripts/verify-redflow.sh" || warn "Есть предупреждения"
 
-log "Готово: https://${DOMAIN}/"
+log "Готово: https://${DOMAIN}/ (или http:// если SSL не выпустился)"

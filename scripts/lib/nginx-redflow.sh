@@ -140,17 +140,17 @@ redflow_nginx_locations_block() {
 NGINX
 }
 
-redflow_nginx_open_firewall() {
-  if command -v ufw >/dev/null 2>&1; then
-    ufw allow 80/tcp >/dev/null 2>&1 || true
-    ufw allow 443/tcp >/dev/null 2>&1 || true
-  fi
-}
-
 redflow_nginx_apply() {
   local domain="${1:-redflow.ru}"
   local www="${2:-www.${domain}}"
   local site="/etc/nginx/sites-available/redflow.conf"
+
+  # shellcheck source=open-firewall.sh
+  if [[ -f "$(dirname "${BASH_SOURCE[0]}")/open-firewall.sh" ]]; then
+    # shellcheck source=open-firewall.sh
+    source "$(dirname "${BASH_SOURCE[0]}")/open-firewall.sh"
+    open_redflow_firewall
+  fi
 
   redflow_nginx_write_config "${domain}" "${www}" "${site}"
   ln -sf "${site}" /etc/nginx/sites-enabled/redflow.conf
@@ -158,5 +158,12 @@ redflow_nginx_apply() {
   nginx -t
   systemctl enable nginx
   systemctl restart nginx
-  redflow_nginx_open_firewall
+}
+
+redflow_nginx_open_firewall() {
+  if command -v ufw >/dev/null 2>&1; then
+    ufw allow 80/tcp >/dev/null 2>&1 || true
+    ufw allow 443/tcp >/dev/null 2>&1 || true
+    ufw reload >/dev/null 2>&1 || true
+  fi
 }

@@ -21,6 +21,9 @@ deploy_log "Сборка публичного сайта..."
 npm run build -w @ai-consultant/shared-types
 npm run build -w @ai-consultant/public-site
 
+[[ -d "${INSTALL_DIR}/apps/public-site/.next" ]] \
+  || deploy_fail "Next.js build не создан (.next отсутствует)"
+
 deploy_sync_systemd_units
 
 deploy_restart_if_active monstro-public-site || {

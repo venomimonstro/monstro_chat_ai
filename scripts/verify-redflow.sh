@@ -35,11 +35,23 @@ else
   fail "www.${DOMAIN} → ${WWW_IP} (ожидался ${SERVER_IP}) — исправьте DNS в Beget!"
 fi
 
-info "nginx :80"
+info "Внешний доступ :80 (Let's Encrypt)"
+if timeout 8 bash -c "echo > /dev/tcp/${SERVER_IP}/80" 2>/dev/null; then
+  log "TCP ${SERVER_IP}:80 открыт локально"
+else
+  warn "TCP :80 не отвечает — проверьте ufw и firewall Beget"
+fi
 if curl -sf --max-time 8 -o /dev/null -H "Host: ${DOMAIN}" "http://127.0.0.1/"; then
   log "nginx проксирует сайт (localhost:80)"
 else
   fail "nginx не отдаёт сайт на :80 — запустите: sudo bash scripts/setup-ssl-redflow.sh"
+fi
+
+info "Docker API"
+if docker ps --format '{{.Names}}' 2>/dev/null | grep -q '^aicw-api$'; then
+  log "контейнер aicw-api запущен"
+else
+  fail "контейнер aicw-api не запущен — sudo bash scripts/lib/ensure-api.sh"
 fi
 
 info "API health (localhost)"
