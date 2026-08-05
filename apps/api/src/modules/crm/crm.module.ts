@@ -6,6 +6,7 @@ import { LeadsController } from './leads.controller';
 import { CrmService } from './crm.service';
 import { NerService } from './services/ner.service';
 import { LlmNerService } from './services/llm-ner.service';
+import { LeadDedupService } from './services/lead-dedup.service';
 import { LeadExtractionService } from './services/lead-extraction.service';
 import { PipelinesService } from './services/pipelines.service';
 import { LeadsService } from './services/leads.service';
@@ -34,12 +35,14 @@ import { AiModule } from '../ai/ai.module';
     CrmService,
     NerService,
     LlmNerService,
+    LeadDedupService,
     LeadExtractionService,
     PipelinesService,
     LeadsService,
     CrmGateway,
   ],
   exports: [
+    LeadDedupService,
     LeadExtractionService,
     NerService,
     LlmNerService,

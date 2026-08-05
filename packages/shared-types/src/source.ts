@@ -58,6 +58,10 @@ export interface SourceLeadConfig {
    * Create lead as soon as phone is known; enrich name/email later (default true).
    */
   allowPartial?: boolean;
+  /** Auto-link dialog to existing lead with same phone (default true). */
+  dedupeByPhone?: boolean;
+  /** Auto-link returning visitor to their recent lead (default true). */
+  dedupeByVisitor?: boolean;
 }
 
 export interface SourceAiConfig {
@@ -160,6 +164,8 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
       profileMode: 'phone',
       askAfterTurns: 2,
       allowPartial: true,
+      dedupeByPhone: true,
+      dedupeByVisitor: true,
     },
   },
 };

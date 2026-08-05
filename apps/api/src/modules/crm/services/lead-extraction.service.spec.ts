@@ -1,5 +1,5 @@
-import { ConfigService } from '@nestjs/config';
 import { LeadExtractionService } from './lead-extraction.service';
+import { LeadDedupService } from './lead-dedup.service';
 import { NerService } from './ner.service';
 import { LlmNerService } from './llm-ner.service';
 import { PipelinesService } from './pipelines.service';
@@ -30,10 +30,6 @@ describe('LeadExtractionService', () => {
     getDefaultStatus: jest.fn(),
   };
 
-  const mockConfig = {
-    get: jest.fn().mockReturnValue(30),
-  };
-
   const mockConversion = {
     trackLeadCreated: jest.fn(),
   } as unknown as ConversionTrackingService;
@@ -53,12 +49,26 @@ describe('LeadExtractionService', () => {
   const mockPromptExperiments = { markConverted: jest.fn() };
   const mockPush = { notifyTenant: jest.fn() };
   const mockAnalyticsCache = { invalidateTenant: jest.fn() };
+  const mockDedup = {
+    resolveEffectiveDialog: jest
+      .fn()
+      .mockImplementation(async (_t: string, id: string) => ({ dialogId: id })),
+    findByVisitor: jest.fn().mockResolvedValue(null),
+    findByPhone: jest.fn().mockResolvedValue(null),
+    linkDialogToLead: jest.fn(),
+  } as unknown as LeadDedupService;
 
   let service: LeadExtractionService;
   let llmNer: LlmNerService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (mockDedup.resolveEffectiveDialog as jest.Mock).mockImplementation(
+      async (_t: string, id: string) => ({ dialogId: id }),
+    );
+    (mockDedup.findByVisitor as jest.Mock).mockResolvedValue(null);
+    (mockDedup.findByPhone as jest.Mock).mockResolvedValue(null);
+    (mockDedup.linkDialogToLead as jest.Mock).mockReset();
     mockPipelines.getDefaultStatus.mockResolvedValue({
       id: 'status-1',
       pipelineId: 'pipeline-1',
@@ -78,6 +88,7 @@ describe('LeadExtractionService', () => {
       mockPrisma as never,
       ner,
       llmNer,
+      mockDedup,
       mockPipelines as unknown as PipelinesService,
       mockConversion,
       mockLeadDelivery,
@@ -87,8 +98,37 @@ describe('LeadExtractionService', () => {
       mockPromptExperiments as never,
       mockPush as never,
       mockAnalyticsCache as never,
-      mockConfig as unknown as ConfigService,
     );
+  });
+
+  it('links duplicate phone to existing lead instead of creating', async () => {
+    mockPrisma.lead.findUnique.mockResolvedValue(null);
+    mockPrisma.message.findMany.mockResolvedValue([]);
+    (mockDedup.findByPhone as jest.Mock).mockResolvedValue({
+      id: 'lead-dup',
+      dialogId: 'd-old',
+    });
+    (mockDedup.linkDialogToLead as jest.Mock).mockResolvedValue({
+      linked: true,
+      leadId: 'lead-dup',
+      targetDialogId: 'd-old',
+      reason: 'phone',
+    });
+    mockPrisma.lead.update.mockResolvedValue({});
+
+    const result = await service.processMessage({
+      tenantId: 't1',
+      sourceId: 's1',
+      dialogId: 'd-new',
+      content: '+79991234567',
+      sourceConfig: { ai: { leadExtraction: { enabled: true } } } as never,
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.linked).toBe(true);
+    expect(result.linkedReason).toBe('phone');
+    expect(mockDedup.linkDialogToLead).toHaveBeenCalled();
+    expect(mockPrisma.lead.create).not.toHaveBeenCalled();
   });
 
   it('does not create duplicate lead for same dialog', async () => {

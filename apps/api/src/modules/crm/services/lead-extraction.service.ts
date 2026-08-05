@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { SourceConfig } from '@ai-consultant/shared-types';
 import { NerService } from './ner.service';
 import { LlmNerService } from './llm-ner.service';
+import { LeadDedupService } from './lead-dedup.service';
 import { PipelinesService } from './pipelines.service';
 import { ConversionTrackingService } from '../../integrations/services/conversion-tracking.service';
 import { LeadDeliveryQueueService } from '../../integrations/lead-delivery/lead-delivery-queue.service';
@@ -30,12 +30,12 @@ import { AnalyticsCacheService } from '../../analytics/services/analytics-cache.
 @Injectable()
 export class LeadExtractionService {
   private readonly logger = new Logger(LeadExtractionService.name);
-  private readonly dedupeDays: number;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly ner: NerService,
     private readonly llmNer: LlmNerService,
+    private readonly dedup: LeadDedupService,
     private readonly pipelines: PipelinesService,
     private readonly conversionTracking: ConversionTrackingService,
     private readonly leadDelivery: LeadDeliveryQueueService,
@@ -45,14 +45,12 @@ export class LeadExtractionService {
     private readonly promptExperiments: PromptExperimentService,
     private readonly push: PushService,
     private readonly analyticsCache: AnalyticsCacheService,
-    config: ConfigService,
-  ) {
-    this.dedupeDays = config.get<number>('LEAD_DEDUPE_DAYS', 30);
-  }
+  ) {}
 
   async getLeadState(params: {
     tenantId: string;
     dialogId: string;
+    sessionDialogId?: string;
     sourceConfig: SourceConfig;
     lastUserMessage?: string;
   }): Promise<{
@@ -73,13 +71,34 @@ export class LeadExtractionService {
       };
     }
 
+    const sessionDialogId = params.sessionDialogId ?? params.dialogId;
+    const effective = await this.dedup.resolveEffectiveDialog(
+      params.tenantId,
+      sessionDialogId,
+    );
+    const dialogId = effective.dialogId;
+
     const mode = resolveLeadProfileMode(config);
-    const existing = await this.prisma.lead.findUnique({
-      where: { dialogId: params.dialogId },
+    let existing = await this.prisma.lead.findUnique({
+      where: { dialogId },
     });
 
+    if (!existing && config?.dedupeByVisitor !== false) {
+      const dialog = await this.prisma.dialog.findUnique({
+        where: { id: sessionDialogId },
+      });
+      if (dialog?.visitorId) {
+        existing =
+          (await this.dedup.findByVisitor(
+            params.tenantId,
+            dialog.visitorId,
+            sessionDialogId,
+          )) ?? null;
+      }
+    }
+
     const accumulated = await this.accumulateFromHistory(
-      params.dialogId,
+      dialogId,
       params.tenantId,
       { phone: null, email: null, name: null },
     );
@@ -103,8 +122,8 @@ export class LeadExtractionService {
     }
 
     const [userTurns, askedRecently] = await Promise.all([
-      this.countUserTurns(params.dialogId, params.tenantId),
-      this.wasContactAskedRecently(params.dialogId, params.tenantId),
+      this.countUserTurns(dialogId, params.tenantId),
+      this.wasContactAskedRecently(dialogId, params.tenantId),
     ]);
 
     const decision = shouldAskForContact({
@@ -130,6 +149,7 @@ export class LeadExtractionService {
     tenantId: string;
     sourceId: string;
     dialogId: string;
+    sessionDialogId?: string;
     content: string;
     sourceConfig: SourceConfig;
   }): Promise<{
@@ -138,24 +158,61 @@ export class LeadExtractionService {
     partial?: boolean;
     leadId?: string;
     duplicateLeadId?: string;
+    linked?: boolean;
+    linkedReason?: 'phone' | 'visitor';
   }> {
     const config = params.sourceConfig.ai?.leadExtraction;
     if (config?.enabled === false) {
       return { created: false };
     }
 
+    const sessionDialogId = params.sessionDialogId ?? params.dialogId;
+    const effective = await this.dedup.resolveEffectiveDialog(
+      params.tenantId,
+      sessionDialogId,
+    );
+    const dialogId = effective.dialogId;
+
     const mode = resolveLeadProfileMode(config);
     const allowPartial = config?.allowPartial !== false;
     const needed = requiredFieldsForMode(mode);
 
-    const existing = await this.prisma.lead.findUnique({
-      where: { dialogId: params.dialogId },
+    let existing = await this.prisma.lead.findUnique({
+      where: { dialogId },
     });
+
+    if (!existing && config?.dedupeByVisitor !== false) {
+      const dialog = await this.prisma.dialog.findUnique({
+        where: { id: sessionDialogId },
+      });
+      if (dialog?.visitorId) {
+        const visitorLead = await this.dedup.findByVisitor(
+          params.tenantId,
+          dialog.visitorId,
+          sessionDialogId,
+        );
+        if (visitorLead) {
+          await this.dedup.linkDialogToLead({
+            tenantId: params.tenantId,
+            sourceDialogId: sessionDialogId,
+            targetLeadId: visitorLead.id,
+            reason: 'visitor',
+          });
+          return {
+            created: false,
+            linked: true,
+            linkedReason: 'visitor',
+            leadId: visitorLead.id,
+            duplicateLeadId: visitorLead.id,
+          };
+        }
+      }
+    }
 
     let entities = await this.extractEntities(params.content, needed);
 
     const accumulated = await this.accumulateFromHistory(
-      params.dialogId,
+      dialogId,
       params.tenantId,
       entities,
     );
@@ -186,20 +243,28 @@ export class LeadExtractionService {
       return { created: false };
     }
 
-    if (accumulated.phone) {
-      const since = new Date();
-      since.setDate(since.getDate() - this.dedupeDays);
-      const duplicate = await this.prisma.lead.findFirst({
-        where: {
-          tenantId: params.tenantId,
-          phone: accumulated.phone,
-          archived: false,
-          createdAt: { gte: since },
-          NOT: { dialogId: params.dialogId },
-        },
-      });
+    if (accumulated.phone && config?.dedupeByPhone !== false) {
+      const duplicate = await this.dedup.findByPhone(
+        params.tenantId,
+        accumulated.phone,
+        sessionDialogId,
+      );
       if (duplicate) {
-        return { created: false, duplicateLeadId: duplicate.id };
+        await this.dedup.linkDialogToLead({
+          tenantId: params.tenantId,
+          sourceDialogId: sessionDialogId,
+          targetLeadId: duplicate.id,
+          reason: 'phone',
+          contact: accumulated,
+        });
+        await this.enrichLead(duplicate.id, params.tenantId, accumulated);
+        return {
+          created: false,
+          linked: true,
+          linkedReason: 'phone',
+          leadId: duplicate.id,
+          duplicateLeadId: duplicate.id,
+        };
       }
     }
 
@@ -208,7 +273,7 @@ export class LeadExtractionService {
     );
 
     const dialog = await this.prisma.dialog.findUnique({
-      where: { id: params.dialogId },
+      where: { id: dialogId },
     });
     const attribution = dialog ? leadAttributionFromDialog(dialog) : {};
     const isPartial = !complete;
@@ -217,7 +282,7 @@ export class LeadExtractionService {
       const lead = await this.prisma.lead.create({
         data: {
           tenantId: params.tenantId,
-          dialogId: params.dialogId,
+          dialogId,
           sourceId: params.sourceId,
           name: accumulated.name,
           phone: accumulated.phone,

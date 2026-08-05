@@ -37,6 +37,9 @@ describe('LeadsService', () => {
     enqueueStatusPush: jest.fn().mockResolvedValue(undefined),
   };
   const mockConfig = { get: jest.fn().mockReturnValue(30) } as unknown as ConfigService;
+  const mockDedup = {
+    findByVisitor: jest.fn().mockResolvedValue(null),
+  };
 
   let service: LeadsService;
 
@@ -45,6 +48,7 @@ describe('LeadsService', () => {
     service = new LeadsService(
       mockPrisma as never,
       mockPipelines,
+      mockDedup as never,
       mockEmail,
       mockGateway,
       mockConversion as never,

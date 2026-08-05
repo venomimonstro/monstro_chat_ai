@@ -55,6 +55,7 @@ describe('Tenant isolation', () => {
       service = new LeadsService(
         mockPrisma as never,
         {} as never,
+        { findByVisitor: jest.fn() } as never,
         {} as never,
         {} as never,
         {} as never,
