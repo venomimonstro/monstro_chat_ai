@@ -1,4 +1,4 @@
-/** CSS-only chat preview — Monstro Chat AI, light + red */
+/** CSS-only chat preview — RedFlow, light + red */
 export function ChatMockup() {
   return (
     <div className="relative mx-auto w-full max-w-md" aria-hidden>
@@ -30,7 +30,7 @@ export function ChatMockup() {
               <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-brand-500 bg-emerald-400" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">Monstro AI</p>
+              <p className="truncate text-sm font-semibold text-white">RedFlow</p>
               <p className="text-[11px] text-brand-100">Онлайн · отвечает мгновенно</p>
             </div>
           </div>

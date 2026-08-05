@@ -2,7 +2,9 @@
 # Восстанавливает Docker-стек и host-сервисы Monstro после перезагрузки сервера.
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 
 log() { echo "[$(date -Iseconds)] boot-recovery: $*"; }

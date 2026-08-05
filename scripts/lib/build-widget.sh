@@ -2,7 +2,9 @@
 # Сборка и перезапуск только виджета (без systemd unit recreate)
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/resolve-install-dir.sh"
 # shellcheck source=lib/deploy-common.sh
 source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
 

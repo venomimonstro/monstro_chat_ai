@@ -16,7 +16,9 @@
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/venomimonstro/monstro_chat_ai.git}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 BRANCH="${BRANCH:-main}"
 MODE="auto"
 DO_PULL=1
@@ -137,7 +139,7 @@ ensure_disk_space() {
 }
 
 main() {
-  deploy_log "Monstro — fast update (режим: ${MODE})"
+  deploy_log "RedFlow — fast update (режим: ${MODE})"
   deploy_setup_npm_cache
 
   [[ "${MODE}" == "full" ]] && ensure_swap
@@ -187,17 +189,19 @@ main() {
 
   deploy_save_sha "${new_sha}"
 
+  bash "${INSTALL_DIR}/scripts/lib/sync-release-manifest.sh" 2>/dev/null \
+    || deploy_warn "Sync release manifest пропущен (RELEASE_DEPLOY_TOKEN?)"
+
   local elapsed=$(( $(date +%s) - START_TS ))
   local ip
   ip="$(deploy_detect_ip)"
   echo ""
   echo "=============================================="
-  echo "  FAST UPDATE OK за ${elapsed}с"
+  echo "  RedFlow — FAST UPDATE OK за ${elapsed}с"
   echo "=============================================="
   echo "  Компоненты: ${components}"
   echo "  API:     http://${ip}:3000/api/health"
-  echo "  Виджет:  http://${ip}:5175/embed.js"
-  echo "  Сайт:    http://${ip}:4321"
+  echo "  Сайт:    https://redflow.ru (или http://${ip}:4321)"
   echo ""
   echo "  Только виджет:  sudo bash scripts/fast-update.sh --widget"
   echo "  Полный деплой:  sudo bash scripts/fast-update.sh --full"

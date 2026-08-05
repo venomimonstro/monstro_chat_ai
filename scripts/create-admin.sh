@@ -3,7 +3,9 @@
 # Использование: ADMIN_EMAIL=you@mail.ru ADMIN_PASSWORD=secret bash scripts/create-admin.sh
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 cd "${INSTALL_DIR}"
 
 EMAIL="${ADMIN_EMAIL:?Укажите ADMIN_EMAIL=your@email.ru}"

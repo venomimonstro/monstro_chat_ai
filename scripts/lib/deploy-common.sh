@@ -2,7 +2,10 @@
 # Общие функции для fast-update / remote-update
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+INSTALL_DIR="${INSTALL_DIR:-/opt/redflow}"
+if [[ ! -d "${INSTALL_DIR}" && -d /opt/monstro_chat_ai ]]; then
+  INSTALL_DIR=/opt/monstro_chat_ai
+fi
 DEPLOY_STATE_DIR="${INSTALL_DIR}/.deploy"
 DEPLOY_SHA_FILE="${DEPLOY_STATE_DIR}/last-sha"
 NPM_CACHE_DIR="${NPM_CACHE_DIR:-/var/cache/aicw/npm}"

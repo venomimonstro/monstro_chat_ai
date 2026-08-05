@@ -2,7 +2,10 @@
 # npm on some VPS/filesystems creates node_modules/.bin without +x — fix before builds
 set -euo pipefail
 
-INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/monstro_chat_ai}}"
+INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/redflow}}"
+if [[ ! -d "${INSTALL_DIR}" && -d /opt/monstro_chat_ai ]]; then
+  INSTALL_DIR=/opt/monstro_chat_ai
+fi
 
 if [[ -d "${INSTALL_DIR}/node_modules/.bin" ]]; then
   chmod -R u+x "${INSTALL_DIR}/node_modules/.bin" 2>/dev/null || true

@@ -4,7 +4,9 @@
 # Cron: */2 * * * * root /opt/monstro_chat_ai/scripts/health-watchdog.sh >> /var/log/aicw-watchdog.log 2>&1
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 CLIENT_PORT="${CLIENT_PORT:-5173}"
 ADMIN_PORT="${ADMIN_PORT:-5174}"

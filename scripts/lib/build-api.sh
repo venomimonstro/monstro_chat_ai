@@ -2,7 +2,9 @@
 # API: pull готового образа из GHCR (если есть) или локальная сборка с кэшем
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/resolve-install-dir.sh"
 API_USE_GHCR="${API_USE_GHCR:-1}"
 GHCR_IMAGE="${GHCR_IMAGE:-ghcr.io/venomimonstro/monstro_chat_ai/api}"
 # shellcheck source=lib/deploy-common.sh
