@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Param, Header, Query, NotFoundException } from '@nestjs/common';
 import { SourcesService } from '../sources/sources.service';
 import { DialogService } from '../ai/services/dialog.service';
+import { ChatFunnelService } from '../analytics/services/chat-funnel.service';
 import { Public } from '../../common/decorators/auth.decorators';
 import { WidgetPingDto } from '../sources/dto/source.dto';
+import { WidgetFunnelEventDto } from '../analytics/dto/chat-funnel.dto';
 import { mergeSourceConfig } from '@ai-consultant/shared-types';
 
 @Controller('widget')
@@ -11,6 +13,7 @@ export class WidgetController {
   constructor(
     private readonly sourcesService: SourcesService,
     private readonly dialogService: DialogService,
+    private readonly chatFunnel: ChatFunnelService,
   ) {}
 
   @Get('health')
@@ -77,5 +80,15 @@ export class WidgetController {
       throw new NotFoundException();
     }
     return this.dialogService.getPublicHistory(dialogId, widgetKey, visitorId);
+  }
+
+  @Post('funnel-event')
+  @Header('Access-Control-Allow-Origin', '*')
+  trackFunnelEvent(@Body() dto: WidgetFunnelEventDto) {
+    return this.chatFunnel.trackWidgetOpen({
+      widgetKey: dto.widgetKey,
+      visitorId: dto.visitorId,
+      attribution: dto.attribution,
+    });
   }
 }

@@ -213,6 +213,20 @@ export function WidgetApp() {
   }, [open, notifyParent]);
 
   useEffect(() => {
+    if (!open || !widgetKey || preview) return;
+    fetch(`${apiUrl}/widget/funnel-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        widgetKey,
+        visitorId,
+        eventType: 'widget_open',
+        attribution,
+      }),
+    }).catch(() => undefined);
+  }, [open, apiUrl, widgetKey, visitorId, attribution, preview]);
+
+  useEffect(() => {
     dialogIdRef.current = dialogId;
   }, [dialogId]);
 

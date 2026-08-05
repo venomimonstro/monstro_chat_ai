@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import type { TenantStatisticsDto } from '@ai-consultant/shared-types';
+import type { SourceDto, TenantStatisticsDto } from '@ai-consultant/shared-types';
 import {
   downloadTenantStatisticsCsv,
   fetchTenantStatistics,
 } from '../lib/analytics';
+import { fetchSources } from '../lib/sources';
 import { localDateRange } from '../lib/dates';
 import { extractErrorMessage } from '../lib/errors';
 import { useAuth } from '../lib/auth';
@@ -82,6 +83,8 @@ export function StatisticsPage() {
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [stats, setStats] = useState<TenantStatisticsDto | null>(null);
+  const [sources, setSources] = useState<SourceDto[]>([]);
+  const [sourceId, setSourceId] = useState('');
   const [chartView, setChartView] = useState<'dialogs' | 'leads'>('dialogs');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -104,8 +107,12 @@ export function StatisticsPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchTenantStatistics(from, to);
+      const [data, sourceList] = await Promise.all([
+        fetchTenantStatistics(from, to, sourceId || undefined),
+        sources.length > 0 ? Promise.resolve(sources) : fetchSources(),
+      ]);
       setStats(data);
+      if (sources.length === 0) setSources(sourceList);
     } catch (err) {
       setError(extractErrorMessage(err));
       setStats(null);
@@ -117,12 +124,12 @@ export function StatisticsPage() {
   useEffect(() => {
     if (!canView) return;
     load();
-  }, [from, to, canView]);
+  }, [from, to, sourceId, canView]);
 
   const exportCsv = async () => {
     setExporting(true);
     try {
-      await downloadTenantStatisticsCsv(from, to);
+      await downloadTenantStatisticsCsv(from, to, sourceId || undefined);
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -198,6 +205,18 @@ export function StatisticsPage() {
               setSelectedDay(null);
             }}
           />
+          <select
+            value={sourceId}
+            onChange={(e) => setSourceId(e.target.value)}
+            className="lk-input py-2 text-sm"
+          >
+            <option value="">Все источники</option>
+            {sources.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.name}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={exportCsv}
@@ -238,7 +257,68 @@ export function StatisticsPage() {
       )}
 
       <div className="mt-8 lk-card">
-        <h3 className="font-medium text-slate-900">Воронка</h3>
+        <h3 className="font-medium text-slate-900">Воронка чата</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Открытие → сообщение → контакт → лид
+        </p>
+        {stats.chatFunnel.stages.length === 0 ||
+        stats.chatFunnel.stages.every((s) => s.count === 0) ? (
+          <p className="mt-4 text-sm text-slate-500">
+            Нет данных по воронке чата за период
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {stats.chatFunnel.stages.map((stage) => {
+              const base = stats.chatFunnel.stages[0]?.count || 1;
+              const width = Math.max((stage.count / base) * 100, 8);
+              return (
+                <div key={stage.key}>
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>{stage.label}</span>
+                    <span>
+                      {stage.count}
+                      {stage.dropOffFromPrevious !== null && stage.count > 0 && (
+                        <span className="ml-2 text-xs text-slate-400">
+                          −{stage.dropOffFromPrevious}% от пред. этапа
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-1 h-8 rounded-lg bg-indigo-100"
+                    style={{ width: `${width}%` }}
+                  >
+                    <div className="flex h-full items-center rounded-lg bg-indigo-600 px-3 text-xs font-medium text-white">
+                      {stage.rateFromTop}%
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {(stats.chatFunnel.byUtmSource.length > 0 ||
+        stats.chatFunnel.byLandingPage.length > 0) && (
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          {stats.chatFunnel.byUtmSource.length > 0 && (
+            <FunnelBreakdownTable
+              title="По UTM Source"
+              rows={stats.chatFunnel.byUtmSource}
+            />
+          )}
+          {stats.chatFunnel.byLandingPage.length > 0 && (
+            <FunnelBreakdownTable
+              title="По странице входа"
+              rows={stats.chatFunnel.byLandingPage}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="mt-8 lk-card">
+        <h3 className="font-medium text-slate-900">CRM-воронка</h3>
         {stats.funnel.length === 0 ? (
           <p className="mt-4 text-sm text-slate-500">Нет данных по воронке</p>
         ) : (
@@ -330,6 +410,44 @@ function StatCard({
     <div className="lk-card">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+    </div>
+  );
+}
+
+function FunnelBreakdownTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: TenantStatisticsDto['chatFunnel']['byUtmSource'];
+}) {
+  return (
+    <div className="lk-card overflow-x-auto">
+      <h3 className="font-medium text-slate-900">{title}</h3>
+      <table className="mt-3 w-full min-w-[420px] text-left text-xs">
+        <thead className="text-slate-500">
+          <tr>
+            <th className="py-2 pr-2">Источник</th>
+            <th className="py-2 px-2">Открытия</th>
+            <th className="py-2 px-2">Сообщ.</th>
+            <th className="py-2 px-2">Контакт</th>
+            <th className="py-2 pl-2">Лиды</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.label} className="border-t border-slate-100 text-slate-700">
+              <td className="max-w-[140px] truncate py-2 pr-2" title={row.label}>
+                {row.label}
+              </td>
+              <td className="py-2 px-2">{row.widgetOpen}</td>
+              <td className="py-2 px-2">{row.firstMessage}</td>
+              <td className="py-2 px-2">{row.contactShared}</td>
+              <td className="py-2 pl-2">{row.leadCreated}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

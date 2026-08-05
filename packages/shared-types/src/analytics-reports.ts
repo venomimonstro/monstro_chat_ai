@@ -89,6 +89,7 @@ export interface TenantStatisticsDto {
   messages: number;
   conversionRate: number;
   funnel: Array<{ stage: string; count: number }>;
+  chatFunnel: import('./chat-funnel').ChatFunnelDto;
   dialogsByDay: AnalyticsSeriesPoint[];
   leadsByDay: AnalyticsSeriesPoint[];
 }

@@ -26,6 +26,7 @@ import {
   shouldAskForContact,
 } from '../utils/lead-timing.util';
 import { AnalyticsCacheService } from '../../analytics/services/analytics-cache.service';
+import { ChatFunnelService } from '../../analytics/services/chat-funnel.service';
 
 @Injectable()
 export class LeadExtractionService {
@@ -45,6 +46,7 @@ export class LeadExtractionService {
     private readonly promptExperiments: PromptExperimentService,
     private readonly push: PushService,
     private readonly analyticsCache: AnalyticsCacheService,
+    private readonly chatFunnel: ChatFunnelService,
   ) {}
 
   async getLeadState(params: {
@@ -312,6 +314,22 @@ export class LeadExtractionService {
       );
       void this.analyticsCache.invalidateTenant(params.tenantId);
       void this.conversionTracking.trackLeadCreated(params.tenantId, lead.id);
+      if (dialog) {
+        void this.chatFunnel.trackLeadCreated({
+          tenantId: params.tenantId,
+          sourceId: params.sourceId,
+          dialogId,
+          visitorId: dialog.visitorId,
+        });
+        if (accumulated.phone || accumulated.email) {
+          void this.chatFunnel.trackContactShared({
+            tenantId: params.tenantId,
+            sourceId: params.sourceId,
+            dialogId,
+            visitorId: dialog.visitorId,
+          });
+        }
+      }
       void this.leadDelivery.enqueueForLead(params.tenantId, lead.id);
 
       const body =

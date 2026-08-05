@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminAnalyticsController } from './controllers/admin-analytics.controller';
 import { TenantAnalyticsController } from './controllers/tenant-analytics.controller';
 import { AnalyticsCacheService } from './services/analytics-cache.service';
+import { ChatFunnelService } from './services/chat-funnel.service';
 import { ReportBuilderService } from './services/report-builder.service';
 import { AnalyticsExportService } from './services/analytics-export.service';
 import { AnalyticsDashboardService } from './services/analytics-dashboard.service';
@@ -11,11 +12,12 @@ import { AnalyticsReportCronService } from './services/analytics-report-cron.ser
   controllers: [AdminAnalyticsController, TenantAnalyticsController],
   providers: [
     AnalyticsCacheService,
+    ChatFunnelService,
     ReportBuilderService,
     AnalyticsExportService,
     AnalyticsDashboardService,
     AnalyticsReportCronService,
   ],
-  exports: [ReportBuilderService, AnalyticsCacheService],
+  exports: [ReportBuilderService, AnalyticsCacheService, ChatFunnelService],
 })
 export class AnalyticsModule {}

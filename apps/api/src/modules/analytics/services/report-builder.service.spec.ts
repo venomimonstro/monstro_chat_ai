@@ -16,6 +16,14 @@ describe('ReportBuilderService', () => {
     invalidateTenant: jest.fn(),
   };
 
+  const mockChatFunnel = {
+    getChatFunnel: jest.fn().mockResolvedValue({
+      stages: [],
+      byUtmSource: [],
+      byLandingPage: [],
+    }),
+  };
+
   let service: ReportBuilderService;
 
   beforeEach(() => {
@@ -24,6 +32,7 @@ describe('ReportBuilderService', () => {
     service = new ReportBuilderService(
       mockPrisma as never,
       mockCache as unknown as AnalyticsCacheService,
+      mockChatFunnel as never,
       mockConfig as never,
     );
   });
@@ -79,6 +88,7 @@ describe('ReportBuilderService', () => {
       messages: 50,
       conversionRate: 30,
       funnel: [],
+      chatFunnel: { stages: [], byUtmSource: [], byLandingPage: [] },
       dialogsByDay: [],
       leadsByDay: [],
     };

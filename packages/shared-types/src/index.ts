@@ -110,6 +110,13 @@ export type {
   PlaygroundTestResponse,
 } from './prompt';
 export type {
+  ChatFunnelEventType,
+  WidgetFunnelEventRequest,
+  ChatFunnelStageDto,
+  ChatFunnelBreakdownRowDto,
+  ChatFunnelDto,
+} from './chat-funnel';
+export type {
   PipelineDto,
   PipelineStatusDto,
   LeadDto,

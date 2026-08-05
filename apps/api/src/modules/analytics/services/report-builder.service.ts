@@ -12,6 +12,7 @@ import type {
 } from '@ai-consultant/shared-types';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AnalyticsCacheService } from './analytics-cache.service';
+import { ChatFunnelService } from './chat-funnel.service';
 
 interface DateRange {
   from: Date;
@@ -27,6 +28,7 @@ export class ReportBuilderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cache: AnalyticsCacheService,
+    private readonly chatFunnel: ChatFunnelService,
     config: ConfigService,
   ) {
     this.usdRubRate = config.get<number>('USD_RUB_RATE', 90);
@@ -56,9 +58,10 @@ export class ReportBuilderService {
     tenantId: string,
     from: string,
     to: string,
+    sourceId?: string,
   ): Promise<TenantStatisticsDto> {
     const version = await this.cache.getTenantVersion(tenantId);
-    const cacheKey = { type: 'tenant-stats', tenantId, from, to, version };
+    const cacheKey = { type: 'tenant-stats', tenantId, from, to, sourceId, version };
     const cached = await this.cache.get<TenantStatisticsDto>(cacheKey);
     if (cached) return cached;
 
@@ -68,7 +71,7 @@ export class ReportBuilderService {
       createdAt: { gte: range.from, lte: range.to },
     };
 
-    const [dialogs, leads, messages, dialogsByDay, leadsByDay, wonLeads] =
+    const [dialogs, leads, messages, dialogsByDay, leadsByDay, wonLeads, chatFunnel] =
       await Promise.all([
         this.prisma.dialog.count({ where }),
         this.prisma.lead.count({ where: { ...where, archived: false } }),
@@ -76,6 +79,7 @@ export class ReportBuilderService {
         this.countDialogsByDay(tenantId, range),
         this.countLeadsByDay(tenantId, range),
         this.countWonLeads(tenantId, range),
+        this.chatFunnel.getChatFunnel(tenantId, range.from, range.to, sourceId),
       ]);
 
     const conversionRate =
@@ -93,6 +97,7 @@ export class ReportBuilderService {
         { stage: 'Лиды', count: leads },
         { stage: 'Сделки', count: wonLeads },
       ],
+      chatFunnel,
       dialogsByDay: this.fillDaySeries(dialogsByDay, range),
       leadsByDay: this.fillDaySeries(leadsByDay, range),
     };
