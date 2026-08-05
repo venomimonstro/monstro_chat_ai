@@ -387,7 +387,7 @@ export function WidgetApp() {
       }
     });
 
-    socket.on('history', (data: { dialogId: string; messages: ChatMessage[] }) => {
+    socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
       setHistoryLoading(false);
       if (
         historyLoadedRef.current === data.dialogId &&
@@ -406,6 +406,20 @@ export function WidgetApp() {
           })),
         ),
       );
+      if (data.resumed && data.messages.length > 0) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === '__resume_hint__')) return prev;
+          return [
+            {
+              id: '__resume_hint__',
+              role: 'assistant',
+              content: 'Продолжаем предыдущий диалог.',
+              createdAt: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+      }
     });
 
     socket.on('dialog:created', (data: { dialogId: string }) => {

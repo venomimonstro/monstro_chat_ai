@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { MessageRole } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { OutgoingWebhookService } from '../../integrations/outgoing-webhook/outgoing-webhook.service';
@@ -10,11 +11,16 @@ import { AnalyticsCacheService } from '../../analytics/services/analytics-cache.
 
 @Injectable()
 export class DialogService {
+  private readonly resumeDays: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly outgoingWebhook: OutgoingWebhookService,
     private readonly analyticsCache: AnalyticsCacheService,
-  ) {}
+    config: ConfigService,
+  ) {
+    this.resumeDays = config.get<number>('DIALOG_RESUME_DAYS', 30);
+  }
 
   async getOrCreateDialog(
     tenantId: string,
@@ -141,6 +147,92 @@ export class DialogService {
     return updated;
   }
 
+  async resolveEffectiveDialogId(
+    tenantId: string,
+    dialogId: string,
+  ): Promise<string> {
+    const marker = await this.prisma.message.findFirst({
+      where: {
+        dialogId,
+        tenantId,
+        role: 'system',
+        content: { startsWith: '__DEDUP_LINK__:' },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { content: true },
+    });
+    if (!marker) return dialogId;
+    const targetDialogId = marker.content.split(':')[1];
+    return targetDialogId || dialogId;
+  }
+
+  /** Resume last conversation for a returning visitor (Sprint 61). */
+  async findResumableDialog(
+    tenantId: string,
+    sourceId: string,
+    visitorId: string,
+    preferredDialogId?: string,
+  ) {
+    if (preferredDialogId) {
+      const preferred = await this.prisma.dialog.findFirst({
+        where: {
+          id: preferredDialogId,
+          tenantId,
+          sourceId,
+          visitorId,
+        },
+      });
+      if (preferred) {
+        const effectiveId = await this.resolveEffectiveDialogId(
+          tenantId,
+          preferred.id,
+        );
+        return this.prisma.dialog.findFirst({
+          where: { id: effectiveId, tenantId, sourceId, visitorId },
+        });
+      }
+    }
+
+    const since = new Date();
+    since.setDate(since.getDate() - this.resumeDays);
+
+    const recent = await this.prisma.dialog.findMany({
+      where: {
+        tenantId,
+        sourceId,
+        visitorId,
+        updatedAt: { gte: since },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    });
+
+    for (const dialog of recent) {
+      const effectiveId = await this.resolveEffectiveDialogId(
+        tenantId,
+        dialog.id,
+      );
+      const effective = await this.prisma.dialog.findFirst({
+        where: { id: effectiveId, tenantId, sourceId, visitorId },
+      });
+      if (effective?.status === 'active') return effective;
+    }
+
+    if (recent[0]) {
+      const effectiveId = await this.resolveEffectiveDialogId(
+        tenantId,
+        recent[0].id,
+      );
+      return (
+        (await this.prisma.dialog.findFirst({
+          where: { id: effectiveId, tenantId, sourceId, visitorId },
+        })) ?? recent[0]
+      );
+    }
+
+    return null;
+  }
+
   async getPublicHistory(
     dialogId: string,
     widgetKey: string,
@@ -151,22 +243,35 @@ export class DialogService {
     });
     if (!source) throw new NotFoundException();
 
-    const dialog = await this.prisma.dialog.findFirst({
-      where: {
-        id: dialogId,
-        tenantId: source.tenantId,
-        sourceId: source.id,
-        visitorId,
-      },
-    });
+    const dialog = await this.findResumableDialog(
+      source.tenantId,
+      source.id,
+      visitorId,
+      dialogId,
+    );
     if (!dialog) throw new NotFoundException();
 
-    const messages = await this.getMessages(dialogId, source.tenantId);
+    const effectiveDialogId = await this.resolveEffectiveDialogId(
+      source.tenantId,
+      dialog.id,
+    );
+
+    const messages = await this.getMessages(effectiveDialogId, source.tenantId);
     return {
-      dialogId: dialog.id,
+      dialogId: effectiveDialogId,
+      resumed: effectiveDialogId !== dialogId,
       messages: messages
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ role: m.role, content: m.content, id: m.id })),
+        .filter(
+          (m) =>
+            (m.role === 'user' || m.role === 'assistant') &&
+            !m.content.startsWith('__DEDUP_LINK__:'),
+        )
+        .map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          id: m.id,
+          createdAt: m.createdAt.toISOString(),
+        })),
     };
   }
 }
