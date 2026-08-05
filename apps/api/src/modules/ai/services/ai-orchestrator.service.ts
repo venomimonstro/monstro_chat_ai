@@ -11,6 +11,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { PromptAssemblyService } from './prompt-assembly.service';
 import { AntiInjectionService } from './anti-injection.service';
 import { LeadExtractionService } from '../../crm/services/lead-extraction.service';
+import { LeadDedupService } from '../../crm/services/lead-dedup.service';
 import { UsageLimitService } from '../../billing/services/usage-limit.service';
 import { TariffResolverService } from '../../billing/services/tariff-resolver.service';
 import { ModelRouterService } from './model-router.service';
@@ -58,6 +59,7 @@ export class AiOrchestratorService {
     private readonly promptAssembly: PromptAssemblyService,
     private readonly antiInjection: AntiInjectionService,
     private readonly leadExtraction: LeadExtractionService,
+    private readonly leadDedup: LeadDedupService,
     private readonly usageLimit: UsageLimitService,
     private readonly tariffResolver: TariffResolverService,
     private readonly modelRouter: ModelRouterService,
@@ -116,10 +118,16 @@ export class AiOrchestratorService {
       input.attribution,
     );
 
-    yield { type: 'dialog', dialogId: dialog.id };
+    const effective = await this.leadDedup.resolveEffectiveDialog(
+      input.tenantId,
+      dialog.id,
+    );
+    const activeDialogId = effective.dialogId;
+
+    yield { type: 'dialog', dialogId: activeDialogId };
 
     await this.dialogService.addMessage({
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
       tenantId: input.tenantId,
       role: 'user',
       content: input.content,
@@ -128,20 +136,28 @@ export class AiOrchestratorService {
     await this.leadExtraction.processMessage({
       tenantId: input.tenantId,
       sourceId: input.sourceId,
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
+      sessionDialogId: dialog.id,
       content: input.content,
       sourceConfig: input.sourceConfig,
     });
 
+    const activeDialog =
+      activeDialogId === dialog.id
+        ? dialog
+        : ((await this.prisma.dialog.findUnique({
+            where: { id: activeDialogId },
+          })) ?? dialog);
+
     const injection = this.antiInjection.classify(input.content);
     if (injection.isSuspicious) {
-      this.logger.warn(`Suspicious message in dialog ${dialog.id}`);
+      this.logger.warn(`Suspicious message in dialog ${activeDialogId}`);
     }
 
     if (injection.shouldBlock && injection.blockedReply) {
       const blocked = injection.blockedReply;
       const assistantMessage = await this.dialogService.addMessage({
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         tenantId: input.tenantId,
         role: 'assistant',
         content: blocked,
@@ -152,7 +168,7 @@ export class AiOrchestratorService {
 
       yield {
         type: 'done',
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         messageId: assistantMessage.id,
         content: blocked,
         provider: 'safety',
@@ -174,7 +190,7 @@ export class AiOrchestratorService {
       for (const token of this.chunkText(fullResponse)) {
         yield {
           type: 'token',
-          dialogId: dialog.id,
+          dialogId: activeDialogId,
           token,
           provider: 'cache',
           model: 'semantic-cache',
@@ -182,7 +198,7 @@ export class AiOrchestratorService {
       }
 
       const assistantMessage = await this.dialogService.addMessage({
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         tenantId: input.tenantId,
         role: 'assistant',
         content: fullResponse,
@@ -194,7 +210,7 @@ export class AiOrchestratorService {
       await this.prisma.lLMUsageLog.create({
         data: {
           tenantId: input.tenantId,
-          dialogId: dialog.id,
+          dialogId: activeDialogId,
           provider: 'cache',
           model: 'semantic-cache',
           promptTokens: 0,
@@ -205,7 +221,7 @@ export class AiOrchestratorService {
 
       yield {
         type: 'done',
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         messageId: assistantMessage.id,
         content: fullResponse,
         provider: 'cache',
@@ -223,21 +239,22 @@ export class AiOrchestratorService {
 
     const experimentPrompt = await this.promptExperiments.resolveClientPrompt(
       input.tenantId,
-      dialog.id,
+      activeDialogId,
     );
 
     const leadState = await this.leadExtraction.getLeadState({
       tenantId: input.tenantId,
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
+      sessionDialogId: dialog.id,
       sourceConfig: input.sourceConfig,
       lastUserMessage: input.content,
     });
 
     const assembled = await this.promptAssembly.assemble({
       tenantId: input.tenantId,
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
       ragContext: contextBlock,
-      dialogSummary: dialog.summary,
+      dialogSummary: activeDialog.summary,
       fallbackClientPrompt: input.sourceConfig.ai?.clientPrompt,
       clientPromptOverride: experimentPrompt,
       antiInjectionInstruction: injection.instruction,
@@ -247,7 +264,7 @@ export class AiOrchestratorService {
     });
 
     const history = await this.dialogService.getMessages(
-      dialog.id,
+      activeDialogId,
       input.tenantId,
     );
     const recentHistory = history
@@ -289,7 +306,7 @@ export class AiOrchestratorService {
             fullResponse += token.content;
             yield {
               type: 'token',
-              dialogId: dialog.id,
+              dialogId: activeDialogId,
               token: token.content,
               provider: provider.name,
               model: usedModel,
@@ -312,7 +329,7 @@ export class AiOrchestratorService {
     if (lastError && !fullResponse) {
       yield {
         type: 'error',
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         error: 'Не удалось получить ответ. Попробуйте позже.',
       };
       return;
@@ -324,7 +341,7 @@ export class AiOrchestratorService {
     const completionTokens = usedProvider.estimateTokens(fullResponse);
 
     const assistantMessage = await this.dialogService.addMessage({
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
       tenantId: input.tenantId,
       role: 'assistant',
       content: fullResponse,
@@ -336,7 +353,7 @@ export class AiOrchestratorService {
     await this.prisma.lLMUsageLog.create({
       data: {
         tenantId: input.tenantId,
-        dialogId: dialog.id,
+        dialogId: activeDialogId,
         provider: usedProvider.name,
         model: usedModel,
         promptTokens,
@@ -351,7 +368,10 @@ export class AiOrchestratorService {
       },
     });
 
-    await this.historyCompression.compressIfNeeded(dialog.id, input.tenantId);
+    await this.historyCompression.compressIfNeeded(
+      activeDialogId,
+      input.tenantId,
+    );
 
     await this.semanticCache.store(
       input.tenantId,
@@ -363,7 +383,7 @@ export class AiOrchestratorService {
 
     yield {
       type: 'done',
-      dialogId: dialog.id,
+      dialogId: activeDialogId,
       messageId: assistantMessage.id,
       content: fullResponse,
       provider: usedProvider.name,

@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { PipelinesService } from './pipelines.service';
+import { LeadDedupService } from './lead-dedup.service';
 import { EmailService } from '../../../common/email/email.service';
 import { CrmGateway } from '../crm.gateway';
 import { ConversionTrackingService } from '../../integrations/services/conversion-tracking.service';
@@ -20,6 +21,7 @@ export class LeadsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pipelines: PipelinesService,
+    private readonly dedup: LeadDedupService,
     private readonly email: EmailService,
     private readonly crmGateway: CrmGateway,
     private readonly conversionTracking: ConversionTrackingService,
@@ -207,14 +209,37 @@ export class LeadsService {
     return this.toDto(updated);
   }
 
-  async findDuplicates(tenantId: string, phone: string) {
+  async findDuplicates(
+    tenantId: string,
+    opts: { phone?: string; visitorId?: string },
+  ) {
+    if (opts.visitorId?.trim()) {
+      const lead = await this.dedup.findByVisitor(
+        tenantId,
+        opts.visitorId,
+        '',
+      );
+      if (!lead) return [];
+      return [
+        {
+          leadId: lead.id,
+          name: lead.name,
+          phone: lead.phone,
+          createdAt: lead.createdAt.toISOString(),
+          matchBy: 'visitor' as const,
+        },
+      ];
+    }
+
+    if (!opts.phone?.trim()) return [];
+
     const since = new Date();
     since.setDate(since.getDate() - this.dedupeDays);
 
     const duplicates = await this.prisma.lead.findMany({
       where: {
         tenantId,
-        phone,
+        phone: opts.phone,
         archived: false,
         createdAt: { gte: since },
       },
@@ -226,6 +251,7 @@ export class LeadsService {
       name: d.name,
       phone: d.phone,
       createdAt: d.createdAt.toISOString(),
+      matchBy: 'phone' as const,
     }));
   }
 

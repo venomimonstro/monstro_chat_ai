@@ -409,6 +409,46 @@ export function SourceSettingsPage() {
                 </label>
               </Field>
 
+              <Field label="Дедупликация лидов">
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.ai?.leadExtraction?.dedupeByPhone !== false}
+                      onChange={(e) =>
+                        patchAi({
+                          leadExtraction: {
+                            ...config.ai?.leadExtraction,
+                            enabled: config.ai?.leadExtraction?.enabled !== false,
+                            dedupeByPhone: e.target.checked,
+                          },
+                        })
+                      }
+                    />
+                    Объединять повторные обращения с тем же телефоном
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={config.ai?.leadExtraction?.dedupeByVisitor !== false}
+                      onChange={(e) =>
+                        patchAi({
+                          leadExtraction: {
+                            ...config.ai?.leadExtraction,
+                            enabled: config.ai?.leadExtraction?.enabled !== false,
+                            dedupeByVisitor: e.target.checked,
+                          },
+                        })
+                      }
+                    />
+                    Привязывать возвращающегося посетителя к недавнему лиду
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Диалог склеивается с существующим лидом вместо создания дубликата
+                </p>
+              </Field>
+
               <Field label="Защита от спама (сообщений в минуту)">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input

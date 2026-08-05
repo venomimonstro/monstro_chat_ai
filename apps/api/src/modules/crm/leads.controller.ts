@@ -58,9 +58,13 @@ export class LeadsController {
   @RequirePermission(PERMISSIONS.CRM_LEADS_VIEW)
   duplicates(
     @CurrentUser() user: AuthenticatedUser,
-    @Query('phone') phone: string,
+    @Query('phone') phone?: string,
+    @Query('visitorId') visitorId?: string,
   ) {
-    return this.leadsService.findDuplicates(user.tenantId!, phone);
+    return this.leadsService.findDuplicates(user.tenantId!, {
+      phone,
+      visitorId,
+    });
   }
 
   @Post('archive')
