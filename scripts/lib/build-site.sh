@@ -21,6 +21,8 @@ deploy_log "Сборка публичного сайта..."
 npm run build -w @ai-consultant/shared-types
 npm run build -w @ai-consultant/public-site
 
+deploy_sync_systemd_units
+
 deploy_restart_if_active monstro-public-site || {
   deploy_warn "monstro-public-site не запущен — start-public-site.sh"
   bash "${INSTALL_DIR}/scripts/start-public-site.sh"

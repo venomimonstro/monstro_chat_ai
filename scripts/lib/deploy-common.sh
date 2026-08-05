@@ -258,15 +258,39 @@ deploy_restart_if_active() {
   return 1
 }
 
+deploy_load_dotenv() {
+  if [[ ! -f "${INSTALL_DIR}/.env" ]]; then
+    return 0
+  fi
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    [[ "${line}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
+    [[ "${line}" =~ ^# ]] && continue
+    local key="${line%%=*}"
+    local val="${line#*=}"
+    val="${val%$'\r'}"
+    case "${key}" in
+      NEXT_PUBLIC_*|PUBLIC_SITE_URL|WEB_*|WIDGET_URL|API_PUBLIC_URL|API_INTERNAL_URL|VITE_*)
+        export "${key}=${val}"
+        ;;
+    esac
+  done < "${INSTALL_DIR}/.env"
+}
+
 deploy_export_frontend_env() {
   local ip
   ip="$(deploy_detect_ip)"
-  export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
-  export VITE_WIDGET_URL="http://${ip}:5175"
-  export VITE_API_URL="http://${ip}:3000/api"
-  export NEXT_PUBLIC_WIDGET_URL="http://${ip}:5175"
-  export NEXT_PUBLIC_CLIENT_URL="http://${ip}:5173"
-  export NEXT_PUBLIC_API_URL="http://${ip}:3000/api"
-  export NEXT_PUBLIC_SITE_URL="http://${ip}:4321"
-  export API_INTERNAL_URL="http://127.0.0.1:3000"
+  deploy_load_dotenv
+
+  export VITE_WIDGET_SCRIPT_URL="${VITE_WIDGET_SCRIPT_URL:-${NEXT_PUBLIC_WIDGET_URL:-http://${ip}:5175}/embed.js}"
+  export VITE_WIDGET_URL="${VITE_WIDGET_URL:-${NEXT_PUBLIC_WIDGET_URL:-http://${ip}:5175}}"
+  export VITE_API_URL="${VITE_API_URL:-${NEXT_PUBLIC_API_URL:-http://${ip}:3000/api}}"
+  export NEXT_PUBLIC_WIDGET_URL="${NEXT_PUBLIC_WIDGET_URL:-http://${ip}:5175}"
+  export NEXT_PUBLIC_CLIENT_URL="${NEXT_PUBLIC_CLIENT_URL:-http://${ip}:5173}"
+  export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://${ip}:3000/api}"
+  export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-http://${ip}:4321}"
+  export API_INTERNAL_URL="${API_INTERNAL_URL:-http://127.0.0.1:3000}"
+}
+
+deploy_sync_systemd_units() {
+  bash "${INSTALL_DIR}/scripts/lib/sync-systemd-units.sh" "${INSTALL_DIR}"
 }

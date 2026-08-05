@@ -15,6 +15,32 @@ info()  { echo -e "\033[0;36m[check]\033[0m $*"; }
 
 ERR=0
 BASE="https://${DOMAIN}"
+SERVER_IP="${SERVER_IP:-31.128.42.106}"
+
+info "DNS ${DOMAIN}"
+APEX_IP="$(dig +short "${DOMAIN}" @8.8.8.8 | tail -1)"
+if [[ "${APEX_IP}" == "${SERVER_IP}" ]]; then
+  log "${DOMAIN} → ${APEX_IP}"
+else
+  fail "${DOMAIN} → ${APEX_IP:-?} (ожидался ${SERVER_IP})"
+fi
+
+info "DNS www.${DOMAIN}"
+WWW_IP="$(dig +short "www.${DOMAIN}" @8.8.8.8 | tail -1)"
+if [[ -z "${WWW_IP}" ]]; then
+  warn "www.${DOMAIN} — нет A-записи"
+elif [[ "${WWW_IP}" == "${SERVER_IP}" ]]; then
+  log "www.${DOMAIN} → ${WWW_IP}"
+else
+  fail "www.${DOMAIN} → ${WWW_IP} (ожидался ${SERVER_IP}) — исправьте DNS в Beget!"
+fi
+
+info "nginx :80"
+if curl -sf --max-time 8 -o /dev/null -H "Host: ${DOMAIN}" "http://127.0.0.1/"; then
+  log "nginx проксирует сайт (localhost:80)"
+else
+  fail "nginx не отдаёт сайт на :80 — запустите: sudo bash scripts/setup-ssl-redflow.sh"
+fi
 
 info "API health (localhost)"
 if body="$(curl -sf --max-time 10 "http://127.0.0.1:3000/api/health" 2>/dev/null)"; then
@@ -34,17 +60,17 @@ curl -sf --max-time 10 "http://127.0.0.1:3000/api/health/redis" | grep -q connec
   || fail "Redis недоступен"
 
 info "Локальные сервисы"
-while read -r label port; do
-  if curl -sf --max-time 8 -o /dev/null "http://127.0.0.1:${port}/"; then
-    log "${label} :${port}"
+while read -r label port path; do
+  if curl -sf --max-time 8 -o /dev/null "http://127.0.0.1:${port}${path}"; then
+    log "${label} :${port}${path}"
   else
-    fail "${label} не отвечает на :${port}"
+    fail "${label} не отвечает на :${port}${path} — journalctl -u monstro-*"
   fi
 done <<EOF
-Админка 5174
-ЛК 5173
-Виджет 5175
-Сайт 4321
+Админка 5174 /admin/
+ЛК 5173 /app/
+Виджет 5175 /health.txt
+Сайт 4321 /
 EOF
 
 info "HTTPS ${DOMAIN}"

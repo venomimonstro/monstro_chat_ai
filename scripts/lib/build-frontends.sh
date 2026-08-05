@@ -20,8 +20,10 @@ fi
 
 deploy_log "Сборка ЛК и админки..."
 npm run build -w @ai-consultant/shared-types
-npm run build -w @ai-consultant/web-client
-npm run build -w @ai-consultant/web-admin
+VITE_BASE_PATH=/app/ npm run build -w @ai-consultant/web-client
+VITE_BASE_PATH=/admin/ npm run build -w @ai-consultant/web-admin
+
+deploy_sync_systemd_units
 
 deploy_restart_if_active monstro-web-client || true
 deploy_restart_if_active monstro-web-admin || {

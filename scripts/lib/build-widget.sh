@@ -20,6 +20,8 @@ deploy_log "Сборка виджета..."
 npm run build -w @ai-consultant/shared-types
 npm run build -w @ai-consultant/widget
 
+deploy_sync_systemd_units
+
 if ! deploy_restart_if_active monstro-widget; then
   deploy_warn "monstro-widget не запущен — запускаю start-widget.sh"
   bash "${INSTALL_DIR}/scripts/start-widget.sh"
