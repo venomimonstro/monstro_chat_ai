@@ -18,6 +18,16 @@ export interface KnowledgeDocumentDto {
   updatedAt: string;
 }
 
+export interface CrawlJobStats {
+  mode: 'full' | 'incremental';
+  new: number;
+  updated: number;
+  skipped: number;
+  excludedSkipped: number;
+  failed: number;
+  removed: number;
+}
+
 export interface IndexingJobDto {
   id: string;
   tenantId: string;
@@ -28,9 +38,16 @@ export interface IndexingJobDto {
   totalPages: number;
   processedPages: number;
   errorMessage: string | null;
+  stats: CrawlJobStats | null;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
+}
+
+export interface LastCrawlDto {
+  rootUrl: string;
+  completedAt: string | null;
+  stats: CrawlJobStats | null;
 }
 
 export interface IndexingProgressEvent {
@@ -45,6 +62,19 @@ export async function startCrawl(sourceId: string, url: string) {
   const res = await api.post<IndexingJobDto>('/knowledge/crawl', {
     sourceId,
     url,
+    mode: 'full',
+  });
+  return res.data;
+}
+
+export async function startReindex(sourceId: string) {
+  const res = await api.post<IndexingJobDto>('/knowledge/reindex', { sourceId });
+  return res.data;
+}
+
+export async function fetchLastCrawl(sourceId: string) {
+  const res = await api.get<LastCrawlDto | null>('/knowledge/last-crawl', {
+    params: { sourceId },
   });
   return res.data;
 }

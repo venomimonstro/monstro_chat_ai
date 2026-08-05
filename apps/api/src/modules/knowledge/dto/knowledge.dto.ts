@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl, IsUUID, MinLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUrl, IsUUID, MinLength } from 'class-validator';
 
 export class StartCrawlDto {
   @IsUUID()
@@ -7,6 +7,15 @@ export class StartCrawlDto {
   @IsString()
   @IsUrl({ require_protocol: true })
   url!: string;
+
+  @IsOptional()
+  @IsIn(['full', 'incremental'])
+  mode?: 'full' | 'incremental';
+}
+
+export class ReindexDto {
+  @IsUUID()
+  sourceId!: string;
 }
 
 export class AddManualTextDto {

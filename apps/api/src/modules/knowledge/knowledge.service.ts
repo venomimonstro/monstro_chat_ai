@@ -3,9 +3,11 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IndexingPipelineService } from './services/indexing-pipeline.service';
@@ -25,6 +27,17 @@ export interface CrawlSiteJobPayload {
   sourceId: string;
   rootUrl: string;
   pageLimit: number;
+  mode: 'full' | 'incremental';
+}
+
+export interface CrawlJobStats {
+  mode: 'full' | 'incremental';
+  new: number;
+  updated: number;
+  skipped: number;
+  excludedSkipped: number;
+  failed: number;
+  removed: number;
 }
 
 export interface IngestDocumentJobPayload {
@@ -42,8 +55,14 @@ export class KnowledgeService {
     @InjectQueue(QUEUE_INGEST_DOCUMENT) private readonly ingestQueue: Queue,
   ) {}
 
-  async startCrawl(tenantId: string, sourceId: string, url: string) {
+  async startCrawl(
+    tenantId: string,
+    sourceId: string,
+    url: string,
+    mode: 'full' | 'incremental' = 'full',
+  ) {
     await this.assertSource(tenantId, sourceId);
+    await this.assertNoRunningJob(tenantId, sourceId);
     const pageLimit = await this.getPageLimit(tenantId);
 
     const job = await this.prisma.indexingJob.create({
@@ -54,6 +73,7 @@ export class KnowledgeService {
         status: 'queued',
         rootUrl: url,
         totalPages: pageLimit,
+        statsJson: { mode } as Prisma.InputJsonValue,
       },
     });
 
@@ -65,6 +85,7 @@ export class KnowledgeService {
         sourceId,
         rootUrl: url,
         pageLimit,
+        mode,
       } satisfies CrawlSiteJobPayload,
       {
         jobId: job.id,
@@ -75,6 +96,55 @@ export class KnowledgeService {
     );
 
     return this.toJobDto(job);
+  }
+
+  async startReindex(tenantId: string, sourceId: string) {
+    await this.assertSource(tenantId, sourceId);
+    await this.assertNoRunningJob(tenantId, sourceId);
+
+    const lastJob = await this.prisma.indexingJob.findFirst({
+      where: {
+        tenantId,
+        sourceId,
+        type: 'crawl',
+        status: 'completed',
+        rootUrl: { not: null },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+
+    if (!lastJob?.rootUrl) {
+      throw new BadRequestException(
+        'Нет завершённой индексации — сначала укажите URL и проиндексируйте сайт',
+      );
+    }
+
+    return this.startCrawl(
+      tenantId,
+      sourceId,
+      lastJob.rootUrl,
+      'incremental',
+    );
+  }
+
+  async getLastCrawl(tenantId: string, sourceId: string) {
+    await this.assertSource(tenantId, sourceId);
+    const job = await this.prisma.indexingJob.findFirst({
+      where: {
+        tenantId,
+        sourceId,
+        type: 'crawl',
+        status: 'completed',
+        rootUrl: { not: null },
+      },
+      orderBy: { completedAt: 'desc' },
+    });
+    if (!job?.rootUrl) return null;
+    return {
+      rootUrl: job.rootUrl,
+      completedAt: job.completedAt?.toISOString() ?? null,
+      stats: this.parseCrawlStats(job.statsJson),
+    };
   }
 
   async listDocuments(tenantId: string, sourceId: string) {
@@ -381,6 +451,36 @@ export class KnowledgeService {
     return source;
   }
 
+  private async assertNoRunningJob(tenantId: string, sourceId: string) {
+    const running = await this.prisma.indexingJob.findFirst({
+      where: {
+        tenantId,
+        sourceId,
+        status: { in: ['queued', 'running'] },
+      },
+    });
+    if (running) {
+      throw new ConflictException(
+        'Индексация уже выполняется. Дождитесь завершения текущей задачи.',
+      );
+    }
+  }
+
+  private parseCrawlStats(raw: unknown): CrawlJobStats | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const s = raw as Record<string, unknown>;
+    if (s.mode !== 'full' && s.mode !== 'incremental') return null;
+    return {
+      mode: s.mode,
+      new: Number(s.new ?? 0),
+      updated: Number(s.updated ?? 0),
+      skipped: Number(s.skipped ?? 0),
+      excludedSkipped: Number(s.excludedSkipped ?? 0),
+      failed: Number(s.failed ?? 0),
+      removed: Number(s.removed ?? 0),
+    };
+  }
+
   private toJobDto(job: {
     id: string;
     tenantId: string;
@@ -391,6 +491,7 @@ export class KnowledgeService {
     totalPages: number;
     processedPages: number;
     errorMessage: string | null;
+    statsJson?: unknown;
     startedAt: Date | null;
     completedAt: Date | null;
     createdAt: Date;
@@ -405,6 +506,7 @@ export class KnowledgeService {
       totalPages: job.totalPages,
       processedPages: job.processedPages,
       errorMessage: job.errorMessage,
+      stats: this.parseCrawlStats(job.statsJson),
       startedAt: job.startedAt?.toISOString() ?? null,
       completedAt: job.completedAt?.toISOString() ?? null,
       createdAt: job.createdAt.toISOString(),
