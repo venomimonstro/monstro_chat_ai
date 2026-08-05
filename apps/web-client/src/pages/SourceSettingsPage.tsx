@@ -515,6 +515,32 @@ export function SourceSettingsPage() {
                 </p>
               </Field>
 
+              <Field label="Разрешённые домены (Origin)">
+                <textarea
+                  rows={3}
+                  placeholder="https://example.com&#10;https://www.example.com"
+                  value={(config.security?.allowedOrigins ?? []).join('\n')}
+                  onChange={(e) => {
+                    const allowedOrigins = e.target.value
+                      .split(/[\n,]+/)
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    setConfig((c) => ({
+                      ...c,
+                      security: {
+                        ...c.security,
+                        allowedOrigins,
+                      },
+                    }));
+                  }}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
+                />
+                <p className="mt-1 text-xs text-amber-700">
+                  В production пустой список блокирует виджет. Укажите домены сайта клиента
+                  (с протоколом https://).
+                </p>
+              </Field>
+
               <Field label="Защита от спама (сообщений в минуту)">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <input

@@ -21,7 +21,9 @@ export function isWidgetOriginAllowed(
   refererHeader?: string,
 ): boolean {
   const allowed = sourcesService.getAllowedOrigins(source);
-  if (!allowed.length) return true;
+  if (!allowed.length) {
+    return process.env.NODE_ENV !== 'production';
+  }
 
   const origin = getRequestOrigin(originHeader, refererHeader);
   if (!origin) return false;
