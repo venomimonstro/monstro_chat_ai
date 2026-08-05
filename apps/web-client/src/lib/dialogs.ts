@@ -52,6 +52,7 @@ export interface DialogMessageDto {
   createdAt: string;
   provider?: string | null;
   model?: string | null;
+  feedbackRating?: 'up' | 'down' | null;
 }
 
 export interface DialogListResponse {

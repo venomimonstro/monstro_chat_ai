@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { PromptDto } from '@ai-consultant/shared-types';
 import { PromptAbTestSection } from './PromptAbTestSection';
+import { PromptRegressionSection } from './PromptRegressionSection';
 import {
   activatePrompt,
   fetchActivePrompt,
@@ -202,6 +203,8 @@ export function PromptTab({
       {history.length > 0 && (
         <PromptAbTestSection history={history} />
       )}
+
+      <PromptRegressionSection sourceId={sourceId} clientPrompt={content} />
 
       {history.length > 0 && (
         <section className="rounded-xl border border-slate-200 bg-white p-4">

@@ -20,6 +20,7 @@ interface ChatMessage {
   content: string;
   streaming?: boolean;
   createdAt?: string;
+  feedbackRating?: 'up' | 'down' | null;
 }
 
 interface WidgetAttribution {
@@ -170,6 +171,9 @@ export function WidgetApp() {
   const [connectionError, setConnectionError] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [latencyHint, setLatencyHint] = useState<number | null>(null);
+  const [feedbackByMessage, setFeedbackByMessage] = useState<
+    Record<string, 'up' | 'down'>
+  >({});
 
   const socketRef = useRef<Socket | null>(null);
   const visitorId = useMemo(() => getVisitorId(), []);
@@ -589,6 +593,27 @@ export function WidgetApp() {
     setEmojiOpen(false);
   };
 
+  const submitFeedback = useCallback(
+    async (messageId: string, rating: 'up' | 'down') => {
+      setFeedbackByMessage((prev) => ({ ...prev, [messageId]: rating }));
+      try {
+        await fetch(`${apiUrl}/widget/feedback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            widgetKey,
+            visitorId,
+            messageId,
+            rating,
+          }),
+        });
+      } catch {
+        /* ignore network errors for feedback */
+      }
+    },
+    [apiUrl, widgetKey, visitorId],
+  );
+
   const sendMessage = (text: string) => {
     const trimmed = text.trim();
     if (
@@ -784,6 +809,17 @@ export function WidgetApp() {
                   isDark={isDark}
                   primaryColor={appearance.primaryColor}
                   textColor={appearance.textColor}
+                  messageId={!isUser && msg.id && !msg.id.startsWith('__') ? msg.id : undefined}
+                  feedbackRating={
+                    msg.id
+                      ? feedbackByMessage[msg.id] ?? msg.feedbackRating ?? null
+                      : null
+                  }
+                  onFeedback={
+                    !isUser && msg.id && !msg.streaming && !msg.id.startsWith('__')
+                      ? (rating) => void submitFeedback(msg.id!, rating)
+                      : undefined
+                  }
                 />
                 {time && <div className="aicw-message-time">{time}</div>}
               </div>

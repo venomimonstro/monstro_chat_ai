@@ -505,6 +505,44 @@
   align-self: flex-end;
 }
 
+.aicw-feedback {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.aicw-feedback-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.aicw-feedback-btn:hover {
+  opacity: 1;
+}
+
+.aicw-feedback-btn.active {
+  opacity: 1;
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.aicw-feedback.dark .aicw-feedback-btn {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.aicw-feedback.dark .aicw-feedback-btn.active {
+  background: #312e81;
+  border-color: #6366f1;
+}
+
 .aicw-typing {
   display: flex;
   align-items: center;

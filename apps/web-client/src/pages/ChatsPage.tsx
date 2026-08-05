@@ -311,7 +311,15 @@ export function ChatsPage() {
                   >
                     <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-slate-500">
                       <span>{roleLabel(msg.role)}</span>
-                      <span>{formatDateTime(msg.createdAt)}</span>
+                      <span className="flex items-center gap-2">
+                        {msg.feedbackRating === 'up' && (
+                          <span title="Положительная оценка">👍</span>
+                        )}
+                        {msg.feedbackRating === 'down' && (
+                          <span title="Отрицательная оценка">👎</span>
+                        )}
+                        {formatDateTime(msg.createdAt)}
+                      </span>
                     </div>
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                   </div>

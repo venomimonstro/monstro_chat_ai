@@ -110,6 +110,23 @@ export type {
   PlaygroundTestResponse,
 } from './prompt';
 export type {
+  MessageFeedbackRating,
+  WidgetFeedbackRequest,
+  MessageFeedbackDto,
+  BadAnswerDto,
+  QualityStatsDto,
+  BadAnswersListResponse,
+} from './message-feedback';
+export type {
+  PromptRegressionAssertions,
+  PromptRegressionCaseDto,
+  CreatePromptRegressionCaseDto,
+  UpdatePromptRegressionCaseDto,
+  PromptRegressionCaseResult,
+  PromptRegressionRunDto,
+  RunPromptRegressionDto,
+} from './prompt-regression';
+export type {
   PipelineDto,
   PipelineStatusDto,
   LeadDto,

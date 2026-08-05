@@ -38,8 +38,11 @@ export class PlaygroundService {
     message: string;
     clientPrompt: string;
     history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+    skipQuota?: boolean;
   }) {
-    await this.assertQuota(params.tenantId);
+    if (!params.skipQuota) {
+      await this.assertQuota(params.tenantId);
+    }
 
     const source = await this.prisma.source.findFirst({
       where: { id: params.sourceId, tenantId: params.tenantId },

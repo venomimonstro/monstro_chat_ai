@@ -78,3 +78,51 @@ export async function fetchPromptExperimentReport(id: string, days = 7) {
   );
   return res.data;
 }
+
+export async function fetchRegressionCases(sourceId?: string) {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').PromptRegressionCaseDto[]
+  >('/prompts/regression/cases', {
+    params: sourceId ? { sourceId } : undefined,
+  });
+  return res.data;
+}
+
+export async function createRegressionCase(
+  data: import('@ai-consultant/shared-types').CreatePromptRegressionCaseDto,
+) {
+  const res = await api.post<
+    import('@ai-consultant/shared-types').PromptRegressionCaseDto
+  >('/prompts/regression/cases', data);
+  return res.data;
+}
+
+export async function updateRegressionCase(
+  id: string,
+  data: import('@ai-consultant/shared-types').UpdatePromptRegressionCaseDto,
+) {
+  const res = await api.put<
+    import('@ai-consultant/shared-types').PromptRegressionCaseDto
+  >(`/prompts/regression/cases/${id}`, data);
+  return res.data;
+}
+
+export async function deleteRegressionCase(id: string) {
+  await api.delete(`/prompts/regression/cases/${id}`);
+}
+
+export async function runPromptRegression(
+  data: import('@ai-consultant/shared-types').RunPromptRegressionDto,
+) {
+  const res = await api.post<
+    import('@ai-consultant/shared-types').PromptRegressionRunDto
+  >('/prompts/regression/run', data);
+  return res.data;
+}
+
+export async function fetchRegressionRuns(limit = 10) {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').PromptRegressionRunDto[]
+  >('/prompts/regression/runs', { params: { limit } });
+  return res.data;
+}

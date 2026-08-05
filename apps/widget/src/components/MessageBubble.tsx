@@ -7,6 +7,9 @@ interface MessageBubbleProps {
   isDark: boolean;
   primaryColor: string;
   textColor: string;
+  messageId?: string;
+  feedbackRating?: 'up' | 'down' | null;
+  onFeedback?: (rating: 'up' | 'down') => void;
 }
 
 export function MessageBubble({
@@ -16,6 +19,9 @@ export function MessageBubble({
   isDark,
   primaryColor,
   textColor,
+  messageId,
+  feedbackRating,
+  onFeedback,
 }: MessageBubbleProps) {
   if (isUser) {
     return (
@@ -65,6 +71,28 @@ export function MessageBubble({
             <p className="aicw-contact-card-title">Оставьте контакт</p>
             <p className="aicw-contact-card-text">{parsed.contactPrompt}</p>
           </div>
+        </div>
+      )}
+      {messageId && !streaming && onFeedback && (
+        <div className={`aicw-feedback ${isDark ? 'dark' : ''}`} role="group" aria-label="Оценка ответа">
+          <button
+            type="button"
+            className={`aicw-feedback-btn ${feedbackRating === 'up' ? 'active' : ''}`}
+            onClick={() => onFeedback('up')}
+            aria-label="Полезный ответ"
+            aria-pressed={feedbackRating === 'up'}
+          >
+            👍
+          </button>
+          <button
+            type="button"
+            className={`aicw-feedback-btn ${feedbackRating === 'down' ? 'active' : ''}`}
+            onClick={() => onFeedback('down')}
+            aria-label="Не полезный ответ"
+            aria-pressed={feedbackRating === 'down'}
+          >
+            👎
+          </button>
         </div>
       )}
     </>

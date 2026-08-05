@@ -1,8 +1,10 @@
 import { Controller, Get, Post, Body, Param, Header, Query, NotFoundException } from '@nestjs/common';
 import { SourcesService } from '../sources/sources.service';
 import { DialogService } from '../ai/services/dialog.service';
+import { MessageFeedbackService } from '../quality/services/message-feedback.service';
 import { Public } from '../../common/decorators/auth.decorators';
 import { WidgetPingDto } from '../sources/dto/source.dto';
+import { WidgetFeedbackDto } from '../quality/dto/quality.dto';
 import { mergeSourceConfig } from '@ai-consultant/shared-types';
 
 @Controller('widget')
@@ -11,6 +13,7 @@ export class WidgetController {
   constructor(
     private readonly sourcesService: SourcesService,
     private readonly dialogService: DialogService,
+    private readonly feedbackService: MessageFeedbackService,
   ) {}
 
   @Get('health')
@@ -77,5 +80,11 @@ export class WidgetController {
       throw new NotFoundException();
     }
     return this.dialogService.getPublicHistory(dialogId, widgetKey, visitorId);
+  }
+
+  @Post('feedback')
+  @Header('Access-Control-Allow-Origin', '*')
+  submitFeedback(@Body() dto: WidgetFeedbackDto) {
+    return this.feedbackService.submitFromWidget(dto);
   }
 }

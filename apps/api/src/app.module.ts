@@ -17,6 +17,7 @@ import { SourcesModule } from './modules/sources/sources.module';
 import { WidgetModule } from './modules/widget/widget.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { PromptsModule } from './modules/prompts/prompts.module';
+import { QualityModule } from './modules/quality/quality.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PublicModule } from './modules/public/public.module';
@@ -56,6 +57,7 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     WidgetModule,
     KnowledgeModule,
     PromptsModule,
+    QualityModule,
     AdminModule,
     AnalyticsModule,
     PublicModule,
