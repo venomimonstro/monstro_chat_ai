@@ -10,6 +10,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { TwoFaPage } from './pages/TwoFaPage';
 import { ChatsPage } from './pages/ChatsPage';
+import { QualityPage } from './pages/QualityPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SourcesPage } from './pages/SourcesPage';
 import { SourceSettingsPage } from './pages/SourceSettingsPage';
@@ -65,6 +66,14 @@ export default function App() {
                 element={
                   <PermissionRoute permission={PERMISSIONS.CHATS_VIEW}>
                     <ChatsPage />
+                  </PermissionRoute>
+                }
+              />
+              <Route
+                path="/quality"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.SOURCES_MANAGE}>
+                    <QualityPage />
                   </PermissionRoute>
                 }
               />

@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -11,6 +13,11 @@ import { PromptScope } from '@prisma/client';
 import { PromptsService } from './prompts.service';
 import { PlaygroundService } from './playground.service';
 import { CreatePromptDto, CreateExperimentDto, PlaygroundTestDto } from './dto/prompt.dto';
+import {
+  CreateRegressionCaseDto,
+  RunRegressionDto,
+  UpdateRegressionCaseDto,
+} from './dto/prompt-regression.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../../common/decorators/auth.decorators';
@@ -18,6 +25,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/jwt-payload.interface';
 import { PERMISSIONS } from '../../common/constants/permissions';
 import { PromptExperimentService } from './prompt-experiment.service';
+import { PromptRegressionService } from './prompt-regression.service';
 
 @Controller('prompts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -26,6 +34,7 @@ export class PromptsController {
     private readonly promptsService: PromptsService,
     private readonly playgroundService: PlaygroundService,
     private readonly experiments: PromptExperimentService,
+    private readonly regression: PromptRegressionService,
   ) {}
 
   @Get()
@@ -130,5 +139,63 @@ export class PromptsController {
   ) {
     const periodDays = days ? parseInt(days, 10) : 7;
     return this.experiments.getReport(user.tenantId!, id, periodDays);
+  }
+
+  @Get('regression/cases')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  listRegressionCases(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('sourceId') sourceId?: string,
+  ) {
+    return this.regression.listCases(user.tenantId!, sourceId);
+  }
+
+  @Post('regression/cases')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  createRegressionCase(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateRegressionCaseDto,
+  ) {
+    return this.regression.createCase(user.tenantId!, dto);
+  }
+
+  @Put('regression/cases/:id')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  updateRegressionCase(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateRegressionCaseDto,
+  ) {
+    return this.regression.updateCase(user.tenantId!, id, dto);
+  }
+
+  @Delete('regression/cases/:id')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  deleteRegressionCase(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.regression.deleteCase(user.tenantId!, id);
+  }
+
+  @Post('regression/run')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  runRegression(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RunRegressionDto,
+  ) {
+    return this.regression.runAll(user.tenantId!, dto);
+  }
+
+  @Get('regression/runs')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  listRegressionRuns(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('limit') limit?: string,
+  ) {
+    return this.regression.listRuns(
+      user.tenantId!,
+      limit ? parseInt(limit, 10) : 20,
+    );
   }
 }

@@ -128,6 +128,9 @@ model Tenant {
   userInvites          UserInvite[]
   promptExperiments    PromptExperiment[]
   pushSubscriptions    PushSubscription[]
+  messageFeedback      MessageFeedback[]
+  promptRegressionCases PromptRegressionCase[]
+  promptRegressionRuns  PromptRegressionRun[]
 
   @@map("tenants")
 }
@@ -238,6 +241,8 @@ model Source {
   indexingJobs       IndexingJob[]
   dialogs            Dialog[]
   leads              Lead[]
+  messageFeedback    MessageFeedback[]
+  promptRegressionCases PromptRegressionCase[]
 
   @@index([tenantId])
   @@map("sources")
@@ -374,6 +379,7 @@ model Dialog {
   llmUsageLogs LLMUsageLog[]
   lead         Lead?
   experimentAssignment DialogExperimentAssignment?
+  messageFeedback MessageFeedback[]
 
   @@index([tenantId])
   @@index([sourceId])
@@ -394,10 +400,35 @@ model Message {
 
   dialog Dialog @relation(fields: [dialogId], references: [id], onDelete: Cascade)
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feedback MessageFeedback?
 
   @@index([dialogId])
   @@index([tenantId])
   @@map("messages")
+}
+
+enum MessageFeedbackRating {
+  up
+  down
+}
+
+model MessageFeedback {
+  id        String                @id @default(uuid()) @db.Uuid
+  tenantId  String                @map("tenant_id") @db.Uuid
+  messageId String                @unique @map("message_id") @db.Uuid
+  dialogId  String                @map("dialog_id") @db.Uuid
+  sourceId  String?               @map("source_id") @db.Uuid
+  rating    MessageFeedbackRating
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  dialog  Dialog  @relation(fields: [dialogId], references: [id], onDelete: Cascade)
+  source  Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, rating])
+  @@index([dialogId])
+  @@map("message_feedback")
 }
 
 model LLMUsageLog {
@@ -444,10 +475,46 @@ model Prompt {
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   experimentsAsA PromptExperiment[] @relation("ExperimentPromptA")
   experimentsAsB PromptExperiment[] @relation("ExperimentPromptB")
+  regressionRuns PromptRegressionRun[]
 
   @@index([tenantId])
   @@index([scope, tenantId])
   @@map("prompts")
+}
+
+model PromptRegressionCase {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  sourceId       String?  @map("source_id") @db.Uuid
+  name           String
+  userMessage    String   @map("user_message")
+  assertionsJson Json     @default("{}") @map("assertions_json")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  source Source? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@map("prompt_regression_cases")
+}
+
+model PromptRegressionRun {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  sourceId    String?  @map("source_id") @db.Uuid
+  promptId    String?  @map("prompt_id") @db.Uuid
+  passed      Int
+  failed      Int
+  resultsJson Json     @map("results_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  prompt Prompt? @relation(fields: [promptId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@map("prompt_regression_runs")
 }
 
 model PromptExperiment {

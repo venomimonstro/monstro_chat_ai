@@ -161,6 +161,9 @@ export class DialogsService {
         NOT: { content: { startsWith: '__DEDUP_LINK__:' } },
       },
       orderBy: { createdAt: 'asc' },
+      include: {
+        feedback: { select: { rating: true } },
+      },
     });
 
     return messages.map((m) => ({
@@ -170,6 +173,7 @@ export class DialogsService {
       createdAt: m.createdAt.toISOString(),
       provider: m.provider,
       model: m.model,
+      feedbackRating: m.feedback?.rating ?? null,
     }));
   }
 
