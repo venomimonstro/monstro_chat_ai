@@ -164,7 +164,7 @@ export function StabilityPage() {
           Установите cron для watchdog-скрипта — он перезапустит упавшие сервисы:
         </p>
         <pre className="mt-2 overflow-x-auto rounded-lg bg-slate-950 p-3 text-xs text-slate-300">
-          {`*/2 * * * * root ${'/opt/monstro_chat_ai'}/scripts/health-watchdog.sh >> /var/log/aicw-watchdog.log 2>&1`}
+          {`*/2 * * * * root /opt/redflow/scripts/health-watchdog.sh >> /var/log/aicw-watchdog.log 2>&1`}
         </pre>
       </div>
     </div>

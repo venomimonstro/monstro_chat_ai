@@ -324,16 +324,16 @@ export class SystemUpdatesService {
     const sprint = update.sprintNumber ?? 0;
     const current = this.release.getCurrent();
     const isStale = this.isOlderVersion(update.version, current.version);
-    const recommendedCommand =
-      'sudo bash /opt/monstro_chat_ai/scripts/quick-update.sh';
+    const installDir = process.env.HOST_INSTALL_DIR ?? '/opt/redflow';
+    const recommendedCommand = `sudo bash ${installDir}/scripts/quick-update.sh`;
 
     return {
       updateId: update.id,
       version: update.version,
       sprintNumber: update.sprintNumber,
-      command: `sudo RELEASE_UPDATE_ID=${update.id} RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-deploy.sh ${update.version} ${sprint}`,
+      command: `sudo RELEASE_UPDATE_ID=${update.id} RELEASE_DEPLOY_TOKEN=<token> bash ${installDir}/scripts/release-deploy.sh ${update.version} ${sprint}`,
       rollbackCommand:
-        'sudo RELEASE_DEPLOY_TOKEN=<token> bash /opt/monstro_chat_ai/scripts/release-rollback.sh',
+        `sudo RELEASE_DEPLOY_TOKEN=<token> bash ${installDir}/scripts/release-rollback.sh`,
       recommendedCommand,
       currentVersion: current.version,
       currentSprint: current.sprint,

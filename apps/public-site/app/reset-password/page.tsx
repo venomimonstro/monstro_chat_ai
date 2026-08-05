@@ -3,7 +3,7 @@ import { ResetPasswordForm } from '@/components/ResetPasswordForm';
 
 export const metadata: Metadata = {
   title: 'Новый пароль',
-  description: 'Установка нового пароля в личном кабинете Monstro Chat AI',
+  description: 'Установка нового пароля в личном кабинете RedFlow',
 };
 
 export default function ResetPasswordPage({

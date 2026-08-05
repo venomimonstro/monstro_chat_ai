@@ -88,7 +88,7 @@ export default async function HomePage() {
                 <span className="gradient-text">пока менеджеры спят</span>
               </h1>
               <p className="mt-6 text-lg leading-relaxed text-ink-700">
-                Monstro Chat AI мгновенно отвечает по материалам вашей компании,
+                RedFlow мгновенно отвечает по материалам вашей компании,
                 уточняет запрос и передаёт контакт менеджеру вместе с историей диалога.
                 Без потерянных обращений и пустых ночных визитов.
               </p>

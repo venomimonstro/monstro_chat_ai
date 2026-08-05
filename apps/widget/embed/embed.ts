@@ -254,7 +254,7 @@ interface AicwApi {
       : '&deferSocket=1';
     iframe = document.createElement('iframe');
     iframe.src = `${widgetUrl}/index.html?widgetKey=${encodeURIComponent(opts.widgetKey)}&apiUrl=${encodeURIComponent(getApiUrl(opts))}${flags}${buildAttributionQuery()}`;
-    iframe.title = 'AI Consultant Chat';
+    iframe.title = 'RedFlow Chat';
     iframe.style.cssText =
       'position:fixed;border:none;z-index:2147483646;width:100%;height:100%;top:0;left:0;background:transparent;pointer-events:none;';
     iframe.setAttribute('allow', 'clipboard-write');

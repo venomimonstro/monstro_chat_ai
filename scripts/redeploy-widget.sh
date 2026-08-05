@@ -2,7 +2,9 @@
 # Быстрое обновление AI-виджета (embed.js + iframe) после git pull
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 cd "${INSTALL_DIR}"
 
 [[ "${EUID:-$(id -u)}" -eq 0 ]] || {

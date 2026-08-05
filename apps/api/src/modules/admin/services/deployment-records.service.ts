@@ -19,7 +19,7 @@ export class DeploymentRecordsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(limit = 30): Promise<DeploymentRecordDto[]> {
+  async list(limit = 150): Promise<DeploymentRecordDto[]> {
     const rows = await this.prisma.deploymentRecord.findMany({
       orderBy: { appliedAt: 'desc' },
       take: limit,

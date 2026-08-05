@@ -12,20 +12,20 @@
 
 ```bash
 # РЕКОМЕНДУЕТСЯ — автоматически берёт последний спринт из SPRINTS.md
-sudo bash /opt/monstro_chat_ai/scripts/deploy-latest.sh
+sudo bash /opt/redflow/scripts/deploy-latest.sh
 
 # Или вручную с версией
-sudo bash /opt/monstro_chat_ai/scripts/release-deploy.sh 0.34.0 34
+sudo bash /opt/redflow/scripts/release-deploy.sh 0.34.0 34
 ```
 
 **Не используйте старые команды** из админки для Sprint 31/32 — они вызовут ошибку версии.
 
 # Откат на предыдущую версию
 sudo RELEASE_DEPLOY_TOKEN=$(grep RELEASE_DEPLOY_TOKEN .env | cut -d= -f2) \
-  bash /opt/monstro_chat_ai/scripts/release-rollback.sh
+  bash /opt/redflow/scripts/release-rollback.sh
 
 # Только проверка
-bash /opt/monstro_chat_ai/scripts/verify-release.sh post 0.33.0 33
+bash /opt/redflow/scripts/verify-release.sh post 0.33.0 33
 ```
 
 `RELEASE_DEPLOY_TOKEN` — из `.env` на сервере. **Обязателен** для корректной синхронизации версии в API.

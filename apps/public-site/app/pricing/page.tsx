@@ -6,7 +6,7 @@ import { CheckIcon } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Тарифы',
-  description: 'Тарифы Monstro Chat AI — прозрачная оплата за сообщения. 7 дней бесплатно.',
+  description: 'Тарифы RedFlow — прозрачная оплата за сообщения. 7 дней бесплатно.',
 };
 
 export default async function PricingPage() {
@@ -17,7 +17,7 @@ export default async function PricingPage() {
       <section className="hero-gradient border-b border-slate-100 py-16 md:py-24">
         <div className="mx-auto max-w-6xl px-4 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-ink-900 md:text-5xl">
-            Прозрачные тарифы Monstro Chat AI
+            Прозрачные тарифы RedFlow
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-ink-700">
             Платите только за сообщения AI. 7 дней бесплатно — без карты и скрытых комиссий.

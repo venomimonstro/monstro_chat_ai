@@ -2,7 +2,10 @@
 # Настройка 2FA для админа через API (если образ API старый, без SKIP_2FA)
 set -euo pipefail
 
-cd "${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
+cd "${INSTALL_DIR}"
 JAR=$(mktemp)
 
 cleanup() { rm -f "$JAR"; }

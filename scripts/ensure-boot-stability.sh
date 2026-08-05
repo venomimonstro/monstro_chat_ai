@@ -3,8 +3,10 @@
 # Usage: sudo bash scripts/ensure-boot-stability.sh
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
-WATCHDOG_CRON='*/2 * * * * root /opt/monstro_chat_ai/scripts/health-watchdog.sh >> /var/log/aicw-watchdog.log 2>&1'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
+WATCHDOG_CRON="*/2 * * * * root ${INSTALL_DIR}/scripts/health-watchdog.sh >> /var/log/aicw-watchdog.log 2>&1"
 CRON_FILE="/etc/cron.d/aicw-watchdog"
 
 log()  { echo -e "\033[1;32m==>\033[0m $*"; }

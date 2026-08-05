@@ -53,6 +53,60 @@ export class ReleaseController {
     return this.deployments.list();
   }
 
+  @Get('sprint-matrix')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @RequirePermission(PERMISSIONS.ADMIN_UPDATES_VIEW)
+  async sprintMatrix() {
+    const sprints = this.release
+      .listSprints()
+      .filter((s) => s.status.toLowerCase() === 'done');
+    const deployments = await this.deployments.list(200);
+    const active = await this.deployments.getActive();
+    const current = this.release.getCurrent();
+
+    const latestBySprint = new Map<number, (typeof deployments)[0]>();
+    for (const row of deployments) {
+      const prev = latestBySprint.get(row.sprint);
+      if (!prev || new Date(row.appliedAt) > new Date(prev.appliedAt)) {
+        latestBySprint.set(row.sprint, row);
+      }
+    }
+
+    const liveSprint = active?.sprint ?? current.sprint;
+
+    const rows = sprints
+      .map((s) => {
+        const version = this.release.getSuggestedVersion(s.number);
+        const record = latestBySprint.get(s.number);
+        const isLive = liveSprint === s.number;
+        return {
+          sprint: s.number,
+          version,
+          description: s.description,
+          planStatus: s.status,
+          deployed: Boolean(record),
+          deployStatus: record?.status ?? ('not_deployed' as const),
+          appliedAt: record?.appliedAt ?? null,
+          gitSha: record?.gitSha ?? null,
+          isLive,
+          canRollback: Boolean(
+            record &&
+              !isLive &&
+              record.status !== 'rolled_back' &&
+              s.number < liveSprint,
+          ),
+        };
+      })
+      .sort((a, b) => b.sprint - a.sprint);
+
+    return {
+      currentVersion: current.version,
+      currentSprint: current.sprint,
+      previousVersion: current.previousVersion ?? null,
+      rows,
+    };
+  }
+
   @Get('updates/:id/instructions')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @RequirePermission(PERMISSIONS.ADMIN_UPDATES_MANAGE)
@@ -121,14 +175,15 @@ export class ReleaseController {
       return {
         ok: false,
         message: `Деплой версии ${version} не найден в истории`,
-        command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
+        command: `sudo bash ${process.env.HOST_INSTALL_DIR ?? '/opt/redflow'}/scripts/release-rollback.sh ${version}`,
       };
     }
+    const installDir = process.env.HOST_INSTALL_DIR ?? '/opt/redflow';
     const result = await this.updates.queueHostRollback(version);
     return {
       ...result,
       sprint: record.sprint,
-      command: `sudo bash /opt/monstro_chat_ai/scripts/release-rollback.sh ${version}`,
+      command: `sudo bash ${installDir}/scripts/release-rollback.sh ${version}`,
     };
   }
 
