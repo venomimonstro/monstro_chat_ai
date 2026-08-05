@@ -70,6 +70,7 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
+| 68 | Done | Админка с внешнего IP + умный краулер обучения: профили сайта, приоритетные URL, фильтры |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

@@ -85,6 +85,8 @@ export interface SourceConfig {
   security?: WidgetSecurityConfig;
   ai?: SourceAiConfig;
   channel?: import('./channels').SourceChannelConfig;
+  /** Настройки обучения / индексации сайта (Sprint 68). */
+  training?: import('./crawl').SourceTrainingConfig;
 }
 
 /** Merge stored/partial config with platform defaults (e.g. red primary when DB has legacy blue). */
@@ -102,6 +104,9 @@ export function mergeSourceConfig(
       ? { ai: { ...base.ai, ...existing.ai } }
       : {}),
     ...(existing.channel ? { channel: existing.channel } : {}),
+    ...(existing.training
+      ? { training: { ...existing.training } }
+      : {}),
   };
 }
 
@@ -139,6 +144,9 @@ export function patchSourceConfig(
         }
       : base.ai,
     channel: patch.channel ?? base.channel,
+    training: patch.training
+      ? { ...base.training, ...patch.training }
+      : base.training,
   });
 }
 

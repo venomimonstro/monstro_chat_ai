@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import type {
+  CrawlSiteProfile,
+  SourceTrainingConfig,
+} from '@ai-consultant/shared-types';
+import type {
   KnowledgeDocumentDto,
   IndexingJobDto,
   RetrievalDiagnosticDto,
@@ -35,7 +39,22 @@ function isManualText(doc: KnowledgeDocumentDto) {
   return doc.mimeType === 'text/manual';
 }
 
-export function TrainingTab({ sourceId }: { sourceId: string }) {
+const SITE_PROFILE_LABELS: Record<CrawlSiteProfile, string> = {
+  auto: 'Авто — система определит объём',
+  small: 'Визитка — до ~20 страниц',
+  large: 'Крупный сайт — приоритет ключевых разделов',
+  ecommerce: 'Интернет-магазин — каталог без мусора',
+};
+
+export function TrainingTab({
+  sourceId,
+  training,
+  onTrainingChange,
+}: {
+  sourceId: string;
+  training?: SourceTrainingConfig;
+  onTrainingChange?: (patch: Partial<SourceTrainingConfig>) => void;
+}) {
   const [crawlUrl, setCrawlUrl] = useState('');
   const [manualTitle, setManualTitle] = useState('');
   const [manualContent, setManualContent] = useState('');
@@ -78,12 +97,16 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
   }, [sourceId]);
 
   useEffect(() => {
+    if (training?.crawlRootUrl) {
+      setCrawlUrl(training.crawlRootUrl);
+      return;
+    }
     fetchLastCrawl(sourceId)
       .then((last) => {
         if (last?.rootUrl) setCrawlUrl(last.rootUrl);
       })
       .catch(() => undefined);
-  }, [sourceId]);
+  }, [sourceId, training?.crawlRootUrl]);
 
   useEffect(() => {
     reload().catch(() => setError('Не удалось загрузить данные'));
@@ -220,8 +243,97 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
     }
   };
 
+  const patchTraining = (patch: Partial<SourceTrainingConfig>) => {
+    onTrainingChange?.(patch);
+  };
+
+  const priorityUrlsText = (training?.priorityUrls ?? []).join('\n');
+  const excludePatternsText = (training?.excludePatterns ?? []).join('\n');
+
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="text-sm font-semibold text-slate-900">
+          Стратегия индексации
+        </h2>
+        <p className="mt-1 text-xs text-slate-500">
+          Настройте, как система обходит сайт: для визитки индексируются все
+          страницы, для крупных сайтов — ключевые разделы, для магазина —
+          каталог без корзины и пагинации.
+        </p>
+        <div className="mt-3 space-y-3">
+          <label className="block text-sm text-slate-700">
+            Тип сайта
+            <select
+              value={training?.siteProfile ?? 'auto'}
+              onChange={(e) =>
+                patchTraining({
+                  siteProfile: e.target.value as CrawlSiteProfile,
+                })
+              }
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
+              {(Object.keys(SITE_PROFILE_LABELS) as CrawlSiteProfile[]).map(
+                (key) => (
+                  <option key={key} value={key}>
+                    {SITE_PROFILE_LABELS[key]}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={training?.excludeBlog !== false}
+              onChange={(e) => patchTraining({ excludeBlog: e.target.checked })}
+            />
+            Исключать блог, новости, теги и служебные страницы
+          </label>
+
+          <label className="block text-sm text-slate-700">
+            Приоритетные URL (по одному на строку)
+            <textarea
+              rows={3}
+              value={priorityUrlsText}
+              onChange={(e) =>
+                patchTraining({
+                  priorityUrls: e.target.value
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder={'https://example.com/pricing\nhttps://example.com/services'}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+            />
+          </label>
+          <p className="text-xs text-slate-500">
+            Эти страницы индексируются первыми — удобно указать тарифы, услуги,
+            контакты.
+          </p>
+
+          <label className="block text-sm text-slate-700">
+            Исключить URL-паттерны (glob, по одному на строку)
+            <textarea
+              rows={2}
+              value={excludePatternsText}
+              onChange={(e) =>
+                patchTraining({
+                  excludePatterns: e.target.value
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                })
+              }
+              placeholder={'/vacancy/*\n/promo/*'}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs"
+            />
+          </label>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="text-sm font-semibold text-slate-900">
           Проверка поиска (RAG)
@@ -320,9 +432,8 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
           Индексация сайта
         </h2>
         <p className="mt-1 text-xs text-slate-500">
-          Укажите URL — агент обойдёт страницы (глубина 3) с учётом robots.txt.
-          Если API в Docker на том же сервере — используйте публичный URL, система
-          попробует внутренний адрес автоматически.
+          Укажите URL — система обойдёт страницы с учётом robots.txt и выбранной
+          стратегии. Приоритетные URL и sitemap учитываются автоматически.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <input

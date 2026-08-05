@@ -62,6 +62,7 @@ export * from './channels';
 export * from './prompt-experiment';
 export * from './persona';
 export * from './closer';
+export * from './crawl';
 export {
   buildPersonaInstruction,
   DEFAULT_FORBIDDEN_PHRASES,
@@ -87,6 +88,10 @@ export {
   mergeSourceConfig,
   patchSourceConfig,
 } from './source';
+export type {
+  CrawlSiteProfile,
+  SourceTrainingConfig,
+} from './crawl';
 export type {
   WidgetPosition,
   WidgetButtonShape,
