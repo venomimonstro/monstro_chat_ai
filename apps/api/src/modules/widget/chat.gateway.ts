@@ -134,13 +134,50 @@ export class ChatGateway implements OnGatewayConnection {
           data.visitorId,
         );
         client.emit('history', history);
-        client.join(`dialog:${data.dialogId}`);
+        client.join(`dialog:${history.dialogId}`);
       } catch {
-        client.emit('error', { code: 'dialog_not_found' });
+        const resumed = await this.dialogService.findResumableDialog(
+          source.tenantId,
+          source.id,
+          data.visitorId,
+        );
+        if (resumed) {
+          const history = await this.dialogService.getPublicHistory(
+            resumed.id,
+            data.widgetKey,
+            data.visitorId,
+          );
+          client.emit('history', history);
+          client.join(`dialog:${history.dialogId}`);
+        } else {
+          client.emit('error', { code: 'dialog_not_found' });
+        }
+      }
+    } else {
+      const resumed = await this.dialogService.findResumableDialog(
+        source.tenantId,
+        source.id,
+        data.visitorId,
+      );
+      if (resumed) {
+        try {
+          const history = await this.dialogService.getPublicHistory(
+            resumed.id,
+            data.widgetKey,
+            data.visitorId,
+          );
+          client.emit('history', history);
+          client.join(`dialog:${history.dialogId}`);
+        } catch {
+          /* no history */
+        }
       }
     }
 
-    client.emit('joined', { visitorId: data.visitorId, dialogId: data.dialogId });
+    client.emit('joined', {
+      visitorId: data.visitorId,
+      dialogId: data.dialogId,
+    });
   }
 
   private clientIp(client: Socket): string {

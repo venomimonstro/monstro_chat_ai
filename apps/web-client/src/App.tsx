@@ -9,6 +9,7 @@ import { PERMISSIONS } from './lib/permissions';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { TwoFaPage } from './pages/TwoFaPage';
+import { ChatsPage } from './pages/ChatsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SourcesPage } from './pages/SourcesPage';
 import { SourceSettingsPage } from './pages/SourceSettingsPage';
@@ -59,7 +60,14 @@ export default function App() {
                   </PermissionRoute>
                 }
               />
-              <Route path="/chats" element={<PlaceholderPage title="Чаты" />} />
+              <Route
+                path="/chats"
+                element={
+                  <PermissionRoute permission={PERMISSIONS.CHATS_VIEW}>
+                    <ChatsPage />
+                  </PermissionRoute>
+                }
+              />
               <Route
                 path="/crm"
                 element={

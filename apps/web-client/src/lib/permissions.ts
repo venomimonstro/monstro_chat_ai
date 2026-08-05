@@ -25,6 +25,7 @@ export function hasAnyPermission(
 export const NAV_ITEMS = [
   { to: '/', label: 'Главная', short: '⌂', end: true as const, permissions: null as string[] | null },
   { to: '/sources', label: 'Источники', short: '◎', end: false as const, permissions: [PERMISSIONS.SOURCES_MANAGE] },
+  { to: '/chats', label: 'Чаты', short: '💬', end: false as const, permissions: [PERMISSIONS.CHATS_VIEW] },
   { to: '/crm', label: 'CRM', short: '▦', end: false as const, permissions: [PERMISSIONS.CRM_LEADS_VIEW] },
   { to: '/billing', label: 'Тариф', short: '₽', end: false as const, permissions: [PERMISSIONS.SETTINGS_MANAGE] },
   { to: '/integrations', label: 'Интеграции', short: '⚡', end: false as const, permissions: [PERMISSIONS.SETTINGS_MANAGE] },

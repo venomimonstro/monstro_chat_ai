@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AiController } from './ai.controller';
+import { DialogsController } from './dialogs.controller';
 import { AiService } from './ai.service';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { RedisModule } from '../../redis/redis.module';
@@ -13,6 +14,7 @@ import { MockLLMProvider } from './providers/mock.provider';
 import { ProviderRegistryService } from './providers/provider-registry.service';
 import { RetrievalService } from './services/retrieval.service';
 import { DialogService } from './services/dialog.service';
+import { DialogsService } from './services/dialogs.service';
 import { WidgetRateLimitService } from './services/widget-rate-limit.service';
 import { HistoryCompressionService } from './services/history-compression.service';
 import { AiOrchestratorService } from './services/ai-orchestrator.service';
@@ -36,7 +38,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     PromptExperimentModule,
     AnalyticsModule,
   ],
-  controllers: [AiController],
+  controllers: [AiController, DialogsController],
   providers: [
     AiService,
     OpenAIProvider,
@@ -49,6 +51,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     ProviderCredentialsService,
     RetrievalService,
     DialogService,
+    DialogsService,
     WidgetRateLimitService,
     HistoryCompressionService,
     AiOrchestratorService,
