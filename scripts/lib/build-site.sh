@@ -9,9 +9,11 @@ source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
 cd "${INSTALL_DIR}"
 deploy_export_frontend_env
 
-deploy_npm_install site \
-  --workspace=@ai-consultant/shared-types \
-  --workspace=@ai-consultant/public-site
+if [[ "${DEPLOY_SKIP_NPM_INSTALL:-0}" != "1" ]]; then
+  deploy_npm_install site \
+    --workspace=@ai-consultant/shared-types \
+    --workspace=@ai-consultant/public-site
+fi
 
 deploy_log "Сборка публичного сайта..."
 npm run build -w @ai-consultant/shared-types

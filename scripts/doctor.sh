@@ -47,7 +47,9 @@ else
   echo "OK: node_modules не отслеживается git"
 fi
 if [[ ! -f node_modules/typescript/package.json ]]; then
-  echo "!! node_modules не установлены — npm install --include-workspace-root"
+  echo "!! node_modules не установлены — sudo bash scripts/fix-npm-install.sh"
+elif ! node -e "require('esbuild'); require('typescript')" 2>/dev/null; then
+  echo "!! node_modules повреждены — sudo bash scripts/fix-npm-install.sh"
 fi
 
 echo ""

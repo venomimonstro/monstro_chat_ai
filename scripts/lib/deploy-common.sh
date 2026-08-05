@@ -104,38 +104,146 @@ deploy_lock_changed() {
 }
 
 deploy_after_git_pull() {
-  if [[ ! -f "${INSTALL_DIR}/node_modules/typescript/package.json" ]]; then
+  if ! deploy_npm_deps_healthy; then
     rm -rf "${LOCK_STAMP_DIR}" 2>/dev/null || true
-    deploy_warn "node_modules отсутствуют после git pull — npm install будет выполнен при сборке"
+    deploy_warn "node_modules отсутствуют или повреждены после git pull — будет выполнен npm install"
   fi
+}
+
+deploy_stop_npm_consumers() {
+  local unit
+  for unit in monstro-widget monstro-web-client monstro-web-admin monstro-public-site; do
+    if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+      deploy_log "Останавливаю ${unit} (освобождаю node_modules/esbuild)..."
+      systemctl stop "${unit}" || true
+    fi
+  done
+  pkill -f "${INSTALL_DIR}/node_modules/esbuild" 2>/dev/null || true
+  pkill -f "${INSTALL_DIR}/apps/widget.*vite" 2>/dev/null || true
+  sleep 1
+}
+
+deploy_rm_node_modules() {
+  deploy_stop_npm_consumers
+  deploy_log "Удаляю node_modules..."
+  local paths=(
+    "${INSTALL_DIR}/node_modules"
+    "${INSTALL_DIR}/apps/api/node_modules"
+    "${INSTALL_DIR}/apps/web-client/node_modules"
+    "${INSTALL_DIR}/apps/web-admin/node_modules"
+    "${INSTALL_DIR}/apps/public-site/node_modules"
+    "${INSTALL_DIR}/apps/widget/node_modules"
+    "${INSTALL_DIR}/packages/shared-types/node_modules"
+  )
+  local p
+  for p in "${paths[@]}"; do
+    [[ -d "${p}" ]] || continue
+    chmod -R u+w "${p}" 2>/dev/null || true
+    rm -rf "${p}" 2>/dev/null || find "${p}" -mindepth 1 -delete 2>/dev/null || true
+    rm -rf "${p}" 2>/dev/null || true
+  done
 }
 
 deploy_npm_deps_present() {
   [[ -f "${INSTALL_DIR}/node_modules/typescript/package.json" ]]
 }
 
+deploy_npm_deps_healthy() {
+  deploy_npm_deps_present \
+    && [[ -f "${INSTALL_DIR}/node_modules/esbuild/package.json" ]] \
+    && [[ -f "${INSTALL_DIR}/node_modules/.package-lock.json" || -f "${INSTALL_DIR}/package-lock.json" ]]
+}
+
+deploy_verify_npm_deps() {
+  cd "${INSTALL_DIR}"
+  deploy_npm_deps_healthy \
+    && node -e "require('esbuild'); require('typescript')" 2>/dev/null
+}
+
 deploy_npm_install() {
   local scope="$1"
   shift
   local workspaces=("$@")
+  local lock_file="${DEPLOY_STATE_DIR}/npm-install.lock"
 
   deploy_setup_npm_cache
-  cd "${INSTALL_DIR}"
+  mkdir -p "${DEPLOY_STATE_DIR}"
 
-  if ! deploy_lock_changed "${scope}" && deploy_npm_deps_present; then
-    deploy_log "npm install пропущен (${scope}, package-lock.json не менялся)"
-    bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
-    return 0
+  (
+    flock -w 900 9 || deploy_fail "npm install: другой процесс удерживает lock (>15 мин)"
+
+    cd "${INSTALL_DIR}"
+
+    local need_install=0
+    if [[ "${NPM_FORCE_CLEAN:-0}" == "1" ]]; then
+      need_install=1
+    elif deploy_lock_changed "${scope}"; then
+      need_install=1
+    elif ! deploy_npm_deps_healthy; then
+      need_install=1
+    fi
+
+    if [[ "${need_install}" -eq 0 ]]; then
+      deploy_log "npm install пропущен (${scope}, deps OK, lock не менялся)"
+      bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
+      exit 0
+    fi
+
+    if [[ "${NPM_FORCE_CLEAN:-0}" == "1" ]] || ! deploy_npm_deps_healthy; then
+      deploy_warn "Повреждённые node_modules — полная очистка перед установкой (${scope})"
+      deploy_rm_node_modules
+      npm cache clean --force 2>/dev/null || true
+    else
+      deploy_log "npm install (${scope})..."
+    fi
+
+    local attempt=1
+    while [[ "${attempt}" -le 3 ]]; do
+      deploy_stop_npm_consumers
+      if npm install "${workspaces[@]}" --include-workspace-root --no-audit --no-fund; then
+        bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
+        if deploy_verify_npm_deps; then
+          deploy_log "npm install OK (${scope})"
+          exit 0
+        fi
+        deploy_warn "npm install завершился, но deps не прошли проверку"
+      else
+        deploy_warn "npm install попытка ${attempt}/3 завершилась с ошибкой"
+      fi
+      deploy_rm_node_modules
+      npm cache clean --force 2>/dev/null || true
+      sleep 2
+      attempt=$((attempt + 1))
+    done
+
+    deploy_fail "npm install не удался после 3 попыток. Лог: ${NPM_CACHE_DIR}/_logs/"
+  ) 9>"${lock_file}"
+}
+
+deploy_npm_install_for_components() {
+  local components="$1"
+  local workspaces=()
+
+  if [[ " ${components} " == *" widget "* ]] \
+    || [[ " ${components} " == *" frontends "* ]] \
+    || [[ " ${components} " == *" site "* ]]; then
+    workspaces+=(--workspace=@ai-consultant/shared-types)
+  fi
+  if [[ " ${components} " == *" widget "* ]]; then
+    workspaces+=(--workspace=@ai-consultant/widget)
+  fi
+  if [[ " ${components} " == *" frontends "* ]]; then
+    workspaces+=(--workspace=@ai-consultant/web-client)
+    workspaces+=(--workspace=@ai-consultant/web-admin)
+  fi
+  if [[ " ${components} " == *" site "* ]]; then
+    workspaces+=(--workspace=@ai-consultant/public-site)
   fi
 
-  if ! deploy_npm_deps_present; then
-    deploy_warn "node_modules отсутствуют или неполные — выполняю npm install (${scope})"
-  else
-    deploy_log "npm install (${scope})..."
-  fi
+  [[ "${#workspaces[@]}" -eq 0 ]] && return 0
 
-  npm install "${workspaces[@]}" --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
+  deploy_npm_install "components" "${workspaces[@]}"
+  export DEPLOY_SKIP_NPM_INSTALL=1
 }
 
 deploy_restart_if_active() {

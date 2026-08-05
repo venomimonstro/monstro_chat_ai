@@ -172,6 +172,12 @@ main() {
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
+  if needs "${components}" "widget" \
+    || needs "${components}" "frontends" \
+    || needs "${components}" "site"; then
+    deploy_npm_install_for_components "${components}"
+  fi
+
   if [[ "${PARALLEL_BUILDS}" == "1" ]]; then
     run_parallel_builds "${components}"
   else

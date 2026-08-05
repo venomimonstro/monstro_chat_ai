@@ -35,6 +35,12 @@ prune_docker_build_cache() {
 }
 
 prune_frontend_artifacts() {
+  log "Останавливаю фронтенд-сервисы перед удалением node_modules..."
+  for unit in monstro-widget monstro-web-client monstro-web-admin monstro-public-site; do
+    systemctl stop "${unit}" 2>/dev/null || true
+  done
+  sleep 1
+
   log "Удаляю артефакты сборки фронтенда на хосте..."
   rm -rf "${INSTALL_DIR}/node_modules" \
     "${INSTALL_DIR}/apps/api/node_modules" \
