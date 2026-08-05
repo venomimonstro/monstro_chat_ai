@@ -142,6 +142,30 @@ function clearStoredDialogId(widgetKey: string) {
   safeStorageRemove(`aicw_dialog_${widgetKey}`);
 }
 
+function safeSessionGet(key: string): string | null {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSessionSet(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function storeSessionToken(widgetKey: string, token: string) {
+  safeSessionSet(`aicw_session_${widgetKey}`, token);
+}
+
+function getSessionToken(widgetKey: string): string | null {
+  return safeSessionGet(`aicw_session_${widgetKey}`);
+}
+
 function formatTime(date: Date): string {
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
@@ -184,6 +208,10 @@ export function WidgetApp() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const attributionRef = useRef(attribution);
   const streamFlushRafRef = useRef<number | null>(null);
+  const sessionTokenRef = useRef<string | null>(
+    widgetKey ? getSessionToken(widgetKey) : null,
+  );
+  const hiddenDisconnectRef = useRef(false);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -394,9 +422,20 @@ export function WidgetApp() {
 
     socket.on('connect_error', () => setConnectionError(true));
 
-    socket.on('joined', () => {
+    socket.on('joined', (data: { sessionToken?: string }) => {
+      if (data.sessionToken && widgetKey) {
+        sessionTokenRef.current = data.sessionToken;
+        storeSessionToken(widgetKey, data.sessionToken);
+      }
       if (!dialogIdRef.current) {
         setHistoryLoading(false);
+      }
+    });
+
+    socket.on('session:refresh', (data: { sessionToken?: string }) => {
+      if (data.sessionToken && widgetKey) {
+        sessionTokenRef.current = data.sessionToken;
+        storeSessionToken(widgetKey, data.sessionToken);
       }
     });
 
@@ -594,15 +633,37 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
+    const pauseReconnect = () => {
       const socket = socketRef.current;
-      if (!socket || socket.connected) return;
-      setConnectionError(false);
-      socket.connect();
+      if (!socket) return;
+      hiddenDisconnectRef.current = true;
+      socket.io.opts.reconnection = false;
+      if (socket.connected) {
+        socket.disconnect();
+      }
     };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+
+    const resumeReconnect = () => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      hiddenDisconnectRef.current = false;
+      socket.io.opts.reconnection = true;
+      if (!socket.connected) {
+        setConnectionError(false);
+        socket.connect();
+      }
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        pauseReconnect();
+        return;
+      }
+      resumeReconnect();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, [deferSocket, open, preview]);
 
   useEffect(() => {

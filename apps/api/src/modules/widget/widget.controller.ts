@@ -16,6 +16,7 @@ import { Public } from '../../common/decorators/auth.decorators';
 import { WidgetPingDto } from '../sources/dto/source.dto';
 import { mergeSourceConfig } from '@ai-consultant/shared-types';
 import { assertWidgetOrigin } from './utils/widget-origin.guard';
+import { WidgetSessionService } from './services/widget-session.service';
 
 @Controller('widget')
 @Public()
@@ -23,6 +24,7 @@ export class WidgetController {
   constructor(
     private readonly sourcesService: SourcesService,
     private readonly dialogService: DialogService,
+    private readonly widgetSession: WidgetSessionService,
   ) {}
 
   @Get('health')
@@ -112,6 +114,7 @@ export class WidgetController {
     @Param('dialogId') dialogId: string,
     @Query('widgetKey') widgetKey: string,
     @Query('visitorId') visitorId: string,
+    @Query('sessionToken') sessionToken: string,
     @Req() req: Request,
   ) {
     if (!widgetKey || !visitorId) {
@@ -125,6 +128,11 @@ export class WidgetController {
       req.headers.origin,
       req.headers.referer,
     );
+    this.widgetSession.assertToken(sessionToken, {
+      widgetKey,
+      visitorId,
+      dialogId,
+    });
     return this.dialogService.getPublicHistory(dialogId, widgetKey, visitorId);
   }
 }

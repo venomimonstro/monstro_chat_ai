@@ -15,6 +15,8 @@ import { WidgetRateLimitService } from '../ai/services/widget-rate-limit.service
 import { DialogService } from '../ai/services/dialog.service';
 import { FollowUpPushService } from '../crm/follow-up/follow-up-push.service';
 import { FollowUpSchedulerService } from '../crm/follow-up/follow-up-scheduler.service';
+import { WidgetSessionService } from './services/widget-session.service';
+import { isWidgetOriginAllowed } from './utils/widget-origin.util';
 import type { Source } from '@prisma/client';
 import {
   DEFAULT_SOURCE_CONFIG,
@@ -84,6 +86,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     private readonly dialogService: DialogService,
     private readonly followUpPush: FollowUpPushService,
     private readonly followUpScheduler: FollowUpSchedulerService,
+    private readonly widgetSession: WidgetSessionService,
   ) {}
 
   afterInit() {
@@ -91,11 +94,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   }
 
   private isOriginAllowed(client: Socket, source: Source): boolean {
-    const allowed = this.sourcesService.getAllowedOrigins(source);
-    if (!allowed.length) return true;
-    const origin = client.handshake.headers.origin ?? client.handshake.headers.referer;
-    if (!origin) return false;
-    return allowed.some((o) => origin === o || origin.startsWith(`${o}/`));
+    return isWidgetOriginAllowed(
+      this.sourcesService,
+      source,
+      client.handshake.headers.origin,
+      client.handshake.headers.referer,
+    );
   }
 
   handleConnection(client: Socket) {
@@ -133,14 +137,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     client.data.attribution = normalizeAttribution(data.attribution);
     client.join(`visitor:${data.visitorId}`);
 
+    const sessionToken = this.widgetSession.issueToken({
+      widgetKey: data.widgetKey,
+      visitorId: data.visitorId,
+      dialogId: data.dialogId,
+    });
+
     client.emit('joined', {
       visitorId: data.visitorId,
       dialogId: data.dialogId,
+      sessionToken,
     });
 
     void this.loadJoinHistory(client, source, data).catch((error) => {
       this.logger.warn(`Join history failed: ${String(error)}`);
     });
+  }
+
+  private emitSessionToken(
+    client: Socket,
+    widgetKey: string,
+    visitorId: string,
+    dialogId?: string,
+  ) {
+    const sessionToken = this.widgetSession.issueToken({
+      widgetKey,
+      visitorId,
+      dialogId,
+    });
+    client.emit('session:refresh', { sessionToken, dialogId });
+    return sessionToken;
   }
 
   private async loadJoinHistory(
@@ -166,6 +192,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
         );
         client.emit('history', history);
         client.join(`dialog:${history.dialogId}`);
+        this.emitSessionToken(
+          client,
+          data.widgetKey,
+          data.visitorId,
+          history.dialogId,
+        );
         return;
       } catch {
         const resumed = await this.dialogService.findResumableDialog(
@@ -181,6 +213,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
           );
           client.emit('history', history);
           client.join(`dialog:${history.dialogId}`);
+          this.emitSessionToken(
+            client,
+            data.widgetKey,
+            data.visitorId,
+            history.dialogId,
+          );
         } else {
           client.emit('error', { code: 'dialog_not_found' });
         }
@@ -203,6 +241,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       );
       client.emit('history', history);
       client.join(`dialog:${history.dialogId}`);
+      this.emitSessionToken(
+        client,
+        data.widgetKey,
+        data.visitorId,
+        history.dialogId,
+      );
     } catch {
       /* no history */
     }

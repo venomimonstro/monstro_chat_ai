@@ -69,6 +69,7 @@
 | 64 | Done | Аналитика воронки чата: открытие → сообщение → контакт → лид |
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
+| 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
@@ -121,3 +122,4 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 64 | Воронка чата в аналитике (UTM, страницы) |
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
+| 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
