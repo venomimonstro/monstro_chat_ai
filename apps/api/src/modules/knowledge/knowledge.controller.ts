@@ -15,7 +15,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { KnowledgeService } from './knowledge.service';
 import { StorageService } from './services/storage.service';
-import { StartCrawlDto, AddManualTextDto, UpdateManualTextDto } from './dto/knowledge.dto';
+import { StartCrawlDto, AddManualTextDto, UpdateManualTextDto, ReindexDto } from './dto/knowledge.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../../common/decorators/auth.decorators';
@@ -41,7 +41,29 @@ export class KnowledgeController {
       user.tenantId!,
       dto.sourceId,
       dto.url,
+      dto.mode ?? 'full',
     );
+  }
+
+  @Post('reindex')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  startReindex(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ReindexDto,
+  ) {
+    return this.knowledgeService.startReindex(user.tenantId!, dto.sourceId);
+  }
+
+  @Get('last-crawl')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  getLastCrawl(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('sourceId') sourceId: string,
+  ) {
+    if (!sourceId) {
+      throw new BadRequestException('sourceId обязателен');
+    }
+    return this.knowledgeService.getLastCrawl(user.tenantId!, sourceId);
   }
 
   @Get('documents')

@@ -10,7 +10,9 @@ import {
   excludeDocument,
   fetchDocuments,
   fetchJobs,
+  fetchLastCrawl,
   startCrawl,
+  startReindex,
   uploadDocument,
   deleteDocument,
   addManualText,
@@ -40,6 +42,10 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [documents, setDocuments] = useState<KnowledgeDocumentDto[]>([]);
   const [jobs, setJobs] = useState<IndexingJobDto[]>([]);
+  const [lastCrawl, setLastCrawl] = useState<{
+    rootUrl: string;
+    completedAt: string | null;
+  } | null>(null);
   const [activeJob, setActiveJob] = useState<IndexingJobDto | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,18 +57,32 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
   const [probeLoading, setProbeLoading] = useState(false);
 
   const reload = useCallback(async () => {
-    const [docs, jobList] = await Promise.all([
+    const [docs, jobList, last] = await Promise.all([
       fetchDocuments(sourceId),
       fetchJobs(sourceId),
+      fetchLastCrawl(sourceId),
     ]);
     setDocuments(docs);
     setJobs(jobList);
+    setLastCrawl(
+      last
+        ? { rootUrl: last.rootUrl, completedAt: last.completedAt }
+        : null,
+    );
     const running =
       jobList.find((j) => j.status === 'running' || j.status === 'queued') ??
       null;
     const lastFailed =
       jobList.find((j) => j.status === 'failed' && j.type === 'crawl') ?? null;
     setActiveJob(running ?? lastFailed);
+  }, [sourceId]);
+
+  useEffect(() => {
+    fetchLastCrawl(sourceId)
+      .then((last) => {
+        if (last?.rootUrl) setCrawlUrl(last.rootUrl);
+      })
+      .catch(() => undefined);
   }, [sourceId]);
 
   useEffect(() => {
@@ -161,6 +181,24 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
       setLoading(false);
     }
   };
+
+  const handleReindex = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const job = await startReindex(sourceId);
+      setActiveJob(job);
+      await reload();
+    } catch (e: unknown) {
+      setError(extractErrorMessage(e, 'Не удалось запустить переиндексацию'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const lastCompletedJob = jobs.find(
+    (j) => j.type === 'crawl' && j.status === 'completed',
+  );
 
   const progress =
     activeJob && activeJob.totalPages > 0
@@ -286,23 +324,51 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
           Если API в Docker на том же сервере — используйте публичный URL, система
           попробует внутренний адрес автоматически.
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <input
             type="url"
             value={crawlUrl}
             onChange={(e) => setCrawlUrl(e.target.value)}
             placeholder="https://example.com"
-            className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            className="min-w-[200px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
           />
           <button
             type="button"
             onClick={handleCrawl}
-            disabled={loading || !crawlUrl.trim() || crawlUrl === 'https://'}
+            disabled={loading || !crawlUrl.trim() || crawlUrl === 'https://' || Boolean(activeJob && (activeJob.status === 'running' || activeJob.status === 'queued'))}
             className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
           >
             Индексировать
           </button>
+          {lastCrawl && (
+            <button
+              type="button"
+              onClick={handleReindex}
+              disabled={loading || Boolean(activeJob && (activeJob.status === 'running' || activeJob.status === 'queued'))}
+              className="rounded-lg border border-brand-600 px-4 py-2 text-sm font-medium text-brand-600 disabled:opacity-50"
+            >
+              Переиндексировать
+            </button>
+          )}
         </div>
+
+        {lastCrawl?.completedAt && (
+          <p className="mt-2 text-xs text-slate-500">
+            Последняя индексация:{' '}
+            {new Date(lastCrawl.completedAt).toLocaleString('ru-RU')}
+            {lastCompletedJob?.stats && (
+              <>
+                {' '}
+                · новых {lastCompletedJob.stats.new}, обновлено{' '}
+                {lastCompletedJob.stats.updated}, без изменений{' '}
+                {lastCompletedJob.stats.skipped}
+                {lastCompletedJob.stats.removed > 0
+                  ? `, удалено ${lastCompletedJob.stats.removed}`
+                  : ''}
+              </>
+            )}
+          </p>
+        )}
 
         {activeJob &&
           (activeJob.status === 'running' || activeJob.status === 'queued') && (
@@ -456,14 +522,36 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
                   </>
                 )}
                 {doc.type === 'site_page' && doc.status === 'completed' && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        excludeDocument(doc.id).then(reload).catch(() => undefined)
+                      }
+                      className="text-xs text-amber-600 hover:underline"
+                    >
+                      Исключить
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        deleteDocument(doc.id).then(reload).catch(() => undefined)
+                      }
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Удалить
+                    </button>
+                  </>
+                )}
+                {doc.type === 'site_page' && doc.status === 'excluded' && (
                   <button
                     type="button"
                     onClick={() =>
-                      excludeDocument(doc.id).then(reload).catch(() => undefined)
+                      deleteDocument(doc.id).then(reload).catch(() => undefined)
                     }
-                    className="text-xs text-amber-600 hover:underline"
+                    className="text-xs text-red-600 hover:underline"
                   >
-                    Исключить
+                    Удалить
                   </button>
                 )}
                 {doc.type === 'file' && !isManualText(doc) && (

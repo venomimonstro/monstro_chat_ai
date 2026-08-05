@@ -1,7 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getQueueToken } from '@nestjs/bullmq';
 import { KnowledgeService } from './knowledge.service';
+import { IndexingPipelineService } from './services/indexing-pipeline.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QUEUE_CRAWL_SITE, QUEUE_INGEST_DOCUMENT } from './constants';
 
@@ -34,6 +35,7 @@ describe('KnowledgeService', () => {
       providers: [
         KnowledgeService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: IndexingPipelineService, useValue: {} },
         { provide: getQueueToken(QUEUE_CRAWL_SITE), useValue: mockCrawlQueue },
         {
           provide: getQueueToken(QUEUE_INGEST_DOCUMENT),
@@ -53,6 +55,7 @@ describe('KnowledgeService', () => {
 
   it('queues crawl job when source exists', async () => {
     mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.indexingJob.findFirst.mockResolvedValue(null);
     mockPrisma.tenant.findUnique.mockResolvedValue({
       tariff: { kbLimitMb: 100, featuresJson: {} },
       subscriptions: [],
@@ -67,6 +70,7 @@ describe('KnowledgeService', () => {
       totalPages: 50,
       processedPages: 0,
       errorMessage: null,
+      statsJson: { mode: 'full' },
       startedAt: null,
       completedAt: null,
       createdAt: new Date(),
@@ -78,8 +82,78 @@ describe('KnowledgeService', () => {
       'https://example.com',
     );
 
-    expect(mockCrawlQueue.add).toHaveBeenCalled();
+    expect(mockCrawlQueue.add).toHaveBeenCalledWith(
+      'crawl',
+      expect.objectContaining({ mode: 'full' }),
+      expect.any(Object),
+    );
     expect(result.id).toBe('j1');
+  });
+
+  it('rejects crawl when job already running', async () => {
+    mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.indexingJob.findFirst.mockResolvedValue({ id: 'running' });
+
+    await expect(
+      service.startCrawl('t1', 's1', 'https://example.com'),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it('startReindex uses last completed crawl url in incremental mode', async () => {
+    mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.indexingJob.findFirst.mockImplementation((args: unknown) => {
+      const where = (args as { where?: Record<string, unknown> })?.where;
+      if (Array.isArray((where?.status as { in?: unknown })?.in)) {
+        return Promise.resolve(null);
+      }
+      if (where?.status === 'completed') {
+        return Promise.resolve({
+          rootUrl: 'https://example.com',
+          completedAt: new Date(),
+          statsJson: null,
+        });
+      }
+      return Promise.resolve(null);
+    });
+    mockPrisma.tenant.findUnique.mockResolvedValue({
+      tariff: { kbLimitMb: 100, featuresJson: {} },
+      subscriptions: [],
+    });
+    mockPrisma.indexingJob.create.mockResolvedValue({
+      id: 'j2',
+      tenantId: 't1',
+      sourceId: 's1',
+      type: 'crawl',
+      status: 'queued',
+      rootUrl: 'https://example.com',
+      totalPages: 50,
+      processedPages: 0,
+      errorMessage: null,
+      statsJson: { mode: 'incremental' },
+      startedAt: null,
+      completedAt: null,
+      createdAt: new Date(),
+    });
+
+    await service.startReindex('t1', 's1');
+
+    expect(mockCrawlQueue.add).toHaveBeenCalledWith(
+      'crawl',
+      expect.objectContaining({
+        rootUrl: 'https://example.com',
+        mode: 'incremental',
+      }),
+      expect.any(Object),
+    );
+  });
+
+  it('startReindex fails without prior crawl', async () => {
+    mockPrisma.source.findFirst.mockResolvedValue({ id: 's1', tenantId: 't1' });
+    mockPrisma.indexingJob.findFirst.mockResolvedValue(null);
+
+    await expect(service.startReindex('t1', 's1')).rejects.toThrow(
+      BadRequestException,
+    );
   });
 
   it('deleteDocument returns chunk count', async () => {
