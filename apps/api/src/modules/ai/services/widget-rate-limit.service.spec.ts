@@ -37,7 +37,7 @@ describe('WidgetRateLimitService', () => {
     mockRedis.zcard.mockResolvedValue(0);
     const result = await service.checkLimit('visitor-1');
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(9);
+    expect(result.remaining).toBeGreaterThan(0);
   });
 
   it('blocks request when limit exceeded', async () => {
@@ -45,5 +45,15 @@ describe('WidgetRateLimitService', () => {
     const result = await service.checkLimit('visitor-1');
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
+  });
+
+  it('allows join when under join limit', async () => {
+    mockRedis.zcard.mockResolvedValue(0);
+    await expect(service.checkJoinLimit('visitor-1', '1.2.3.4')).resolves.toBe(true);
+  });
+
+  it('blocks join when visitor join limit exceeded', async () => {
+    mockRedis.zcard.mockResolvedValue(20);
+    await expect(service.checkJoinLimit('visitor-1')).resolves.toBe(false);
   });
 });

@@ -18,6 +18,7 @@ export function useChatScroll({
   const endRef = useRef<HTMLDivElement | null>(null);
   const pinnedRef = useRef(true);
   const prevMessageCountRef = useRef(messageCount);
+  const scrollRafRef = useRef<number | null>(null);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const isNearBottom = useCallback(() => {
@@ -63,18 +64,26 @@ export function useChatScroll({
 
     const scrollIfPinned = () => {
       if (!pinnedRef.current) return;
-      const el = bodyRef.current;
-      if (!el) return;
-      el.scrollTop = el.scrollHeight;
+      if (scrollRafRef.current !== null) return;
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        const el = bodyRef.current;
+        if (!el || !pinnedRef.current) return;
+        el.scrollTop = el.scrollHeight;
+      });
     };
 
-    const observer = new ResizeObserver(() => {
-      scrollIfPinned();
-    });
+    const observer = new ResizeObserver(scrollIfPinned);
     observer.observe(content);
     scrollIfPinned();
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
   }, [open, messageCount, streaming]);
 
   return {

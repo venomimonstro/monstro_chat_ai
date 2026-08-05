@@ -269,7 +269,7 @@ interface AicwApi {
       if (!iframe?.contentWindow) return;
       if (autoOpen) {
         iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
-        openFallbackTimer = setTimeout(finalizeOpen, 1200);
+        openFallbackTimer = setTimeout(finalizeOpen, 600);
       }
     };
 
@@ -286,16 +286,7 @@ interface AicwApi {
   }
 
   function scheduleLoad(opts: InitOptions) {
-    const run = () => loadIframe(opts, false);
-    if ('requestIdleCallback' in window) {
-      (
-        window as Window & {
-          requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => void;
-        }
-      ).requestIdleCallback(run, { timeout: 3000 });
-    } else {
-      setTimeout(run, 1);
-    }
+    loadIframe(opts, false);
   }
 
   function ping(apiUrl: string, widgetKey: string) {
@@ -341,7 +332,7 @@ interface AicwApi {
   function startConfigPolling(apiUrl: string, widgetKey: string) {
     pollConfig(apiUrl, widgetKey);
     if (configPollTimer) clearInterval(configPollTimer);
-    configPollTimer = setInterval(() => pollConfig(apiUrl, widgetKey), 4000);
+    configPollTimer = setInterval(() => pollConfig(apiUrl, widgetKey), 30000);
   }
 
   function startNetworkActivity(opts: InitOptions) {

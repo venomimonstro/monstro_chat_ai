@@ -1,9 +1,21 @@
-import { Controller, Get, Post, Body, Param, Header, Query, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Header,
+  Query,
+  NotFoundException,
+  Req,
+} from '@nestjs/common';
+import type { Request } from 'express';
 import { SourcesService } from '../sources/sources.service';
 import { DialogService } from '../ai/services/dialog.service';
 import { Public } from '../../common/decorators/auth.decorators';
 import { WidgetPingDto } from '../sources/dto/source.dto';
 import { mergeSourceConfig } from '@ai-consultant/shared-types';
+import { assertWidgetOrigin } from './utils/widget-origin.guard';
 
 @Controller('widget')
 @Public()
@@ -25,13 +37,22 @@ export class WidgetController {
   }
 
   @Get('config/:widgetKey')
-  @Header('Access-Control-Allow-Origin', '*')
   @Header('Cache-Control', 'no-cache')
-  async getConfig(@Param('widgetKey') widgetKey: string) {
+  async getConfig(
+    @Param('widgetKey') widgetKey: string,
+    @Req() req: Request,
+  ) {
     const source = await this.sourcesService.findByWidgetKey(widgetKey);
     if (!source || source.status !== 'active') {
       return { error: 'not_found' };
     }
+
+    assertWidgetOrigin(
+      this.sourcesService,
+      source,
+      req.headers.origin,
+      req.headers.referer,
+    );
 
     const config = mergeSourceConfig(
       source.configJson as Parameters<typeof mergeSourceConfig>[0],
@@ -46,13 +67,23 @@ export class WidgetController {
   }
 
   @Get('config/version/:widgetKey')
-  @Header('Access-Control-Allow-Origin', '*')
   @Header('Cache-Control', 'no-cache')
-  async getConfigVersion(@Param('widgetKey') widgetKey: string) {
+  async getConfigVersion(
+    @Param('widgetKey') widgetKey: string,
+    @Req() req: Request,
+  ) {
     const source = await this.sourcesService.findByWidgetKey(widgetKey);
     if (!source || source.status !== 'active') {
       return { widgetKey, status: 'inactive', configVersion: 0 };
     }
+
+    assertWidgetOrigin(
+      this.sourcesService,
+      source,
+      req.headers.origin,
+      req.headers.referer,
+    );
+
     return {
       widgetKey: source.widgetKey,
       status: source.status,
@@ -62,7 +93,16 @@ export class WidgetController {
 
   @Post('ping')
   @Header('Access-Control-Allow-Origin', '*')
-  async ping(@Body() dto: WidgetPingDto) {
+  async ping(@Body() dto: WidgetPingDto, @Req() req: Request) {
+    const source = await this.sourcesService.findByWidgetKey(dto.widgetKey);
+    if (source) {
+      assertWidgetOrigin(
+        this.sourcesService,
+        source,
+        req.headers.origin,
+        req.headers.referer,
+      );
+    }
     return this.sourcesService.recordPing(dto.widgetKey);
   }
 
@@ -72,10 +112,19 @@ export class WidgetController {
     @Param('dialogId') dialogId: string,
     @Query('widgetKey') widgetKey: string,
     @Query('visitorId') visitorId: string,
+    @Req() req: Request,
   ) {
     if (!widgetKey || !visitorId) {
       throw new NotFoundException();
     }
+    const source = await this.sourcesService.findByWidgetKey(widgetKey);
+    if (!source) throw new NotFoundException();
+    assertWidgetOrigin(
+      this.sourcesService,
+      source,
+      req.headers.origin,
+      req.headers.referer,
+    );
     return this.dialogService.getPublicHistory(dialogId, widgetKey, visitorId);
   }
 }

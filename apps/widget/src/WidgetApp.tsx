@@ -12,6 +12,7 @@ import { useViewport, useVisualViewport } from './hooks/useViewport';
 import { MessageBubble } from './components/MessageBubble';
 import { dedupeMessages } from './utils/messages';
 import { generateUuid } from './utils/uuid';
+import { prefetchSocketClient } from './utils/prefetchSocket';
 import './widget-styles.css';
 
 interface ChatMessage {
@@ -167,6 +168,7 @@ export function WidgetApp() {
   const [isTyping, setIsTyping] = useState(false);
   const [connected, setConnected] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySlow, setHistorySlow] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [latencyHint, setLatencyHint] = useState<number | null>(null);
@@ -176,9 +178,16 @@ export function WidgetApp() {
   const streamingRef = useRef('');
   const dialogIdRef = useRef<string | null>(dialogId);
   const historyLoadedRef = useRef<string | null>(null);
+  const historyMessageIdsRef = useRef<Set<string>>(new Set());
   const messagesLengthRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
+  const attributionRef = useRef(attribution);
+  const streamFlushRafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    attributionRef.current = attribution;
+  }, [attribution]);
 
   const isStreaming = messages.some((m) => m.streaming);
   const isPending = isTyping || isStreaming;
@@ -201,7 +210,8 @@ export function WidgetApp() {
 
   const notifyParent = useCallback((type: string) => {
     if (window.parent === window) return;
-    window.parent.postMessage({ type }, '*');
+    const target = getParentOrigin() ?? '*';
+    window.parent.postMessage({ type }, target);
   }, []);
 
   useEffect(() => {
@@ -230,12 +240,14 @@ export function WidgetApp() {
   }, [apiUrl, widgetKey]);
 
   useEffect(() => {
-    if (deferSocket && !open && !preview) return;
+    if (!widgetKey || preview) return;
     loadConfig();
-    if (preview) return;
-    const interval = setInterval(loadConfig, 4000);
-    return () => clearInterval(interval);
-  }, [loadConfig, deferSocket, open, preview]);
+  }, [loadConfig, widgetKey, preview]);
+
+  useEffect(() => {
+    if (deferSocket && !open && !preview) return;
+    void prefetchSocketClient();
+  }, [deferSocket, open, preview]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -337,14 +349,15 @@ export function WidgetApp() {
       socketRef.current = null;
     }
 
-    const { io } = await import('socket.io-client');
+    const { io } = await prefetchSocketClient();
     const origin = getSocketOrigin(apiUrl);
     const socket = io(`${origin}/widget`, {
       path: '/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 4000,
     });
 
     socket.on('connect', () => {
@@ -354,7 +367,7 @@ export function WidgetApp() {
         widgetKey,
         visitorId,
         dialogId: dialogIdRef.current ?? undefined,
-        attribution,
+        attribution: attributionRef.current,
       });
     });
 
@@ -389,6 +402,7 @@ export function WidgetApp() {
 
     socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
       setHistoryLoading(false);
+      setHistorySlow(false);
       if (
         historyLoadedRef.current === data.dialogId &&
         messagesLengthRef.current > 0
@@ -396,6 +410,9 @@ export function WidgetApp() {
         return;
       }
       historyLoadedRef.current = data.dialogId;
+      historyMessageIdsRef.current = new Set(
+        data.messages.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
+      );
       setDialogId(data.dialogId);
       storeDialogId(widgetKey, data.dialogId);
       setMessages(
@@ -434,16 +451,20 @@ export function WidgetApp() {
 
     socket.on('stream:token', (data: { token: string }) => {
       streamingRef.current += data.token;
-      const content = streamingRef.current;
-      setMessages((m) => {
-        const copy = [...m];
-        const last = copy[copy.length - 1];
-        if (last?.streaming) {
-          copy[copy.length - 1] = { ...last, content };
-        } else {
-          copy.push({ role: 'assistant', content, streaming: true });
-        }
-        return copy;
+      if (streamFlushRafRef.current !== null) return;
+      streamFlushRafRef.current = requestAnimationFrame(() => {
+        streamFlushRafRef.current = null;
+        const content = streamingRef.current;
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last?.streaming) {
+            copy[copy.length - 1] = { ...last, content };
+          } else {
+            copy.push({ role: 'assistant', content, streaming: true });
+          }
+          return copy;
+        });
       });
     });
 
@@ -505,38 +526,38 @@ export function WidgetApp() {
         setDialogId(null);
         dialogIdRef.current = null;
         historyLoadedRef.current = null;
+        historyMessageIdsRef.current = new Set();
         setHistoryLoading(false);
         setMessages([]);
       }
     });
 
     socketRef.current = socket;
-  }, [apiUrl, widgetKey, visitorId, attribution]);
-
-  useEffect(() => {
-    if (socketRef.current?.connected && widgetKey) {
-      socketRef.current.emit('join', {
-        widgetKey,
-        visitorId,
-        dialogId: dialogIdRef.current ?? undefined,
-        attribution,
-      });
-    }
-  }, [dialogId, widgetKey, visitorId, attribution]);
+  }, [apiUrl, widgetKey, visitorId]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
     setHistoryLoading(Boolean(dialogIdRef.current));
+    setHistorySlow(false);
+
+    const slowTimeout = window.setTimeout(() => {
+      if (historyLoadedRef.current) return;
+      setHistorySlow(true);
+    }, 1800);
 
     const historyTimeout = window.setTimeout(() => {
       setHistoryLoading(false);
-    }, 4000);
+      if (!historyLoadedRef.current && dialogIdRef.current) {
+        setConnectionError(true);
+      }
+    }, 2500);
 
     void connectSocket();
 
     return () => {
       window.clearTimeout(historyTimeout);
+      window.clearTimeout(slowTimeout);
     };
   }, [connectSocket, deferSocket, open, preview]);
 
@@ -681,7 +702,9 @@ export function WidgetApp() {
             ? latencyHint !== null
               ? `Онлайн · ~${latencyHint} мс`
               : 'Онлайн'
-            : 'Подключение…'}
+            : historySlow
+              ? 'Подключаемся…'
+              : 'Подключение…'}
         </div>
       </div>
       <button
@@ -741,9 +764,10 @@ export function WidgetApp() {
     if (historyLoading && messages.length === 0) {
       return (
         <div className="aicw-loading" aria-busy="true" aria-label="Загрузка истории">
-          <div className="aicw-skeleton aicw-skeleton-line short" />
-          <div className="aicw-skeleton aicw-skeleton-line" />
-          <div className="aicw-skeleton aicw-skeleton-line short" />
+          <div className="aicw-loading-spinner" aria-hidden />
+          <p className="aicw-loading-text">
+            {historySlow ? 'Подключаемся к серверу…' : 'Загрузка переписки…'}
+          </p>
         </div>
       );
     }
@@ -759,10 +783,13 @@ export function WidgetApp() {
           const isUser = msg.role === 'user';
           const showAvatar = !isUser && (i === 0 || messages[i - 1]?.role === 'user');
           const time = msg.createdAt ? formatTime(new Date(msg.createdAt)) : '';
+          const isNewMessage =
+            msg.id !== '__resume_hint__' &&
+            (!msg.id || !historyMessageIdsRef.current.has(msg.id));
           return (
             <div
               key={msg.id ?? `msg-${i}`}
-              className={`aicw-message ${isUser ? 'user' : 'assistant'} ${isDark ? 'dark' : ''}`}
+              className={`aicw-message ${isUser ? 'user' : 'assistant'} ${isDark ? 'dark' : ''}${isNewMessage ? ' aicw-new' : ''}`}
               role="listitem"
             >
               {!isUser && showAvatar && (
