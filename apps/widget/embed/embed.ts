@@ -3,6 +3,17 @@ import {
   markTriggerEngaged,
   type ConversionTriggerBehavior,
 } from './conversion-triggers';
+import { injectLauncherStyles, type EmbedAppearance } from './launcher-styles';
+import { isWidgetActiveOnPage } from './page-rules';
+
+type WidgetConfig = {
+  appearance?: EmbedAppearance;
+  behavior?: ConversionTriggerBehavior & {
+    defaultOpen?: boolean;
+    showLauncherDelaySeconds?: number;
+    pageActivation?: { mode?: 'all' | 'include' | 'exclude'; patterns?: string[] };
+  };
+};
 
 type InitOptions = {
   widgetKey: string;
@@ -47,7 +58,10 @@ interface AicwApi {
   const baseUrl = scriptSrc.replace(/\/embed\.js.*$/, '');
 
   let iframe: HTMLIFrameElement | null = null;
+  let launcherWrap: HTMLDivElement | null = null;
   let launcherBtn: HTMLButtonElement | null = null;
+  let launcherShowTimer: ReturnType<typeof setTimeout> | null = null;
+  let cachedConfig: WidgetConfig | null = null;
   let configPollTimer: ReturnType<typeof setInterval> | null = null;
   let lastConfigVersion = -1;
   let state: InitOptions | null = null;
@@ -166,51 +180,174 @@ interface AicwApi {
   }
 
   function removeLauncher() {
-    launcherBtn?.remove();
+    if (launcherShowTimer) {
+      clearTimeout(launcherShowTimer);
+      launcherShowTimer = null;
+    }
+    launcherWrap?.remove();
+    launcherWrap = null;
     launcherBtn = null;
   }
 
-  function createLauncher(opts: InitOptions) {
-    if (launcherBtn) return;
-    const color = opts.primaryColor ?? '#EF2B34';
-    const isLeft = opts.position === 'bottom-left';
+  function isMobileViewport(): boolean {
+    return window.matchMedia('(max-width: 768px)').matches;
+  }
+
+  function shouldShowWidget(config: WidgetConfig | null): boolean {
+    if (!config) return true;
+    if (!isWidgetActiveOnPage(location.pathname, config.behavior?.pageActivation)) {
+      return false;
+    }
+    if (config.appearance?.hideOnMobile && isMobileViewport()) {
+      return false;
+    }
+    return true;
+  }
+
+  function resolveAppearance(
+    opts: InitOptions,
+    config: WidgetConfig | null,
+  ): Required<
+    Pick<
+      EmbedAppearance,
+      | 'primaryColor'
+      | 'textColor'
+      | 'buttonShape'
+      | 'position'
+      | 'offsetX'
+      | 'offsetY'
+      | 'launcherAnimation'
+      | 'showLauncherLabel'
+      | 'launcherOnlineIndicator'
+    >
+  > & { launcherLabel: string } {
+    const a = config?.appearance ?? {};
+    return {
+      primaryColor: a.primaryColor ?? opts.primaryColor ?? '#EF2B34',
+      textColor: a.textColor ?? '#ffffff',
+      buttonShape: a.buttonShape ?? 'round',
+      position: a.position ?? opts.position ?? 'bottom-right',
+      offsetX: a.offsetX ?? 20,
+      offsetY: a.offsetY ?? 20,
+      launcherAnimation: a.launcherAnimation ?? 'gentle',
+      launcherLabel: a.launcherLabel ?? 'Оператор онлайн',
+      showLauncherLabel: a.showLauncherLabel === true,
+      launcherOnlineIndicator: a.launcherOnlineIndicator !== false,
+    };
+  }
+
+  function applyLauncherAppearance(
+    appearance: ReturnType<typeof resolveAppearance>,
+  ) {
+    if (!launcherWrap || !launcherBtn) return;
+    const isLeft = appearance.position === 'bottom-left';
+    launcherWrap.className = `aicw-visible ${isLeft ? 'aicw-left' : ''}`.trim();
+    Object.assign(launcherWrap.style, {
+      bottom: `${appearance.offsetY}px`,
+      left: isLeft ? `${appearance.offsetX}px` : 'auto',
+      right: isLeft ? 'auto' : `${appearance.offsetX}px`,
+    });
+
+    const size = '48px';
+    const radius = appearance.buttonShape === 'square' ? '12px' : '50%';
+    Object.assign(launcherBtn.style, {
+      width: size,
+      height: size,
+      borderRadius: radius,
+      background: appearance.primaryColor,
+      color: appearance.textColor,
+    });
+
+    launcherBtn.className = '';
+    if (appearance.launcherAnimation === 'gentle') {
+      launcherBtn.classList.add('aicw-anim-gentle');
+    } else if (appearance.launcherAnimation === 'pulse') {
+      launcherBtn.classList.add('aicw-anim-pulse');
+    } else if (appearance.launcherAnimation === 'active') {
+      launcherBtn.classList.add('aicw-anim-active');
+    }
+
+    const labelEl = launcherWrap.querySelector('#aicw-launcher-label') as
+      | HTMLSpanElement
+      | null;
+    if (labelEl) {
+      labelEl.textContent = appearance.launcherLabel;
+      labelEl.style.display = appearance.showLauncherLabel ? 'block' : 'none';
+    }
+
+    let onlineEl = launcherBtn.querySelector(
+      '#aicw-launcher-online',
+    ) as HTMLSpanElement | null;
+    if (appearance.launcherOnlineIndicator) {
+      if (!onlineEl) {
+        onlineEl = document.createElement('span');
+        onlineEl.id = 'aicw-launcher-online';
+        launcherBtn.appendChild(onlineEl);
+      }
+    } else {
+      onlineEl?.remove();
+    }
+
+    const label = appearance.showLauncherLabel
+      ? appearance.launcherLabel
+      : 'Открыть чат';
+    launcherBtn.setAttribute('aria-label', label);
+  }
+
+  function createLauncher(opts: InitOptions, config: WidgetConfig | null) {
+    if (launcherWrap || !shouldShowWidget(config)) return;
+    injectLauncherStyles();
+
+    const appearance = resolveAppearance(opts, config);
+    const isLeft = appearance.position === 'bottom-left';
+
+    launcherWrap = document.createElement('div');
+    launcherWrap.id = 'aicw-launcher-wrap';
+
+    if (appearance.showLauncherLabel) {
+      const labelEl = document.createElement('span');
+      labelEl.id = 'aicw-launcher-label';
+      labelEl.textContent = appearance.launcherLabel;
+      launcherWrap.appendChild(labelEl);
+    }
+
     launcherBtn = document.createElement('button');
     launcherBtn.type = 'button';
-    launcherBtn.setAttribute('aria-label', 'Открыть чат');
     launcherBtn.setAttribute('aria-expanded', 'false');
     launcherBtn.id = 'aicw-launcher';
     launcherBtn.innerHTML =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>';
-    Object.assign(launcherBtn.style, {
-      position: 'fixed',
-      bottom: '16px',
-      [isLeft ? 'left' : 'right']: '16px',
-      width: '48px',
-      height: '48px',
-      borderRadius: '50%',
-      border: 'none',
-      cursor: 'pointer',
-      zIndex: '2147483647',
-      background: color,
-      color: '#fff',
-      boxShadow: '0 6px 20px rgba(239,43,52,.28)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '0',
-    });
-    const svg = launcherBtn.querySelector('svg');
-    if (svg) {
-      Object.assign((svg as SVGElement).style, { width: '22px', height: '22px' });
-    }
+
     launcherBtn.addEventListener('mouseenter', () => preconnectOrigins(opts), {
       once: true,
     });
     launcherBtn.addEventListener('focus', () => preconnectOrigins(opts), {
       once: true,
     });
-    launcherBtn.addEventListener('click', () => activateWidget(opts, true, { manual: true }));
-    document.body.appendChild(launcherBtn);
+    launcherBtn.addEventListener('click', () =>
+      activateWidget(opts, true, { manual: true }),
+    );
+
+    launcherWrap.appendChild(launcherBtn);
+    document.body.appendChild(launcherWrap);
+    applyLauncherAppearance(appearance);
+
+    requestAnimationFrame(() => {
+      launcherWrap?.classList.add('aicw-visible');
+    });
+  }
+
+  function scheduleLauncher(opts: InitOptions, config: WidgetConfig | null) {
+    if (!shouldShowWidget(config)) return;
+    const delaySec = config?.behavior?.showLauncherDelaySeconds ?? 0;
+    if (delaySec > 0) {
+      launcherShowTimer = setTimeout(
+        () => createLauncher(opts, config),
+        delaySec * 1000,
+      );
+    } else {
+      createLauncher(opts, config);
+    }
   }
 
   function isFromWidgetIframe(event: MessageEvent): boolean {
@@ -230,7 +367,7 @@ interface AicwApi {
         setIframeInteractivity(false);
         window.dispatchEvent(new Event('aicw:closed'));
         if (lazyLoadEnabled && state) {
-          createLauncher(state);
+          scheduleLauncher(state, cachedConfig);
         }
       }
     });
@@ -297,10 +434,19 @@ interface AicwApi {
     }).catch(() => undefined);
   }
 
-  function updateLauncherFromConfig(config: { appearance?: { primaryColor?: string } }) {
-    const color = config.appearance?.primaryColor;
-    if (!color || !launcherBtn) return;
-    launcherBtn.style.background = color;
+  function updateLauncherFromConfig(config: WidgetConfig) {
+    cachedConfig = config;
+    if (!shouldShowWidget(config)) {
+      removeLauncher();
+      return;
+    }
+    if (!launcherWrap && state && lazyLoadEnabled) {
+      scheduleLauncher(state, config);
+      return;
+    }
+    if (launcherWrap && launcherBtn && state) {
+      applyLauncherAppearance(resolveAppearance(state, config));
+    }
   }
 
   function pollConfig(apiUrl: string, widgetKey: string) {
@@ -365,34 +511,83 @@ interface AicwApi {
     loadIframe(opts, openPanel);
   }
 
-  function setupConversionTriggers(opts: InitOptions) {
+  function setupConversionTriggers(opts: InitOptions, config?: WidgetConfig | null) {
     if (triggerCleanup) {
       triggerCleanup();
       triggerCleanup = null;
+    }
+
+    const applyTriggers = (cfg: WidgetConfig) => {
+      if (state?.widgetKey !== opts.widgetKey || !shouldShowWidget(cfg)) return;
+
+      updateLauncherFromConfig(cfg);
+
+      const behavior = (cfg.behavior ?? {}) as ConversionTriggerBehavior;
+      const hideOnMobile = cfg.appearance?.hideOnMobile === true;
+
+      triggerCleanup = armConversionTriggers(
+        behavior,
+        {
+          storageKey: triggerStorageKey(opts.widgetKey),
+          hideOnMobile,
+          isMobile: isMobileViewport,
+        },
+        () => activateWidget(opts, true),
+      );
+    };
+
+    if (config) {
+      applyTriggers(config);
+      return;
     }
 
     const apiUrl = getApiUrl(opts);
     fetch(`${apiUrl}/widget/config/${encodeURIComponent(opts.widgetKey)}`)
       .then((r) => r.json())
       .then((data) => {
-        if (!data?.config || state?.widgetKey !== opts.widgetKey) return;
-
-        updateLauncherFromConfig(data.config);
-
-        const behavior = (data.config.behavior ?? {}) as ConversionTriggerBehavior;
-        const hideOnMobile = data.config.appearance?.hideOnMobile === true;
-
-        triggerCleanup = armConversionTriggers(
-          behavior,
-          {
-            storageKey: triggerStorageKey(opts.widgetKey),
-            hideOnMobile,
-            isMobile: () => window.matchMedia('(max-width: 768px)').matches,
-          },
-          () => activateWidget(opts, true),
-        );
+        if (!data?.config) return;
+        applyTriggers(data.config as WidgetConfig);
       })
       .catch(() => undefined);
+  }
+
+  function fetchConfigAndInit(opts: InitOptions) {
+    const apiUrl = getApiUrl(opts);
+    fetch(`${apiUrl}/widget/config/${encodeURIComponent(opts.widgetKey)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        const config = (data?.config ?? {}) as WidgetConfig;
+        cachedConfig = config;
+        applyInitWithConfig(opts, config);
+      })
+      .catch(() => {
+        applyInitWithConfig(opts, null);
+      });
+  }
+
+  function applyInitWithConfig(opts: InitOptions, config: WidgetConfig | null) {
+    if (!shouldShowWidget(config)) {
+      return;
+    }
+
+    if (lazyLoadEnabled) {
+      if (config?.behavior?.defaultOpen) {
+        activateWidget(opts, true);
+        setupConversionTriggers(opts, config);
+        return;
+      }
+      scheduleLauncher(opts, config);
+      setupConversionTriggers(opts, config);
+      return;
+    }
+
+    startNetworkActivity(opts);
+    registerInteractionFallback(opts);
+    scheduleLoad(opts);
+    if (config?.behavior?.defaultOpen) {
+      activateWidget(opts, true);
+    }
+    setupConversionTriggers(opts, config);
   }
 
   function registerInteractionFallback(opts: InitOptions) {
@@ -420,17 +615,8 @@ interface AicwApi {
     if (!opts?.widgetKey) return;
     state = opts;
     lazyLoadEnabled = opts.lazyLoad !== false;
-
-    if (lazyLoadEnabled) {
-      createLauncher(opts);
-      setupConversionTriggers(opts);
-      return;
-    }
-
-    startNetworkActivity(opts);
-    registerInteractionFallback(opts);
-    scheduleLoad(opts);
-    setupConversionTriggers(opts);
+    injectLauncherStyles();
+    fetchConfigAndInit(opts);
   }
 
   function handleDestroy() {
@@ -447,6 +633,7 @@ interface AicwApi {
     iframe = null;
     removeLauncher();
     state = null;
+    cachedConfig = null;
     lastConfigVersion = -1;
     preconnected = false;
   }
@@ -468,7 +655,7 @@ interface AicwApi {
     if (cmd === 'close') {
       iframe?.contentWindow?.postMessage({ type: 'aicw:close' }, '*');
       setIframeInteractivity(false);
-      if (lazyLoadEnabled && state) createLauncher(state);
+      if (lazyLoadEnabled && state) scheduleLauncher(state, cachedConfig);
     }
     if (cmd === 'destroy') handleDestroy();
   }

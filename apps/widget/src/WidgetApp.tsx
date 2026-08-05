@@ -311,6 +311,12 @@ export function WidgetApp() {
   }, [preview]);
 
   useEffect(() => {
+    if (preview && config.behavior.defaultOpen) {
+      setOpen(true);
+    }
+  }, [preview, config.behavior.defaultOpen]);
+
+  useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -1072,18 +1078,40 @@ export function WidgetApp() {
           display: appearance.hideOnMobile && isMobile ? 'none' : 'flex',
         }}
       >
+        {appearance.showLauncherLabel && (
+          <span className="aicw-launcher-label">
+            {appearance.launcherLabel ?? 'Оператор онлайн'}
+          </span>
+        )}
         <button
           type="button"
-          className={`aicw-button ${appearance.buttonShape === 'round' ? 'round' : 'square'} ${open ? 'open' : ''}`}
+          className={`aicw-button ${appearance.buttonShape === 'round' ? 'round' : 'square'} ${open ? 'open' : ''} ${
+            appearance.launcherAnimation === 'gentle'
+              ? 'aicw-anim-gentle'
+              : appearance.launcherAnimation === 'pulse'
+                ? 'aicw-anim-pulse'
+                : appearance.launcherAnimation === 'active'
+                  ? 'aicw-anim-active'
+                  : ''
+          }`}
           style={{
             background: appearance.primaryColor,
             color: appearance.textColor,
           }}
           onClick={toggleOpen}
-          aria-label={open ? 'Закрыть чат' : 'Открыть чат'}
+          aria-label={
+            open
+              ? 'Закрыть чат'
+              : appearance.showLauncherLabel
+                ? (appearance.launcherLabel ?? 'Открыть чат')
+                : 'Открыть чат'
+          }
           aria-expanded={open}
           aria-controls="aicw-chat-panel"
         >
+          {appearance.launcherOnlineIndicator !== false && !open && (
+            <span className="aicw-online-dot" aria-hidden />
+          )}
           {open ? (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="aicw-icon" aria-hidden>
               <path d="M6 18L18 6M6 6l12 12" />

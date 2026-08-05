@@ -9,6 +9,7 @@ import { TrainingTab } from '../components/TrainingTab';
 import { PromptTab } from '../components/PromptTab';
 import { PersonaSettings } from '../components/PersonaSettings';
 import { CloserSettings } from '../components/CloserSettings';
+import { WidgetCustomizationSettings } from '../components/WidgetCustomizationSettings';
 import { SkeletonCard } from '../components/Skeleton';
 
 const WIDGET_PREVIEW_BASE = (() => {
@@ -35,7 +36,7 @@ export function SourceSettingsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [tab, setTab] = useState<
-    'appearance' | 'general' | 'training' | 'prompt' | 'persona'
+    'appearance' | 'conversion' | 'general' | 'training' | 'prompt' | 'persona'
   >('appearance');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -176,7 +177,7 @@ export function SourceSettingsPage() {
       <h1 className="mt-2 text-2xl font-bold text-slate-900">{source.name}</h1>
 
       <div className="mt-4 flex gap-2 border-b border-slate-200">
-        {(['appearance', 'persona', 'training', 'prompt', 'general'] as const).map((t) => (
+        {(['appearance', 'conversion', 'persona', 'training', 'prompt', 'general'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -189,6 +190,8 @@ export function SourceSettingsPage() {
           >
             {t === 'appearance'
               ? 'Внешний вид'
+              : t === 'conversion'
+                ? 'Конверсия'
               : t === 'persona'
                 ? 'Стиль общения'
               : t === 'training'
@@ -203,6 +206,47 @@ export function SourceSettingsPage() {
       {tab === 'training' && id ? (
         <div className="mt-6">
           <TrainingTab sourceId={id} />
+        </div>
+      ) : tab === 'conversion' ? (
+        <div className="mt-6 grid gap-8 lg:grid-cols-2">
+          <div className="max-w-2xl">
+            <WidgetCustomizationSettings
+              appearance={config.appearance}
+              behavior={config.behavior}
+              onAppearanceChange={(patch) => patchAppearance(patch)}
+              onBehaviorChange={(patch) => patchBehavior(patch)}
+            />
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="mt-6 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {saving ? 'Сохранение...' : saved ? 'Сохранено ✓' : 'Сохранить'}
+            </button>
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium text-slate-700">Превью чата</p>
+            <div className="relative h-[520px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+              {!previewLoaded && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-100">
+                  <SkeletonCard />
+                </div>
+              )}
+              <iframe
+                ref={iframeRef}
+                src={previewSrc}
+                title="Widget preview"
+                sandbox="allow-scripts allow-same-origin allow-forms"
+                onLoad={() => setPreviewLoaded(true)}
+                className="h-full w-full border-0"
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Анимация и подпись кнопки на реальном сайте настраиваются в embed.js — в
+              превию отображается iframe-кнопка.
+            </p>
+          </div>
         </div>
       ) : tab === 'prompt' && id ? (
         <div className="mt-6">
@@ -300,57 +344,6 @@ export function SourceSettingsPage() {
                   rows={3}
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
-              </Field>
-              <Field label="Проактивное открытие чата">
-                <div className="space-y-3">
-                  <label className="block text-sm text-slate-700">
-                    Автооткрытие через (секунд, 0 — выкл.)
-                    <input
-                      type="number"
-                      min={0}
-                      max={120}
-                      value={config.behavior.autoOpenDelaySeconds ?? 0}
-                      onChange={(e) =>
-                        patchBehavior({
-                          autoOpenDelaySeconds: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="block text-sm text-slate-700">
-                    Автооткрытие при скролле (%, 0 — выкл.)
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={config.behavior.autoOpenOnScrollPercent ?? 0}
-                      onChange={(e) =>
-                        patchBehavior({
-                          autoOpenOnScrollPercent: Math.min(
-                            100,
-                            Math.max(0, Number(e.target.value) || 0),
-                          ),
-                        })
-                      }
-                      className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={config.behavior.exitIntent === true}
-                      onChange={(e) =>
-                        patchBehavior({ exitIntent: e.target.checked })
-                      }
-                    />
-                    Exit intent — открывать при попытке уйти со страницы
-                  </label>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  Срабатывает один раз за сессию. Не показывается на мобильных, если
-                  включено «Скрыть на мобильных».
-                </p>
               </Field>
               <Field label="Быстрые ответы">
                 <div className="space-y-2">
