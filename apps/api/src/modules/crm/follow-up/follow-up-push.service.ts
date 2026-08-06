@@ -18,12 +18,6 @@ export class FollowUpPushService {
       content: payload.content,
       createdAt: payload.createdAt,
     });
-    this.server.to(`dialog:${payload.dialogId}`).emit('follow_up:message', {
-      dialogId: payload.dialogId,
-      messageId: payload.messageId,
-      content: payload.content,
-      createdAt: payload.createdAt,
-    });
     return true;
   }
 }

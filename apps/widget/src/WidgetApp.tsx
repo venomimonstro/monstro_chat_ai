@@ -10,7 +10,7 @@ import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewport } from './hooks/useViewport';
 import { MessageBubble } from './components/MessageBubble';
-import { dedupeMessages } from './utils/messages';
+import { dedupeMessages, mergeChatHistory } from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import { prefetchSocketClient } from './utils/prefetchSocket';
 import './widget-styles.css';
@@ -170,6 +170,9 @@ function formatTime(date: Date): string {
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+const STREAM_ASSISTANT_ID = 'streaming-assistant';
+const STREAM_TIMEOUT_MS = 90_000;
+
 export function WidgetApp() {
   const { widgetKey, apiUrl, preview, attribution, hostLauncher, deferSocket, autoOpen } =
     useMemo(getParams, []);
@@ -208,10 +211,24 @@ export function WidgetApp() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const attributionRef = useRef(attribution);
   const streamFlushRafRef = useRef<number | null>(null);
+  const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionTokenRef = useRef<string | null>(
     widgetKey ? getSessionToken(widgetKey) : null,
   );
-  const hiddenDisconnectRef = useRef(false);
+
+  const clearStreamTimeout = useCallback(() => {
+    if (streamTimeoutRef.current !== null) {
+      window.clearTimeout(streamTimeoutRef.current);
+      streamTimeoutRef.current = null;
+    }
+  }, []);
+
+  const cancelStreamFlush = useCallback(() => {
+    if (streamFlushRafRef.current !== null) {
+      cancelAnimationFrame(streamFlushRafRef.current);
+      streamFlushRafRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -401,10 +418,12 @@ export function WidgetApp() {
 
     socket.on('disconnect', () => {
       setConnected(false);
-      if (streamingRef.current) {
-        const partial = streamingRef.current;
+      cancelStreamFlush();
+      clearStreamTimeout();
+      setIsTyping(false);
+      const partial = streamingRef.current;
+      if (partial) {
         streamingRef.current = '';
-        setIsTyping(false);
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
@@ -421,6 +440,8 @@ export function WidgetApp() {
     });
 
     socket.on('connect_error', () => setConnectionError(true));
+
+    socket.on('reconnect_failed', () => setConnectionError(true));
 
     socket.on('joined', (data: { sessionToken?: string }) => {
       if (data.sessionToken && widgetKey) {
@@ -442,27 +463,32 @@ export function WidgetApp() {
     socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
       setHistoryLoading(false);
       setHistorySlow(false);
+      const normalized = data.messages.map((msg) => ({
+        ...msg,
+        createdAt: msg.createdAt ?? new Date().toISOString(),
+      }));
+
       if (
         historyLoadedRef.current === data.dialogId &&
         messagesLengthRef.current > 0
       ) {
+        setMessages((prev) => mergeChatHistory(prev, normalized));
+        historyMessageIdsRef.current = new Set(
+          normalized.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
+        );
+        setDialogId(data.dialogId);
+        storeDialogId(widgetKey, data.dialogId);
         return;
       }
+
       historyLoadedRef.current = data.dialogId;
       historyMessageIdsRef.current = new Set(
-        data.messages.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
+        normalized.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
       );
       setDialogId(data.dialogId);
       storeDialogId(widgetKey, data.dialogId);
-      setMessages(
-        dedupeMessages(
-          data.messages.map((msg) => ({
-            ...msg,
-            createdAt: msg.createdAt ?? new Date().toISOString(),
-          })),
-        ),
-      );
-      if (data.resumed && data.messages.length > 0) {
+      setMessages(dedupeMessages(normalized));
+      if (data.resumed && normalized.length > 0) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === '__resume_hint__')) return prev;
           return [
@@ -486,6 +512,23 @@ export function WidgetApp() {
     socket.on('stream:start', () => {
       setIsTyping(true);
       streamingRef.current = '';
+      clearStreamTimeout();
+      streamTimeoutRef.current = window.setTimeout(() => {
+        cancelStreamFlush();
+        clearStreamTimeout();
+        setIsTyping(false);
+        streamingRef.current = '';
+        setMessages((m) =>
+          dedupeMessages([
+            ...m.filter((msg) => !msg.streaming),
+            {
+              role: 'assistant',
+              content: 'Ответ занимает слишком много времени. Попробуйте ещё раз.',
+              createdAt: new Date().toISOString(),
+            },
+          ]),
+        );
+      }, STREAM_TIMEOUT_MS);
     });
 
     socket.on('stream:token', (data: { token: string }) => {
@@ -494,13 +537,20 @@ export function WidgetApp() {
       streamFlushRafRef.current = requestAnimationFrame(() => {
         streamFlushRafRef.current = null;
         const content = streamingRef.current;
+        if (!content) return;
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
           if (last?.streaming) {
             copy[copy.length - 1] = { ...last, content };
           } else {
-            copy.push({ role: 'assistant', content, streaming: true });
+            copy.push({
+              id: STREAM_ASSISTANT_ID,
+              role: 'assistant',
+              content,
+              streaming: true,
+              createdAt: new Date().toISOString(),
+            });
           }
           return copy;
         });
@@ -508,8 +558,11 @@ export function WidgetApp() {
     });
 
     socket.on('stream:end', (data: { messageId?: string; content?: string }) => {
+      cancelStreamFlush();
+      clearStreamTimeout();
       setIsTyping(false);
       const content = data.content ?? streamingRef.current;
+      streamingRef.current = '';
       setMessages((m) => {
         const copy = [...m];
         const last = copy[copy.length - 1];
@@ -517,13 +570,20 @@ export function WidgetApp() {
           copy[copy.length - 1] = {
             role: 'assistant',
             content,
-            id: data.messageId,
+            id: data.messageId ?? last.id ?? STREAM_ASSISTANT_ID,
+            streaming: false,
             createdAt: new Date().toISOString(),
           };
+        } else if (content) {
+          copy.push({
+            role: 'assistant',
+            content,
+            id: data.messageId,
+            createdAt: new Date().toISOString(),
+          });
         }
         return dedupeMessages(copy);
       });
-      streamingRef.current = '';
     });
 
     socket.on(
@@ -557,7 +617,10 @@ export function WidgetApp() {
     );
 
     const appendError = (text: string) => {
+      cancelStreamFlush();
+      clearStreamTimeout();
       setIsTyping(false);
+      streamingRef.current = '';
       setMessages((m) =>
         dedupeMessages([
           ...m.filter((msg) => !msg.streaming),
@@ -571,6 +634,14 @@ export function WidgetApp() {
     });
 
     socket.on('rate_limited', (data: { message: string }) => {
+      setMessages((m) => {
+        const copy = m.filter((msg) => !msg.streaming);
+        const last = copy[copy.length - 1];
+        if (last?.role === 'user' && last.id?.startsWith('local-')) {
+          copy.pop();
+        }
+        return copy;
+      });
       appendError(data.message);
     });
 
@@ -602,7 +673,7 @@ export function WidgetApp() {
     });
 
     socketRef.current = socket;
-  }, [apiUrl, widgetKey, visitorId]);
+  }, [apiUrl, widgetKey, visitorId, cancelStreamFlush, clearStreamTimeout]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -633,33 +704,14 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
-    const pauseReconnect = () => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
       const socket = socketRef.current;
-      if (!socket) return;
-      hiddenDisconnectRef.current = true;
-      socket.io.opts.reconnection = false;
-      if (socket.connected) {
-        socket.disconnect();
-      }
-    };
-
-    const resumeReconnect = () => {
-      const socket = socketRef.current;
-      if (!socket) return;
-      hiddenDisconnectRef.current = false;
-      socket.io.opts.reconnection = true;
-      if (!socket.connected) {
+      if (socket && !socket.connected) {
         setConnectionError(false);
+        socket.io.opts.reconnection = true;
         socket.connect();
       }
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        pauseReconnect();
-        return;
-      }
-      resumeReconnect();
     };
 
     document.addEventListener('visibilitychange', onVisibility);

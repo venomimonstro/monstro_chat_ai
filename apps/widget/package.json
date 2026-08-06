@@ -11,7 +11,7 @@
     "build:embed": "node scripts/build-embed.mjs",
     "start": "node scripts/serve-static.mjs",
     "lint": "tsc --noEmit",
-    "test": "node scripts/check-uuid.mjs && node scripts/check-embed-size.mjs && node --experimental-strip-types embed/conversion-triggers.test.mts"
+    "test": "node scripts/check-uuid.mjs && node scripts/check-embed-size.mjs && node --experimental-strip-types embed/conversion-triggers.test.mts && node --experimental-strip-types src/utils/messages.test.mts"
   },
   "dependencies": {
     "@ai-consultant/shared-types": "*",

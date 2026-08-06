@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { extractErrorMessage } from '../lib/errors';
 import {
   DndContext,
@@ -14,6 +15,7 @@ import { useDraggable } from '@dnd-kit/core';
 import type { LeadDto, PipelineDto, PipelineStatusDto } from '@ai-consultant/shared-types';
 import {
   fetchLeads,
+  fetchLead,
   fetchPipelines,
   updateLeadStatus,
   createPipelineStatus,
@@ -138,6 +140,7 @@ function KanbanColumn({
 }
 
 export function CrmPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [pipelines, setPipelines] = useState<PipelineDto[]>([]);
   const [leads, setLeads] = useState<LeadDto[]>([]);
   const [selectedLead, setSelectedLead] = useState<LeadDto | null>(null);
@@ -174,9 +177,36 @@ export function CrmPage() {
     }
   }, []);
 
+  const leadIdParam = searchParams.get('leadId');
+
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!leadIdParam) return;
+    let cancelled = false;
+    fetchLead(leadIdParam)
+      .then((lead) => {
+        if (!cancelled) setSelectedLead(lead);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) {
+          setSearchParams(
+            (params) => {
+              const next = new URLSearchParams(params);
+              next.delete('leadId');
+              return next;
+            },
+            { replace: true },
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadIdParam, setSearchParams]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

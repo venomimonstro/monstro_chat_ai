@@ -123,8 +123,7 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
-<<<<<<< HEAD
-| 73 | Security audit + deploy: CSRF/JWT/RLS, единый npm install без гонок |
-=======
 | 72 | Админка с любого IP: CORS multi-origin, bootstrap timeout, CSRF после /auth/me |
->>>>>>> origin/cursor/sprint-72-admin-external-ip-ab3a
+| 73 | Security audit + deploy: CSRF/JWT/RLS, единый npm install без гонок |
+| 74 | Chat audit: stream/end fixes, scroll, reconnect, ChatsPage debounce/polling |
+| 74 | Chat audit: stream/end fixes, scroll, reconnect, ChatsPage debounce/polling |
