@@ -18,6 +18,7 @@ set_env COOKIE_SECURE false
 set_env SKIP_2FA_ENFORCEMENT true
 set_env WEB_CLIENT_URL "http://${IP}:5173"
 set_env WEB_ADMIN_URL "http://${IP}:5174"
+set_env WEB_ADMIN_URLS "http://${IP}:5174,http://${IP}"
 set_env PUBLIC_SITE_URL "http://${IP}:4321"
 set_env API_PUBLIC_URL "http://${IP}:3000/api"
 

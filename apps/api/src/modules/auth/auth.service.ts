@@ -431,7 +431,7 @@ export class AuthService {
     accessToken: string,
     app?: AppKind,
   ): string {
-    const kind = app ?? resolveAppKind(req, this.config.get('WEB_ADMIN_URL'));
+    const kind = app ?? resolveAppKind(req, this.config);
     this.setAccessCookie(res, accessToken, kind);
     return this.setCsrfCookie(res);
   }
