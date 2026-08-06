@@ -345,6 +345,23 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       let activeDialogId = data.dialogId;
       let messageId: string | undefined;
       let streamStarted = false;
+      let tokenBuffer = '';
+      let tokenFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+      const flushTokenBuffer = () => {
+        tokenFlushTimer = null;
+        if (!tokenBuffer) return;
+        client.emit('stream:token', {
+          dialogId: activeDialogId,
+          token: tokenBuffer,
+        });
+        tokenBuffer = '';
+      };
+
+      const scheduleTokenFlush = () => {
+        if (tokenFlushTimer) return;
+        tokenFlushTimer = setTimeout(flushTokenBuffer, 40);
+      };
 
       for await (const chunk of stream) {
         if (chunk.type === 'dialog' && chunk.dialogId) {
@@ -363,13 +380,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
             client.emit('stream:start', { dialogId: activeDialogId });
             streamStarted = true;
           }
-          client.emit('stream:token', {
-            dialogId: activeDialogId,
-            token: chunk.token,
-          });
+          tokenBuffer += chunk.token;
+          scheduleTokenFlush();
         }
 
         if (chunk.type === 'done') {
+          if (tokenFlushTimer) {
+            clearTimeout(tokenFlushTimer);
+            flushTokenBuffer();
+          }
           messageId = chunk.messageId;
           client.emit('stream:end', {
             dialogId: activeDialogId,
