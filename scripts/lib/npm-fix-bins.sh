@@ -16,10 +16,13 @@ if [[ -f "${INSTALL_DIR}/node_modules/.bin/tsc" ]]; then
   chmod u+x "${INSTALL_DIR}/node_modules/.bin/tsc" 2>/dev/null || true
 fi
 
+if [[ -f "${INSTALL_DIR}/node_modules/esbuild/bin/esbuild" ]]; then
+  chmod u+x "${INSTALL_DIR}/node_modules/esbuild/bin/esbuild" 2>/dev/null || true
+fi
+
 if ! [[ -f "${INSTALL_DIR}/node_modules/typescript/lib/tsc.js" ]] \
-  && ! [[ -f "${INSTALL_DIR}/node_modules/typescript/bin/tsc" ]] \
-  && ! [[ -x "${INSTALL_DIR}/node_modules/.bin/tsc" ]]; then
-  echo "WARN: typescript/tsc не найден в ${INSTALL_DIR}/node_modules — запустите scripts/fix-npm-install.sh" >&2
+  || ! [[ -f "${INSTALL_DIR}/node_modules/esbuild/bin/esbuild" ]]; then
+  echo "WARN: typescript или esbuild не найдены — запустите scripts/fix-npm-install.sh" >&2
 fi
 
 for bin_dir in \

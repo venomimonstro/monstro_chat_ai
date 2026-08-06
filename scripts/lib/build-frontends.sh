@@ -15,7 +15,9 @@ deploy_npm_install frontends \
   --workspace=@ai-consultant/web-admin
 
 deploy_log "Сборка ЛК и админки..."
-npm run build -w @ai-consultant/shared-types
+if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+  npm run build -w @ai-consultant/shared-types
+fi
 npm run build -w @ai-consultant/web-client
 npm run build -w @ai-consultant/web-admin
 

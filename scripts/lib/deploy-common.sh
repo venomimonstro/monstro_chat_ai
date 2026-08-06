@@ -103,47 +103,117 @@ deploy_lock_changed() {
   return 0
 }
 
-deploy_npm_deps_healthy() {
-  local tsc_lib="${INSTALL_DIR}/node_modules/typescript/lib/tsc.js"
-  local tsc_direct="${INSTALL_DIR}/node_modules/typescript/bin/tsc"
-  local tsc_bin="${INSTALL_DIR}/node_modules/.bin/tsc"
-  if [[ -f "${tsc_lib}" ]] || [[ -f "${tsc_direct}" ]] || [[ -x "${tsc_bin}" ]]; then
-    return 0
+deploy_npm_acquire_lock() {
+  local lockfile="${DEPLOY_STATE_DIR}/npm-install.lock"
+  mkdir -p "${DEPLOY_STATE_DIR}"
+  exec {DEPLOY_NPM_LOCK_FD}>"${lockfile}"
+  if ! flock -w 900 "${DEPLOY_NPM_LOCK_FD}"; then
+    deploy_fail "Не удалось получить lock npm install (15 мин)"
   fi
-  return 1
 }
 
-deploy_npm_install() {
-  local scope="$1"
-  shift
-  local workspaces=("$@")
+deploy_npm_release_lock() {
+  if [[ -n "${DEPLOY_NPM_LOCK_FD:-}" ]]; then
+    flock -u "${DEPLOY_NPM_LOCK_FD}" 2>/dev/null || true
+    exec {DEPLOY_NPM_LOCK_FD}>&-
+    unset DEPLOY_NPM_LOCK_FD
+  fi
+}
+
+deploy_stop_node_services() {
+  local unit
+  for unit in monstro-widget monstro-web-client monstro-web-admin monstro-public-site; do
+    if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+      deploy_log "Остановка ${unit} (освобождение esbuild/node)..."
+      systemctl stop "${unit}" || true
+    fi
+  done
+  sleep 2
+}
+
+deploy_remove_node_modules() {
+  deploy_stop_node_services
+  cd "${INSTALL_DIR}"
+  deploy_log "Удаление повреждённого node_modules..."
+  rm -rf node_modules
+  find "${INSTALL_DIR}/apps" "${INSTALL_DIR}/packages" -name node_modules -type d -prune -exec rm -rf {} + 2>/dev/null || true
+}
+
+deploy_npm_deps_healthy() {
+  local tsc_lib="${INSTALL_DIR}/node_modules/typescript/lib/tsc.js"
+  local esbuild_bin="${INSTALL_DIR}/node_modules/esbuild/bin/esbuild"
+  if [[ ! -f "${tsc_lib}" ]]; then
+    return 1
+  fi
+  if [[ ! -f "${esbuild_bin}" ]]; then
+    return 1
+  fi
+  return 0
+}
+
+# Один общий npm install для всего монорепо (никогда не вызывать параллельно из build-*.sh)
+deploy_install_all_deps() {
+  if [[ "${DEPLOY_NPM_INSTALL_DONE:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  deploy_npm_acquire_lock
+  trap deploy_npm_release_lock EXIT
 
   deploy_setup_npm_cache
   cd "${INSTALL_DIR}"
 
   local lock_unchanged=0
-  if ! deploy_lock_changed "${scope}"; then
+  if ! deploy_lock_changed "deps"; then
     lock_unchanged=1
   fi
 
   if [[ "${lock_unchanged}" -eq 1 ]] && deploy_npm_deps_healthy; then
-    deploy_log "npm install пропущен (${scope}, package-lock.json не менялся)"
+    deploy_log "npm install пропущен (зависимости OK)"
     bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+    export DEPLOY_NPM_INSTALL_DONE=1
+    deploy_npm_release_lock
+    trap - EXIT
     return 0
   fi
 
   if [[ "${lock_unchanged}" -eq 1 ]]; then
-    deploy_warn "node_modules повреждён (нет typescript/tsc) — принудительный npm install (${scope})"
+    deploy_warn "node_modules повреждён — полная переустановка зависимостей"
+    deploy_remove_node_modules
   else
-    deploy_log "npm install (${scope})..."
+    deploy_log "npm install (все workspaces)..."
   fi
 
-  npm install "${workspaces[@]}" --include-workspace-root
+  if [[ -f package-lock.json ]]; then
+    if ! npm ci --include-workspace-root; then
+      deploy_warn "npm ci не удался — чистая переустановка"
+      deploy_remove_node_modules
+      npm ci --include-workspace-root
+    fi
+  else
+    npm install --include-workspace-root
+  fi
+
   bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
 
   if ! deploy_npm_deps_healthy; then
-    deploy_fail "npm install завершился, но typescript/tsc не найден. Запустите: sudo bash scripts/fix-npm-install.sh"
+    deploy_fail "npm install завершился, но typescript/esbuild не найдены. Запустите: sudo bash scripts/fix-npm-install.sh"
   fi
+
+  export DEPLOY_NPM_INSTALL_DONE=1
+  deploy_npm_release_lock
+  trap - EXIT
+}
+
+deploy_npm_install() {
+  local scope="$1"
+  shift
+
+  if [[ "${DEPLOY_NPM_SKIP:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  deploy_install_all_deps
 }
 
 deploy_restart_if_active() {
@@ -166,4 +236,17 @@ deploy_export_frontend_env() {
   export NEXT_PUBLIC_API_URL="http://${ip}:3000/api"
   export NEXT_PUBLIC_SITE_URL="http://${ip}:4321"
   export API_INTERNAL_URL="http://127.0.0.1:3000"
+}
+
+# Перед параллельной сборкой: один npm install + shared-types
+deploy_prepare_frontend_builds() {
+  deploy_install_all_deps
+  deploy_export_frontend_env
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    deploy_log "Сборка shared-types (один раз перед параллельными фронтами)..."
+    cd "${INSTALL_DIR}"
+    npm run build -w @ai-consultant/shared-types
+    export DEPLOY_SHARED_TYPES_SKIP=1
+  fi
+  export DEPLOY_NPM_SKIP=1
 }

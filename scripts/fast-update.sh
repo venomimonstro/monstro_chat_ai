@@ -84,8 +84,17 @@ needs() {
   [[ " ${list} " == *" ${item} "* ]]
 }
 
+needs_frontend_builds() {
+  local components="$1"
+  needs "${components}" "widget" || needs "${components}" "frontends" || needs "${components}" "site"
+}
+
 run_parallel_builds() {
   local components="$1"
+  if needs_frontend_builds "${components}"; then
+    deploy_prepare_frontend_builds
+  fi
+
   local pids=() names=()
 
   if needs "${components}" "widget"; then
@@ -117,6 +126,9 @@ run_parallel_builds() {
 
 run_sequential_builds() {
   local components="$1"
+  if needs_frontend_builds "${components}"; then
+    deploy_prepare_frontend_builds
+  fi
   needs "${components}" "widget" && bash "${INSTALL_DIR}/scripts/lib/build-widget.sh"
   needs "${components}" "frontends" && bash "${INSTALL_DIR}/scripts/lib/build-frontends.sh"
   needs "${components}" "site" && bash "${INSTALL_DIR}/scripts/lib/build-site.sh"

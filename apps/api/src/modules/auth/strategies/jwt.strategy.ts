@@ -16,16 +16,20 @@ import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
+<<<<<<< HEAD
   constructor(
     config: ConfigService,
     private readonly prisma: PrismaService,
   ) {
+=======
+  constructor(private readonly config: ConfigService) {
+>>>>>>> origin/cursor/sprint-72-admin-external-ip-ab3a
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => {
           const cookies = req?.cookies;
           if (!cookies) return null;
-          const kind = resolveAppKind(req, config.get('WEB_ADMIN_URL', 'http://localhost:5174'));
+          const kind = resolveAppKind(req, config);
           if (kind === 'admin') {
             return (cookies[ACCESS_COOKIE_ADMIN] as string | undefined) ?? null;
           }
