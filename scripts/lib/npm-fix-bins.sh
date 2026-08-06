@@ -12,6 +12,16 @@ if [[ -f "${INSTALL_DIR}/node_modules/typescript/bin/tsc" ]]; then
   chmod u+x "${INSTALL_DIR}/node_modules/typescript/bin/tsc" 2>/dev/null || true
 fi
 
+if [[ -f "${INSTALL_DIR}/node_modules/.bin/tsc" ]]; then
+  chmod u+x "${INSTALL_DIR}/node_modules/.bin/tsc" 2>/dev/null || true
+fi
+
+if ! [[ -f "${INSTALL_DIR}/node_modules/typescript/lib/tsc.js" ]] \
+  && ! [[ -f "${INSTALL_DIR}/node_modules/typescript/bin/tsc" ]] \
+  && ! [[ -x "${INSTALL_DIR}/node_modules/.bin/tsc" ]]; then
+  echo "WARN: typescript/tsc не найден в ${INSTALL_DIR}/node_modules — запустите scripts/fix-npm-install.sh" >&2
+fi
+
 for bin_dir in \
   "${INSTALL_DIR}/packages/shared-types/node_modules/.bin" \
   "${INSTALL_DIR}/apps/widget/node_modules/.bin" \
