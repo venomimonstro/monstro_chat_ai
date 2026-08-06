@@ -123,3 +123,4 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
+| 72 | Админка с любого IP: CORS multi-origin, bootstrap timeout, CSRF после /auth/me |

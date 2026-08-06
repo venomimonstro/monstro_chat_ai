@@ -102,6 +102,7 @@ YOOKASSA_WEBHOOK_SECRET=placeholder_webhook_secret
 
 WEB_CLIENT_URL=http://${ip}:5173
 WEB_ADMIN_URL=http://${ip}:5174
+WEB_ADMIN_URLS=http://${ip}:5174,http://${ip}
 WIDGET_URL=http://${ip}:5175
 PUBLIC_SITE_URL=http://${ip}:4321
 API_PUBLIC_URL=http://${ip}:3000/api
