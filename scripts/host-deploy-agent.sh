@@ -4,7 +4,9 @@
 # Cron: * * * * * root /opt/monstro_chat_ai/scripts/host-deploy-agent.sh >> /var/log/aicw-deploy-agent.log 2>&1
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

@@ -7,7 +7,9 @@ set -euo pipefail
 
 VERSION="${1:?Usage: release-deploy.sh <version> <sprint> OR deploy-latest.sh}"
 SPRINT="${2:?Usage: release-deploy.sh <version> <sprint>}"
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 RELEASE_UPDATE_ID="${RELEASE_UPDATE_ID:-}"
 FORCE_DEPLOY="${FORCE_DEPLOY:-}"

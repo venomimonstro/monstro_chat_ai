@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: 'Monstro Chat AI',
+  name: 'RedFlow',
   description:
     'AI-консультант для сайта: отвечает по материалам компании, уточняет запрос и передаёт контакт менеджеру.',
   url: process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:4321',

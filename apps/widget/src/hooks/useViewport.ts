@@ -51,8 +51,13 @@ export function useVisualViewport(): { height: number | null; offsetTop: number 
     const vv = window.visualViewport;
     if (!vv) return;
 
+    let rafId: number | null = null;
     const update = () => {
-      setState({ height: vv.height, offsetTop: vv.offsetTop });
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        setState({ height: vv.height, offsetTop: vv.offsetTop });
+      });
     };
     update();
     vv.addEventListener('resize', update);
@@ -60,6 +65,7 @@ export function useVisualViewport(): { height: number | null; offsetTop: number 
     return () => {
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, []);
 

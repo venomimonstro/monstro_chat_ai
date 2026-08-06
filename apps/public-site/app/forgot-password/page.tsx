@@ -3,7 +3,7 @@ import { ForgotPasswordForm } from '@/components/ForgotPasswordForm';
 
 export const metadata: Metadata = {
   title: 'Восстановление пароля',
-  description: 'Сброс пароля для личного кабинета Monstro Chat AI',
+  description: 'Сброс пароля для личного кабинета RedFlow',
 };
 
 export default function ForgotPasswordPage() {

@@ -238,7 +238,7 @@ export class AuthService {
 
     const secret = generateSecret();
     const otpauthUrl = generateURI({
-      issuer: 'AI-Консультант',
+      issuer: 'RedFlow',
       label: user.email,
       secret,
     });

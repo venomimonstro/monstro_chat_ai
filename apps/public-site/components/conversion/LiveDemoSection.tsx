@@ -65,7 +65,7 @@ export function LiveDemoSection() {
                   M
                 </span>
                 <div>
-                  <p className="font-semibold">Monstro Chat AI</p>
+                  <p className="font-semibold">RedFlow</p>
                   <p className="text-xs text-emerald-600">Демо · онлайн</p>
                 </div>
               </div>

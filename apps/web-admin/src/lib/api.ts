@@ -532,6 +532,13 @@ export async function fetchDeploymentRecords() {
   return res.data;
 }
 
+export async function fetchSprintDeploymentMatrix() {
+  const res = await api.get<
+    import('@ai-consultant/shared-types').SprintDeploymentMatrixDto
+  >('/admin/release/sprint-matrix');
+  return res.data;
+}
+
 export async function requestRollbackToVersion(version: string) {
   const res = await api.post<{
     ok: boolean;

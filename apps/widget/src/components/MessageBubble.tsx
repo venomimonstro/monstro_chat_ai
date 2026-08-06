@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { parseAssistantMessage } from '../utils/messageContent';
 
 interface MessageBubbleProps {
@@ -10,7 +10,7 @@ interface MessageBubbleProps {
   textColor: string;
 }
 
-export function MessageBubble({
+export const MessageBubble = memo(function MessageBubble({
   content,
   streaming,
   isUser,
@@ -79,4 +79,4 @@ export function MessageBubble({
       )}
     </>
   );
-}
+});

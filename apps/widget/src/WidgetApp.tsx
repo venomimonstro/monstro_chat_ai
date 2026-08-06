@@ -9,8 +9,9 @@ import { COMMON_EMOJIS } from './constants/emojis';
 import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewport } from './hooks/useViewport';
-import { MessageBubble } from './components/MessageBubble';
+import { MessageList } from './components/MessageList';
 import { dedupeMessages } from './utils/messages';
+import { mergeLiveStream } from './utils/streamState';
 import { generateUuid } from './utils/uuid';
 import { prefetchSocketClient } from './utils/prefetchSocket';
 import './widget-styles.css';
@@ -185,6 +186,7 @@ export function WidgetApp() {
   );
   const [consentChecked, setConsentChecked] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [liveStreamContent, setLiveStreamContent] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [dialogId, setDialogId] = useState<string | null>(() =>
     widgetKey ? getStoredDialogId(widgetKey) : null,
@@ -217,7 +219,12 @@ export function WidgetApp() {
     attributionRef.current = attribution;
   }, [attribution]);
 
-  const isStreaming = messages.some((m) => m.streaming);
+  const displayMessages = useMemo(
+    () => mergeLiveStream(messages, liveStreamContent),
+    [messages, liveStreamContent],
+  );
+
+  const isStreaming = liveStreamContent !== null;
   const isPending = isTyping || isStreaming;
 
   const {
@@ -231,6 +238,7 @@ export function WidgetApp() {
     open,
     messageCount: messages.length,
     streaming: isStreaming || isTyping,
+    streamContentLength: liveStreamContent?.length ?? 0,
   });
 
   const closePanel = useCallback(() => setOpen(false), []);
@@ -401,22 +409,27 @@ export function WidgetApp() {
 
     socket.on('disconnect', () => {
       setConnected(false);
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+        streamFlushRafRef.current = null;
+      }
       if (streamingRef.current) {
         const partial = streamingRef.current;
         streamingRef.current = '';
+        setLiveStreamContent(null);
         setIsTyping(false);
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last?.streaming) {
-            copy[copy.length - 1] = {
-              ...last,
-              streaming: false,
-              content: partial || 'Соединение прервано. Повторите отправку.',
-            };
-          }
-          return copy;
-        });
+        if (partial) {
+          setMessages((m) =>
+            dedupeMessages([
+              ...m.filter((msg) => !msg.streaming),
+              {
+                role: 'assistant',
+                content: partial || 'Соединение прервано. Повторите отправку.',
+                createdAt: new Date().toISOString(),
+              },
+            ]),
+          );
+        }
       }
     });
 
@@ -454,28 +467,25 @@ export function WidgetApp() {
       );
       setDialogId(data.dialogId);
       storeDialogId(widgetKey, data.dialogId);
-      setMessages(
-        dedupeMessages(
-          data.messages.map((msg) => ({
-            ...msg,
-            createdAt: msg.createdAt ?? new Date().toISOString(),
-          })),
-        ),
+      const base = dedupeMessages(
+        data.messages.map((msg) => ({
+          ...msg,
+          createdAt: msg.createdAt ?? new Date().toISOString(),
+        })),
       );
-      if (data.resumed && data.messages.length > 0) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === '__resume_hint__')) return prev;
-          return [
-            {
-              id: '__resume_hint__',
-              role: 'assistant',
-              content: 'Продолжаем предыдущий диалог.',
-              createdAt: new Date().toISOString(),
-            },
-            ...prev,
-          ];
-        });
-      }
+      const withResume =
+        data.resumed && data.messages.length > 0
+          ? [
+              {
+                id: '__resume_hint__',
+                role: 'assistant' as const,
+                content: 'Продолжаем предыдущий диалог.',
+                createdAt: new Date().toISOString(),
+              },
+              ...base,
+            ]
+          : base;
+      setMessages(withResume);
     });
 
     socket.on('dialog:created', (data: { dialogId: string }) => {
@@ -486,6 +496,7 @@ export function WidgetApp() {
     socket.on('stream:start', () => {
       setIsTyping(true);
       streamingRef.current = '';
+      setLiveStreamContent('');
     });
 
     socket.on('stream:token', (data: { token: string }) => {
@@ -493,37 +504,30 @@ export function WidgetApp() {
       if (streamFlushRafRef.current !== null) return;
       streamFlushRafRef.current = requestAnimationFrame(() => {
         streamFlushRafRef.current = null;
-        const content = streamingRef.current;
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last?.streaming) {
-            copy[copy.length - 1] = { ...last, content };
-          } else {
-            copy.push({ role: 'assistant', content, streaming: true });
-          }
-          return copy;
-        });
+        setLiveStreamContent(streamingRef.current);
       });
     });
 
     socket.on('stream:end', (data: { messageId?: string; content?: string }) => {
       setIsTyping(false);
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+        streamFlushRafRef.current = null;
+      }
       const content = data.content ?? streamingRef.current;
-      setMessages((m) => {
-        const copy = [...m];
-        const last = copy[copy.length - 1];
-        if (last?.streaming) {
-          copy[copy.length - 1] = {
+      streamingRef.current = '';
+      setLiveStreamContent(null);
+      setMessages((m) =>
+        dedupeMessages([
+          ...m.filter((msg) => !msg.streaming),
+          {
             role: 'assistant',
             content,
             id: data.messageId,
             createdAt: new Date().toISOString(),
-          };
-        }
-        return dedupeMessages(copy);
-      });
-      streamingRef.current = '';
+          },
+        ]),
+      );
     });
 
     socket.on(
@@ -550,6 +554,8 @@ export function WidgetApp() {
             },
           ]),
         );
+        setLiveStreamContent(null);
+        streamingRef.current = '';
         if (!open && !preview) {
           setOpen(true);
         }
@@ -558,6 +564,12 @@ export function WidgetApp() {
 
     const appendError = (text: string) => {
       setIsTyping(false);
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+        streamFlushRafRef.current = null;
+      }
+      streamingRef.current = '';
+      setLiveStreamContent(null);
       setMessages((m) =>
         dedupeMessages([
           ...m.filter((msg) => !msg.streaming),
@@ -607,7 +619,13 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
-    setHistoryLoading(Boolean(dialogIdRef.current));
+    const hasDialog = Boolean(dialogIdRef.current);
+    const alreadyLoaded =
+      hasDialog && historyLoadedRef.current === dialogIdRef.current;
+
+    if (!alreadyLoaded && hasDialog) {
+      setHistoryLoading(true);
+    }
     setHistorySlow(false);
 
     const slowTimeout = window.setTimeout(() => {
@@ -616,6 +634,7 @@ export function WidgetApp() {
     }, 1800);
 
     const historyTimeout = window.setTimeout(() => {
+      if (alreadyLoaded) return;
       setHistoryLoading(false);
       if (!historyLoadedRef.current && dialogIdRef.current) {
         setConnectionError(true);
@@ -668,6 +687,10 @@ export function WidgetApp() {
 
   useEffect(() => {
     return () => {
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+      }
+      socketRef.current?.removeAllListeners();
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
@@ -870,45 +893,18 @@ export function WidgetApp() {
           {personalization.welcomeMessage}
         </div>
         {messages.length === 0 && quickReplyChips}
-        {messages.map((msg, i) => {
-          const isUser = msg.role === 'user';
-          const showAvatar = !isUser && (i === 0 || messages[i - 1]?.role === 'user');
-          const time = msg.createdAt ? formatTime(new Date(msg.createdAt)) : '';
-          const isNewMessage =
-            msg.id !== '__resume_hint__' &&
-            (!msg.id || !historyMessageIdsRef.current.has(msg.id));
-          return (
-            <div
-              key={msg.id ?? `msg-${i}`}
-              className={`aicw-message ${isUser ? 'user' : 'assistant'} ${isDark ? 'dark' : ''}${isNewMessage ? ' aicw-new' : ''}`}
-              role="listitem"
-            >
-              {!isUser && showAvatar && (
-                <div className="aicw-message-avatar">
-                  {appearance.avatarUrl || personalization.managerPhotoUrl ? (
-                    <img src={appearance.avatarUrl || personalization.managerPhotoUrl} alt="" />
-                  ) : (
-                    <div className="aicw-message-avatar-placeholder">
-                      {personalization.managerName[0]}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div className="aicw-message-content">
-                <MessageBubble
-                  content={msg.content}
-                  streaming={msg.streaming}
-                  isUser={isUser}
-                  isDark={isDark}
-                  primaryColor={appearance.primaryColor}
-                  textColor={appearance.textColor}
-                />
-                {time && <div className="aicw-message-time">{time}</div>}
-              </div>
-            </div>
-          );
-        })}
-        {isTyping && !messages.some((m) => m.streaming) && (
+        <MessageList
+          messages={displayMessages}
+          isDark={isDark}
+          primaryColor={appearance.primaryColor}
+          textColor={appearance.textColor}
+          avatarUrl={appearance.avatarUrl}
+          managerPhotoUrl={personalization.managerPhotoUrl}
+          managerName={personalization.managerName}
+          historyIds={historyMessageIdsRef.current}
+          formatTime={formatTime}
+        />
+        {isTyping && liveStreamContent === null && (
           <div className={`aicw-typing ${isDark ? 'dark' : ''}`} aria-label="Печатает">
             <span className="aicw-typing-dot" />
             <span className="aicw-typing-dot" />

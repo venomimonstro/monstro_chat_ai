@@ -2,7 +2,9 @@
 # Сборка и запуск AI-виджета (embed.js + iframe) на порту 5175
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/lib/resolve-install-dir.sh"
 cd "${INSTALL_DIR}"
 
 log() { echo -e "\n\033[1;32m==>\033[0m $*"; }

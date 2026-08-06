@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const SCROLL_THRESHOLD = 96;
+const SCROLL_THROTTLE_MS = 80;
 
 interface UseChatScrollOptions {
   open: boolean;
   messageCount: number;
   streaming: boolean;
+  /** Длина live-stream контента — триггер скролла без роста messageCount */
+  streamContentLength?: number;
 }
 
 export function useChatScroll({
   open,
   messageCount,
   streaming,
+  streamContentLength = 0,
 }: UseChatScrollOptions) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -19,6 +23,8 @@ export function useChatScroll({
   const pinnedRef = useRef(true);
   const prevMessageCountRef = useRef(messageCount);
   const scrollRafRef = useRef<number | null>(null);
+  const scrollThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showScrollDownRef = useRef(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
 
   const isNearBottom = useCallback(() => {
@@ -35,13 +41,22 @@ export function useChatScroll({
       behavior: smooth ? 'smooth' : 'auto',
     });
     pinnedRef.current = true;
+    showScrollDownRef.current = false;
     setShowScrollDown(false);
   }, []);
 
   const handleScroll = useCallback(() => {
-    const near = isNearBottom();
-    pinnedRef.current = near;
-    setShowScrollDown(!near);
+    if (scrollThrottleRef.current !== null) return;
+    scrollThrottleRef.current = setTimeout(() => {
+      scrollThrottleRef.current = null;
+      const near = isNearBottom();
+      pinnedRef.current = near;
+      const show = !near;
+      if (showScrollDownRef.current !== show) {
+        showScrollDownRef.current = show;
+        setShowScrollDown(show);
+      }
+    }, SCROLL_THROTTLE_MS);
   }, [isNearBottom]);
 
   useEffect(() => {
@@ -57,6 +72,18 @@ export function useChatScroll({
     }
     prevMessageCountRef.current = messageCount;
   }, [messageCount, scrollToBottom]);
+
+  useEffect(() => {
+    if (!streaming || streamContentLength === 0) return;
+    if (!pinnedRef.current) return;
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = bodyRef.current;
+      if (!el || !pinnedRef.current) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }, [streaming, streamContentLength]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -75,7 +102,6 @@ export function useChatScroll({
 
     const observer = new ResizeObserver(scrollIfPinned);
     observer.observe(content);
-    scrollIfPinned();
 
     return () => {
       observer.disconnect();
@@ -84,7 +110,18 @@ export function useChatScroll({
         scrollRafRef.current = null;
       }
     };
-  }, [open, messageCount, streaming]);
+  }, [open]);
+
+  useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+      }
+      if (scrollThrottleRef.current !== null) {
+        clearTimeout(scrollThrottleRef.current);
+      }
+    };
+  }, []);
 
   return {
     bodyRef,

@@ -2,7 +2,7 @@
   "name": "ai-consultant-platform",
   "version": "0.1.0",
   "private": true,
-  "description": "SaaS-платформа ИИ-агентов для консультирования посетителей сайта",
+  "description": "RedFlow — SaaS-платформа ИИ-агентов для консультирования посетителей сайта",
   "workspaces": [
     "apps/*",
     "packages/*"

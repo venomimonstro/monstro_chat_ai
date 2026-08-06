@@ -172,6 +172,27 @@ export interface DeploymentRecordDto {
   rolledBackAt: string | null;
 }
 
+/** Спринт из плана + статус деплоя на сервере (Sprint 70). */
+export interface SprintDeploymentRowDto {
+  sprint: number;
+  version: string;
+  description: string;
+  planStatus: string;
+  deployed: boolean;
+  deployStatus: 'active' | 'superseded' | 'rolled_back' | 'not_deployed';
+  appliedAt: string | null;
+  gitSha: string | null;
+  isLive: boolean;
+  canRollback: boolean;
+}
+
+export interface SprintDeploymentMatrixDto {
+  currentVersion: string;
+  currentSprint: number;
+  previousVersion: string | null;
+  rows: SprintDeploymentRowDto[];
+}
+
 export interface StabilityProbeDto {
   component: string;
   label: string;

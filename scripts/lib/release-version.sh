@@ -2,7 +2,9 @@
 # Shared helpers for release scripts
 set -euo pipefail
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/monstro_chat_ai}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/resolve-install-dir.sh
+source "${SCRIPT_DIR}/resolve-install-dir.sh"
 API_BASE="${API_BASE:-http://127.0.0.1:3000/api}"
 
 load_deploy_token() {
@@ -59,7 +61,7 @@ container_sprint_number() {
 read_latest_done_sprint() {
   python3 - <<'PY'
 import os, re
-path = os.path.join(os.environ.get("INSTALL_DIR", "/opt/monstro_chat_ai"), "docs", "SPRINTS.md")
+path = os.path.join(os.environ.get("INSTALL_DIR", "/opt/redflow"), "docs", "SPRINTS.md")
 if not os.path.isfile(path):
     raise SystemExit("SPRINTS.md not found")
 latest = None

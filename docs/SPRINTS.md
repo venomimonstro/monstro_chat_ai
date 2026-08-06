@@ -70,6 +70,10 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
+| 68 | Done | Админка с внешнего IP, smart crawl, priority URLs в обучении |
+| 69 | Done | Кастомизация виджета: анимация, label, page rules, конверсия в ЛК |
+| 70 | Done | RedFlow: матрица спринтов в админке, откат версии, SSL redflow.ru, переименование |
+| 71 | Done | Стабильность чата: оптимизация стриминга, scroll, симуляции, батчинг токенов |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

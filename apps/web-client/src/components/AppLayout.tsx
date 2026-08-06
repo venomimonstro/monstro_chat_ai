@@ -30,7 +30,7 @@ export function AppLayout() {
       >
         <div className={`border-b border-slate-200 py-5 ${collapsed ? 'px-3 text-center' : 'px-6'}`}>
           <p className={`font-bold text-brand-700 ${collapsed ? 'text-sm' : 'text-lg'}`}>
-            {collapsed ? 'AI' : 'AI-Консультант'}
+            {collapsed ? 'RF' : 'RedFlow'}
           </p>
           {!collapsed && <p className="text-xs text-slate-500">Личный кабинет</p>}
         </div>
@@ -114,7 +114,7 @@ export function AppLayout() {
               )}
             </svg>
           </button>
-          <p className="font-bold text-brand-700">AI-Консультант</p>
+          <p className="font-bold text-brand-700">RedFlow</p>
           <NotificationBell />
         </header>
 

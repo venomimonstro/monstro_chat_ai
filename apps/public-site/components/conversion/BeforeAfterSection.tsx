@@ -17,7 +17,7 @@ export function BeforeAfterSection() {
         </div>
         <div className="bg-brand-50 px-6 py-4">
           <p className="text-sm font-semibold uppercase tracking-wide text-brand-700">
-            С Monstro Chat AI
+            С RedFlow
           </p>
         </div>
       </div>
