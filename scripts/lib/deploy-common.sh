@@ -103,6 +103,16 @@ deploy_lock_changed() {
   return 0
 }
 
+deploy_npm_deps_healthy() {
+  local tsc_lib="${INSTALL_DIR}/node_modules/typescript/lib/tsc.js"
+  local tsc_direct="${INSTALL_DIR}/node_modules/typescript/bin/tsc"
+  local tsc_bin="${INSTALL_DIR}/node_modules/.bin/tsc"
+  if [[ -f "${tsc_lib}" ]] || [[ -f "${tsc_direct}" ]] || [[ -x "${tsc_bin}" ]]; then
+    return 0
+  fi
+  return 1
+}
+
 deploy_npm_install() {
   local scope="$1"
   shift
@@ -111,15 +121,29 @@ deploy_npm_install() {
   deploy_setup_npm_cache
   cd "${INSTALL_DIR}"
 
+  local lock_unchanged=0
   if ! deploy_lock_changed "${scope}"; then
+    lock_unchanged=1
+  fi
+
+  if [[ "${lock_unchanged}" -eq 1 ]] && deploy_npm_deps_healthy; then
     deploy_log "npm install пропущен (${scope}, package-lock.json не менялся)"
     bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
     return 0
   fi
 
-  deploy_log "npm install (${scope})..."
+  if [[ "${lock_unchanged}" -eq 1 ]]; then
+    deploy_warn "node_modules повреждён (нет typescript/tsc) — принудительный npm install (${scope})"
+  else
+    deploy_log "npm install (${scope})..."
+  fi
+
   npm install "${workspaces[@]}" --include-workspace-root
   bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+
+  if ! deploy_npm_deps_healthy; then
+    deploy_fail "npm install завершился, но typescript/tsc не найден. Запустите: sudo bash scripts/fix-npm-install.sh"
+  fi
 }
 
 deploy_restart_if_active() {

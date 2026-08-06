@@ -5,9 +5,9 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json",
-    "lint": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
-    "dev": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --watch"
+    "build": "node ../../node_modules/typescript/lib/tsc.js -p tsconfig.json",
+    "lint": "node ../../node_modules/typescript/lib/tsc.js -p tsconfig.json --noEmit",
+    "dev": "node ../../node_modules/typescript/lib/tsc.js -p tsconfig.json --watch"
   },
   "devDependencies": {
     "typescript": "^5.7.2"
