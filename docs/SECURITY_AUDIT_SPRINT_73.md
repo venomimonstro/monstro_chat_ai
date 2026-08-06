@@ -125,9 +125,15 @@
 cd /opt/monstro_chat_ai
 git fetch origin
 git checkout cursor/sprint-73-security-audit-ab3a
-git pull
+git pull origin cursor/sprint-73-security-audit-ab3a
+
+# Если node_modules повреждён (ETXTBSY, TAR_ENTRY_ERROR):
+sudo bash scripts/fix-npm-install.sh
+
 sudo bash scripts/fast-update.sh --full --no-pull
 ```
 
-**Важно:** после деплоя переподключите Telegram-каналы (для `secret_token`).  
+**Важно:** fast-update делает один npm install до параллельных сборок — не запускайте npm install вручную параллельно.
+
+После деплоя переподключите Telegram-каналы (для `secret_token`).  
 Существующие JWT-сессии инвалидируются при следующем запросе (проверка `sessionVersion`).
