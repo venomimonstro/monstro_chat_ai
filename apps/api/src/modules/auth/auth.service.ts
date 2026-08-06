@@ -164,15 +164,15 @@ export class AuthService {
     });
 
     if (!user || user.status !== 'active') {
+      await this.tokenService.recordLoginFailure(dto.email);
       throw new UnauthorizedException('Неверный email или пароль');
     }
 
     const valid = await argon2.verify(user.passwordHash, dto.password);
     if (!valid) {
+      await this.tokenService.recordLoginFailure(dto.email);
       throw new UnauthorizedException('Неверный email или пароль');
     }
-
-    await this.tokenService.resetLoginAttempts(dto.email);
 
     if (this.requires2fa(user)) {
       if (user.twoFaEnabled && user.twoFaSecret) {
@@ -187,6 +187,7 @@ export class AuthService {
       return { ...tokens, requires2faSetup: true };
     }
 
+    await this.tokenService.resetLoginAttempts(user.email);
     return this.issueTokens(user, res, req, true);
   }
 
@@ -205,6 +206,17 @@ export class AuthService {
 
     if (payload.type !== 'two_fa') {
       throw new UnauthorizedException('Недействительный 2FA-токен');
+    }
+
+    const rateLimit = await this.tokenService.checkTwoFaRateLimit(payload.sub);
+    if (!rateLimit.allowed) {
+      throw new HttpException(
+        {
+          message: 'Слишком много попыток 2FA. Попробуйте позже.',
+          retryAfterSeconds: rateLimit.retryAfterSeconds,
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     const user = await this.prisma.user.findUnique({
@@ -226,9 +238,12 @@ export class AuthService {
     });
 
     if (!valid) {
+      await this.tokenService.recordTwoFaFailure(payload.sub);
       throw new UnauthorizedException('Неверный код 2FA');
     }
 
+    await this.tokenService.resetTwoFaAttempts(payload.sub);
+    await this.tokenService.resetLoginAttempts(user.email);
     return this.issueTokens(user, res, req, true);
   }
 
@@ -492,6 +507,7 @@ export class AuthService {
       tenantId: user.tenantId,
       type: 'access',
       twoFaVerified,
+      sessionVersion: user.sessionVersion,
     };
     return this.jwtService.sign(payload, { expiresIn: this.accessTtl as never });
   }

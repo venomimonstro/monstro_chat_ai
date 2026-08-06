@@ -44,7 +44,7 @@ export class AdminTenantsService {
   ) {
     this.impersonationTtlSec = this.config.get<number>(
       'IMPERSONATION_TTL_SEC',
-      3600,
+      300,
     );
   }
 
@@ -435,6 +435,7 @@ export class AdminTenantsService {
       tenantId: tenant.id,
       type: 'access',
       twoFaVerified: true,
+      sessionVersion: targetUser.sessionVersion,
       impersonatedBy: actor.id,
       impersonationActorEmail: actor.email,
       impersonationReason: reason,

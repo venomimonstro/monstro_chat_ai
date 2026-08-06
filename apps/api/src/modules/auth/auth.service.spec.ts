@@ -72,7 +72,11 @@ describe('AuthService', () => {
   const mockToken = {
     storeRefreshToken: jest.fn().mockResolvedValue('token-id'),
     checkLoginRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
+    recordLoginFailure: jest.fn(),
     resetLoginAttempts: jest.fn(),
+    checkTwoFaRateLimit: jest.fn().mockResolvedValue({ allowed: true }),
+    recordTwoFaFailure: jest.fn(),
+    resetTwoFaAttempts: jest.fn(),
     revokeRefreshToken: jest.fn(),
   };
 

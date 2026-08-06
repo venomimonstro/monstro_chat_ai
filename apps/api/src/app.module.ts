@@ -1,5 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -28,7 +28,7 @@ import { PushModule } from './modules/push/push.module';
 import { RbacModule } from './common/rbac/rbac.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { TwoFaRequiredGuard } from './modules/auth/guards/two-fa-required.guard';
-import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware';
+import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
 import { CsrfMiddleware } from './common/middleware/csrf.middleware';
 
 @Module({
@@ -70,11 +70,11 @@ import { CsrfMiddleware } from './common/middleware/csrf.middleware';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: TwoFaRequiredGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer.apply(CsrfMiddleware).forRoutes('*');
-    consumer.apply(TenantContextMiddleware).forRoutes('*');
   }
 }

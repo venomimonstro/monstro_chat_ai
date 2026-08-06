@@ -7,6 +7,7 @@ export interface AccessTokenPayload {
   tenantId: string | null;
   type: 'access' | 'two_fa';
   twoFaVerified?: boolean;
+  sessionVersion?: number;
   impersonatedBy?: string;
   impersonationActorEmail?: string;
   impersonationReason?: string;
