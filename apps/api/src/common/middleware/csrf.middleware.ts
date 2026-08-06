@@ -6,16 +6,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
 import {
-  ACCESS_COOKIE_ADMIN,
-  ACCESS_COOKIE_CLIENT,
   CSRF_COOKIE,
   REFRESH_COOKIE,
 } from '../constants/cookies';
 import { CsrfTokenService } from '../../modules/auth/csrf-token.service';
-import { TokenService } from '../../modules/auth/token.service';
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+/** Paths that use machine tokens or are pre-auth — not browser CSRF. */
 const CSRF_SKIP_PREFIXES = [
   '/api/auth/login',
   '/api/auth/register',
@@ -28,10 +26,14 @@ const CSRF_SKIP_PREFIXES = [
   '/api/auth/ws-token',
   '/api/auth/csrf',
   '/api/admin/impersonation/exchange',
-  '/api/admin',
+  '/api/admin/release/sync',
+  '/api/admin/release/report',
+  '/api/admin/release/complete',
+  '/api/admin/release/host-job/',
   '/api/billing/webhook/',
   '/api/widget/',
   '/api/public/',
+  '/api/channels/',
   '/api/health',
 ];
 
@@ -41,7 +43,6 @@ const CSRF_HEADER_RE = /^[a-f0-9]{64}$/i;
 export class CsrfMiddleware implements NestMiddleware {
   constructor(
     private readonly csrfTokens: CsrfTokenService,
-    private readonly tokenService: TokenService,
     private readonly config: ConfigService,
   ) {}
 
@@ -60,9 +61,6 @@ export class CsrfMiddleware implements NestMiddleware {
     const headerToken = req.headers['x-csrf-token'] as string | undefined;
     const cookieToken = req.cookies?.[CSRF_COOKIE] as string | undefined;
     const refreshToken = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-    const hasAccessSession = !!(
-      req.cookies?.[ACCESS_COOKIE_ADMIN] || req.cookies?.[ACCESS_COOKIE_CLIENT]
-    );
 
     if (!headerToken || !CSRF_HEADER_RE.test(headerToken)) {
       throw new ForbiddenException('Недействительный CSRF-токен');
@@ -77,18 +75,6 @@ export class CsrfMiddleware implements NestMiddleware {
     }
 
     if (refreshToken && (await this.csrfTokens.validate(refreshToken, headerToken))) {
-      if (!cookieToken) {
-        this.setCsrfCookie(res, headerToken);
-      }
-      next();
-      return;
-    }
-
-    // SPA: custom header blocks cross-site form CSRF; session cookie proves login
-    if (hasAccessSession || refreshToken) {
-      if (refreshToken) {
-        await this.csrfTokens.bind(refreshToken, headerToken);
-      }
       if (!cookieToken) {
         this.setCsrfCookie(res, headerToken);
       }

@@ -99,11 +99,12 @@ export class BillingController {
     @Body() body: unknown,
     @Headers('x-signature') signature?: string,
   ) {
-    if (this.webhookVerification.isConfigured()) {
-      const raw = JSON.stringify(body);
-      if (!this.webhookVerification.verify(raw, signature)) {
-        throw new UnauthorizedException('Invalid webhook signature');
-      }
+    if (!this.webhookVerification.isConfigured()) {
+      throw new UnauthorizedException('Webhook verification is not configured');
+    }
+    const raw = JSON.stringify(body);
+    if (!this.webhookVerification.verify(raw, signature)) {
+      throw new UnauthorizedException('Invalid webhook signature');
     }
     return this.webhookService.handle(body as never);
   }

@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Headers,
   Param,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -37,12 +39,17 @@ export class ChannelsController {
   async telegramWebhook(
     @Param('widgetKey') widgetKey: string,
     @Body() body: unknown,
+    @Headers('x-telegram-bot-api-secret-token') secretToken?: string,
   ) {
     const source = await this.prisma.source.findUnique({
       where: { widgetKey },
     });
     if (!source || source.type !== 'telegram' || source.status !== 'active') {
       return { ok: true };
+    }
+    const expectedSecret = this.setup.getTelegramWebhookSecret(source.configJson);
+    if (expectedSecret && secretToken !== expectedSecret) {
+      throw new UnauthorizedException('Invalid Telegram webhook secret');
     }
     void this.messages.handleInbound(source, body);
     return { ok: true };

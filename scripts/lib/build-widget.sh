@@ -13,7 +13,9 @@ deploy_npm_install widget \
   --workspace=@ai-consultant/widget
 
 deploy_log "Сборка виджета..."
-npm run build -w @ai-consultant/shared-types
+if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+  npm run build -w @ai-consultant/shared-types
+fi
 npm run build -w @ai-consultant/widget
 
 if ! deploy_restart_if_active monstro-widget; then

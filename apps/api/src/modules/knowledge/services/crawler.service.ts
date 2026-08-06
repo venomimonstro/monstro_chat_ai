@@ -215,7 +215,7 @@ export class CrawlerService {
       const parsed = new URL(url);
       const hostname = parsed.hostname.toLowerCase();
       if (hostname === 'localhost' || hostname.endsWith('.local')) return true;
-      if (hostname === 'host.docker.internal') return false;
+      if (hostname === 'host.docker.internal') return true;
       if (hostname.startsWith('127.') || hostname === '0.0.0.0') return true;
       if (hostname.startsWith('10.') || hostname.startsWith('192.168.')) return true;
       if (hostname.startsWith('172.')) {
@@ -231,6 +231,16 @@ export class CrawlerService {
   }
 
   private async fetchWithTimeout(url: string): Promise<Response> {
+    return this.fetchWithRedirectGuard(url, 0);
+  }
+
+  private async fetchWithRedirectGuard(
+    url: string,
+    redirectCount: number,
+  ): Promise<Response> {
+    if (redirectCount > 5) {
+      throw new BadRequestException('Too many redirects while crawling');
+    }
     if (this.isPrivateAddress(url)) {
       throw new BadRequestException('Crawling private/internal addresses is not allowed');
     }
@@ -243,29 +253,29 @@ export class CrawlerService {
       const response = await fetch(url, {
         signal: controller.signal,
         headers,
-        redirect: 'follow',
+        redirect: 'manual',
       });
+
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return response;
+        const nextUrl = new URL(location, url).href;
+        return this.fetchWithRedirectGuard(nextUrl, redirectCount + 1);
+      }
+
       if (response.ok) return response;
 
       const fallback = this.getInternalFallbackUrl(url);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin: ${fallback}`);
-        return await fetch(fallback, {
-          signal: controller.signal,
-          headers,
-          redirect: 'follow',
-        });
+        return this.fetchWithRedirectGuard(fallback, redirectCount);
       }
       return response;
     } catch (error) {
       const fallback = this.getInternalFallbackUrl(url);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin after error: ${fallback}`);
-        return await fetch(fallback, {
-          signal: controller.signal,
-          headers,
-          redirect: 'follow',
-        });
+        return this.fetchWithRedirectGuard(fallback, redirectCount);
       }
       throw error;
     } finally {

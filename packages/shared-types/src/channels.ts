@@ -1,6 +1,7 @@
 export interface TelegramChannelCredentials {
   botTokenEncrypted?: string;
   botUsername?: string;
+  webhookSecret?: string;
 }
 
 export interface VkChannelCredentials {

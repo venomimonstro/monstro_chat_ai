@@ -384,6 +384,12 @@ export class ReportBuilderService {
     }
 
     if (input.dimension === 'tenant') {
+      if (input.tenantId) {
+        return this.fillDaySeries(
+          await this.countDialogsByDay(input.tenantId, range),
+          range,
+        );
+      }
       const rows = await this.prisma.$queryRaw<
         Array<{ label: string; value: bigint }>
       >`

@@ -35,6 +35,9 @@ export class DiagnosticsTokenService {
     if (!token?.trim()) return false;
     const client = this.redis.getClient();
     if (!client) {
+      if (this.config.get<string>('NODE_ENV') === 'production') {
+        return false;
+      }
       return token === this.fallbackToken();
     }
     const stored = await client.get(REDIS_KEY);
