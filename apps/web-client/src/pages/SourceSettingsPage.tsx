@@ -536,8 +536,9 @@ export function SourceSettingsPage() {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm"
                 />
                 <p className="mt-1 text-xs text-amber-700">
-                  В production пустой список блокирует виджет. Укажите домены сайта клиента
-                  (с протоколом https://).
+                  Укажите домены сайта клиента (https://example.com). Хост виджета
+                  (порт 5175) разрешён автоматически — его указывать не нужно.
+                  Пустой список в production блокирует чат с чужих доменов.
                 </p>
               </Field>
 

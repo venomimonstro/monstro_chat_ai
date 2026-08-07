@@ -8,8 +8,19 @@ export function assertWidgetOrigin(
   source: Source,
   origin?: string,
   referer?: string,
+  parentOrigin?: string | null,
 ) {
-  if (isWidgetOriginAllowed(sourcesService, source, origin, referer)) return;
+  if (
+    isWidgetOriginAllowed(
+      sourcesService,
+      source,
+      origin,
+      referer,
+      parentOrigin,
+    )
+  ) {
+    return;
+  }
   throw new ForbiddenException({
     statusCode: 403,
     code: 'ORIGIN_NOT_ALLOWED',

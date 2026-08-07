@@ -7,7 +7,7 @@ import {
   OnGatewayConnection,
   OnGatewayInit,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { SourcesService } from '../sources/sources.service';
 import { AiOrchestratorService } from '../ai/services/ai-orchestrator.service';
@@ -41,6 +41,7 @@ interface WidgetJoinPayload {
   widgetKey: string;
   dialogId?: string;
   visitorId: string;
+  parentOrigin?: string;
   attribution?: WidgetAttributionPayload;
 }
 
@@ -48,6 +49,7 @@ interface WidgetMessagePayload {
   widgetKey: string;
   dialogId?: string;
   visitorId: string;
+  parentOrigin?: string;
   content: string;
   attribution?: WidgetAttributionPayload;
 }
@@ -93,12 +95,17 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     this.followUpPush.setServer(this.server);
   }
 
-  private isOriginAllowed(client: Socket, source: Source): boolean {
+  private isOriginAllowed(
+    client: Socket,
+    source: Source,
+    parentOrigin?: string,
+  ): boolean {
     return isWidgetOriginAllowed(
       this.sourcesService,
       source,
       client.handshake.headers.origin,
       client.handshake.headers.referer,
+      parentOrigin ?? client.data.parentOrigin,
     );
   }
 
@@ -119,61 +126,71 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       return;
     }
 
-    if (!this.isOriginAllowed(client, source)) {
-      client.emit('error', { code: 'origin_not_allowed' });
-      client.disconnect(true);
+    if (!this.isOriginAllowed(client, source, data.parentOrigin)) {
+      client.emit('error', {
+        code: 'origin_not_allowed',
+        message: 'Домен не разрешён для виджета. Проверьте настройки источников.',
+      });
       return;
     }
 
     const ip = this.clientIp(client);
-    const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
-    if (!joinAllowed) {
-      client.emit('error', { code: 'rate_limited' });
-      return;
+    const alreadyJoined =
+      client.data.widgetKey === data.widgetKey &&
+      client.data.visitorId === data.visitorId;
+
+    if (!alreadyJoined) {
+      const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
+      if (!joinAllowed) {
+        client.emit('error', {
+          code: 'rate_limited',
+          message: 'Слишком много подключений. Подождите немного и обновите страницу.',
+        });
+        return;
+      }
     }
 
     client.data.widgetKey = data.widgetKey;
     client.data.visitorId = data.visitorId;
+    client.data.parentOrigin = data.parentOrigin;
     client.data.attribution = normalizeAttribution(data.attribution);
     client.join(`visitor:${data.visitorId}`);
+
+    // Resolve dialog before advertising session — avoids stale dialogId tokens
+    let resolvedDialogId: string | undefined;
+    try {
+      resolvedDialogId = await this.resolveJoinDialog(client, source, data);
+    } catch (error) {
+      this.logger.warn(`Join history failed: ${String(error)}`);
+      client.emit('joined', {
+        visitorId: data.visitorId,
+        dialogId: null,
+        sessionToken: this.widgetSession.issueToken({
+          widgetKey: data.widgetKey,
+          visitorId: data.visitorId,
+        }),
+      });
+      return;
+    }
 
     const sessionToken = this.widgetSession.issueToken({
       widgetKey: data.widgetKey,
       visitorId: data.visitorId,
-      dialogId: data.dialogId,
+      dialogId: resolvedDialogId,
     });
 
     client.emit('joined', {
       visitorId: data.visitorId,
-      dialogId: data.dialogId,
+      dialogId: resolvedDialogId ?? null,
       sessionToken,
     });
-
-    void this.loadJoinHistory(client, source, data).catch((error) => {
-      this.logger.warn(`Join history failed: ${String(error)}`);
-    });
   }
 
-  private emitSessionToken(
-    client: Socket,
-    widgetKey: string,
-    visitorId: string,
-    dialogId?: string,
-  ) {
-    const sessionToken = this.widgetSession.issueToken({
-      widgetKey,
-      visitorId,
-      dialogId,
-    });
-    client.emit('session:refresh', { sessionToken, dialogId });
-    return sessionToken;
-  }
-
-  private async loadJoinHistory(
+  private async resolveJoinDialog(
     client: Socket,
     source: Source,
     data: WidgetJoinPayload,
-  ) {
+  ): Promise<string | undefined> {
     if (data.dialogId) {
       try {
         if (client.data.attribution) {
@@ -192,46 +209,32 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
         );
         client.emit('history', history);
         client.join(`dialog:${history.dialogId}`);
-        this.emitSessionToken(
-          client,
-          data.widgetKey,
-          data.visitorId,
-          history.dialogId,
-        );
-        return;
+        return history.dialogId;
       } catch {
-        const resumed = await this.dialogService.findResumableDialog(
-          source.tenantId,
-          source.id,
-          data.visitorId,
-        );
-        if (resumed) {
-          const history = await this.dialogService.getPublicHistory(
-            resumed.id,
-            data.widgetKey,
-            data.visitorId,
-          );
-          client.emit('history', history);
-          client.join(`dialog:${history.dialogId}`);
-          this.emitSessionToken(
-            client,
-            data.widgetKey,
-            data.visitorId,
-            history.dialogId,
-          );
-        } else {
-          client.emit('error', { code: 'dialog_not_found' });
-        }
-        return;
+        const resumed = await this.tryEmitResumableHistory(client, source, data);
+        if (resumed) return resumed;
+        client.emit('error', {
+          code: 'dialog_not_found',
+          message: 'Предыдущий диалог недоступен — начинаем новый.',
+        });
+        return undefined;
       }
     }
 
+    return this.tryEmitResumableHistory(client, source, data);
+  }
+
+  private async tryEmitResumableHistory(
+    client: Socket,
+    source: Source,
+    data: WidgetJoinPayload,
+  ): Promise<string | undefined> {
     const resumed = await this.dialogService.findResumableDialog(
       source.tenantId,
       source.id,
       data.visitorId,
     );
-    if (!resumed) return;
+    if (!resumed) return undefined;
 
     try {
       const history = await this.dialogService.getPublicHistory(
@@ -239,17 +242,27 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
         data.widgetKey,
         data.visitorId,
       );
-      client.emit('history', history);
+      client.emit('history', { ...history, resumed: true });
       client.join(`dialog:${history.dialogId}`);
-      this.emitSessionToken(
-        client,
-        data.widgetKey,
-        data.visitorId,
-        history.dialogId,
-      );
+      return history.dialogId;
     } catch {
-      /* no history */
+      return undefined;
     }
+  }
+
+  private emitSessionToken(
+    client: Socket,
+    widgetKey: string,
+    visitorId: string,
+    dialogId?: string,
+  ) {
+    const sessionToken = this.widgetSession.issueToken({
+      widgetKey,
+      visitorId,
+      dialogId,
+    });
+    client.emit('session:refresh', { sessionToken, dialogId });
+    return sessionToken;
   }
 
   private clientIp(client: Socket): string {
@@ -312,9 +325,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       return;
     }
 
-    if (!this.isOriginAllowed(client, source)) {
-      client.emit('error', { code: 'origin_not_allowed' });
-      client.disconnect(true);
+    if (!this.isOriginAllowed(client, source, data.parentOrigin)) {
+      client.emit('error', {
+        code: 'origin_not_allowed',
+        message: 'Домен не разрешён для виджета. Проверьте настройки источников.',
+      });
       return;
     }
 
@@ -343,7 +358,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       });
 
       let activeDialogId = data.dialogId;
-      let messageId: string | undefined;
       let streamStarted = false;
 
       for await (const chunk of stream) {
@@ -352,6 +366,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
           resetFollowUpSchedule(chunk.dialogId);
           client.join(`dialog:${chunk.dialogId}`);
           client.emit('dialog:created', { dialogId: chunk.dialogId });
+          this.emitSessionToken(
+            client,
+            data.widgetKey,
+            data.visitorId,
+            chunk.dialogId,
+          );
           if (!streamStarted) {
             client.emit('stream:start', { dialogId: chunk.dialogId });
             streamStarted = true;
@@ -370,7 +390,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
         }
 
         if (chunk.type === 'done') {
-          messageId = chunk.messageId;
           client.emit('stream:end', {
             dialogId: activeDialogId,
             messageId: chunk.messageId,
@@ -411,6 +430,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       }
     } catch (error) {
       this.logger.error(`Widget message failed: ${String(error)}`);
+      if (error instanceof NotFoundException) {
+        client.emit('error', {
+          code: 'dialog_not_found',
+          message: 'Сессия диалога устарела. Отправьте сообщение ещё раз.',
+        });
+        return;
+      }
       client.emit('stream:error', {
         error: 'Произошла ошибка при обработке сообщения',
       });
@@ -420,7 +446,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   @SubscribeMessage('dialog:close')
   async handleDialogClose(
     @MessageBody()
-    data: { widgetKey: string; dialogId: string; visitorId: string },
+    data: { widgetKey: string; dialogId: string; visitorId: string; parentOrigin?: string },
     @ConnectedSocket() client: Socket,
   ) {
     if (!data?.widgetKey || !data?.dialogId || !data?.visitorId) return;
@@ -431,9 +457,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       return;
     }
 
-    if (!this.isOriginAllowed(client, source)) {
+    if (!this.isOriginAllowed(client, source, data.parentOrigin)) {
       client.emit('error', { code: 'origin_not_allowed' });
-      client.disconnect(true);
       return;
     }
 
@@ -446,7 +471,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       );
       client.emit('dialog:closed', { dialogId: data.dialogId });
     } catch {
-      client.emit('error', { code: 'dialog_not_found' });
+      client.emit('error', {
+        code: 'dialog_close_failed',
+        message: 'Не удалось закрыть диалог',
+      });
     }
   }
 }

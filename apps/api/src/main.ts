@@ -38,6 +38,11 @@ async function bootstrap() {
       if (!origin) return callback(null, true);
       const allowed = [clientUrl, adminUrl, widgetUrl, publicSiteUrl];
       if (allowed.includes(origin)) return callback(null, true);
+      // Public widget embed/config endpoints are called from customer sites.
+      // Origin allowlisting is enforced per-source inside WidgetController/ChatGateway.
+      if (origin.startsWith('http://') || origin.startsWith('https://')) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS: origin ${origin} not allowed`), false);
     },
     credentials: true,
