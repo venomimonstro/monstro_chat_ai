@@ -37,7 +37,7 @@ build_site() {
   if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
     npm run build -w @ai-consultant/shared-types
   fi
-  npm run build -w @ai-consultant/public-site
+  NODE_ENV=production npm run build -w @ai-consultant/public-site
 }
 
 start_service() {
