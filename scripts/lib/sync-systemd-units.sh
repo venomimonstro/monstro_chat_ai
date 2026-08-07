@@ -82,6 +82,10 @@ WantedBy=multi-user.target
 EOF
 
   systemctl daemon-reload
+
+  for unit in monstro-public-site monstro-web-client monstro-web-admin monstro-widget; do
+    systemctl enable "${unit}" 2>/dev/null || true
+  done
 }
 
 sync_systemd_units "${1:?INSTALL_DIR required}"
