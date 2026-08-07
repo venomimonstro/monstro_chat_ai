@@ -70,7 +70,13 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
-| 76 | In progress | Админка/ЛК auth + стабильная сборка: CSRF/CORS, один npm ci, fix-npm-install, run-tsc |
+| 68 | Done | Умный краулер обучения (профиль сайта, приоритеты) |
+| 69 | Done | Кастомизация лаунчера виджета и страниц показа |
+| 70 | Done | RedFlow: nginx/SSL scripts, brand, vite base paths |
+| 73 | Done | Security audit: CSRF admin, JWT sessionVersion, RLS interceptor |
+| 74 | Done | Аудит чата ЛК: ChatsPage/CRM race, message dedupe |
+| 75 | Done | Надёжность чата: origin iframe/parent, reconnect, session recovery |
+| 76 | Done | Админка/ЛК auth + стабильная сборка: CSRF/CORS, npm ci, recover-frontends |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
@@ -124,8 +130,5 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
-<<<<<<< HEAD
-| 76 | Админка/ЛК auth: CSRF без deadlock, multi-origin CORS, timeout загрузки, WEB_ADMIN_URLS |
-=======
 | 75 | Надёжность чата: origin iframe/parent, reconnect, session recovery, CORS |
->>>>>>> origin/cursor/sprint-75-chat-reliability-ab3a
+| 76 | Админка/ЛК auth: CSRF без deadlock, multi-origin CORS, timeout, deploy 502 fix |

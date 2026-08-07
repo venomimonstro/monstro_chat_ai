@@ -9,6 +9,7 @@ import {
   HttpStatus,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RbacService } from '../../common/rbac/rbac.service';
@@ -82,6 +83,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('2fa/verify')
   @HttpCode(HttpStatus.OK)
   async verify2fa(

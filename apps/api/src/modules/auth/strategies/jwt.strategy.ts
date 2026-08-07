@@ -12,10 +12,14 @@ import {
   ACCESS_COOKIE_CLIENT,
 } from '../../../common/constants/cookies';
 import { resolveAppKind } from '../../../common/utils/request-app.util';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromExtractors([
         (req: Request) => {
@@ -42,9 +46,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: AccessTokenPayload): AuthenticatedUser {
+  async validate(payload: AccessTokenPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Недействительный токен');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { status: true, sessionVersion: true },
+    });
+
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('Сессия недействительна');
+    }
+
+    if (
+      payload.sessionVersion !== undefined &&
+      payload.sessionVersion !== user.sessionVersion
+    ) {
+      throw new UnauthorizedException('Сессия устарела');
     }
 
     return {
