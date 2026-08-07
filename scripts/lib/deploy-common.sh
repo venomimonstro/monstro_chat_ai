@@ -272,6 +272,7 @@ deploy_verify_frontends() {
   deploy_check_port 5174 monstro-web-admin /admin/ || failed=1
   deploy_check_port 4321 monstro-public-site / || failed=1
   deploy_check_port 5175 monstro-widget /health.txt || failed=1
+  deploy_check_port 5175 monstro-widget /iframe/ || failed=1
   return "${failed}"
 }
 

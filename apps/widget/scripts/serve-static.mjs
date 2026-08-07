@@ -36,7 +36,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (pathname === '/') {
+  if (pathname === '/' || pathname === '/iframe' || pathname === '/iframe/') {
     pathname = '/iframe/index.html';
   }
 
@@ -45,14 +45,32 @@ const server = http.createServer((req, res) => {
     pathname = `/iframe${pathname}`;
   }
 
-  const filePath = path.normalize(path.join(root, pathname));
-  if (!filePath.startsWith(root)) {
+  const filePath = resolveFile(pathname);
+  if (!filePath) {
     res.writeHead(403).end('Forbidden');
     return;
   }
 
+  sendFile(res, filePath, pathname);
+});
+
+function resolveFile(pathname) {
+  let rel = pathname.replace(/^\/+/, '');
+  if (!rel || rel.endsWith('/')) {
+    rel = 'iframe/index.html';
+  }
+  const filePath = path.normalize(path.join(root, rel));
+  if (!filePath.startsWith(root)) return null;
+  return filePath;
+}
+
+function sendFile(res, filePath, pathname) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
+      const indexPath = path.join(root, 'iframe', 'index.html');
+      if (filePath !== indexPath && fs.existsSync(indexPath)) {
+        return sendFile(res, indexPath, '/iframe/index.html');
+      }
       res.writeHead(404).end('Not found');
       return;
     }
@@ -64,7 +82,7 @@ const server = http.createServer((req, res) => {
     });
     res.end(data);
   });
-});
+}
 
 server.listen(port, host, () => {
   console.log(`AI widget static server listening on http://${host}:${port}`);
