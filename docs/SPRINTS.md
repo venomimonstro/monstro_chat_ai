@@ -70,6 +70,7 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
+| 76 | In progress | Аудит админки/ЛК auth: CSRF deadlock, CORS multi-origin, bootstrap timeout, cookie app-kind |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
@@ -123,3 +124,4 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
+| 76 | Админка/ЛК auth: CSRF без deadlock, multi-origin CORS, timeout загрузки, WEB_ADMIN_URLS |

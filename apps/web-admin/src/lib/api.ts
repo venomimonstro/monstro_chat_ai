@@ -23,6 +23,7 @@ function getCsrfTokenFromCookie(): string | null {
 }
 
 let csrfTokenMemory: string | null = null;
+let csrfFetchPromise: Promise<string | null> | null = null;
 
 export function setCsrfToken(token: string | null) {
   csrfTokenMemory = token;
@@ -37,44 +38,62 @@ function getCsrfToken(): string | null {
   return csrfTokenMemory;
 }
 
+function isCsrfExemptUrl(url?: string): boolean {
+  if (!url) return false;
+  return (
+    url.includes('/auth/refresh') ||
+    url.includes('/auth/login') ||
+    url.includes('/auth/register') ||
+    url.includes('/auth/me') ||
+    url.includes('/auth/csrf') ||
+    url.includes('/auth/2fa/verify') ||
+    url.includes('/auth/forgot-password') ||
+    url.includes('/auth/reset-password')
+  );
+}
+
 export async function ensureCsrfToken(): Promise<string | null> {
-  try {
-    const res = await api.get<{ token: string | null }>('/auth/csrf');
-    if (res.data.token) {
-      setCsrfToken(res.data.token);
-      return res.data.token;
+  const existing = getCsrfToken();
+  if (existing) return existing;
+
+  if (csrfFetchPromise) return csrfFetchPromise;
+
+  csrfFetchPromise = (async () => {
+    try {
+      const res = await api.get<{ token: string | null }>('/auth/csrf');
+      if (res.data.token) {
+        setCsrfToken(res.data.token);
+        return res.data.token;
+      }
+    } catch {
+      /* API unreachable — login form must still appear */
     }
-  } catch {
-    /* ignore */
-  }
-  try {
-    const res = await api.post<{ success: boolean; csrfToken?: string }>(
-      '/auth/refresh',
-    );
-    if (res.data.csrfToken) {
-      setCsrfToken(res.data.csrfToken);
-      return res.data.csrfToken;
-    }
-  } catch {
-    /* ignore */
-  }
-  const fromCookie = getCsrfTokenFromCookie();
-  if (fromCookie) {
-    setCsrfToken(fromCookie);
-    return fromCookie;
-  }
-  return null;
+    return getCsrfTokenFromCookie();
+  })().finally(() => {
+    csrfFetchPromise = null;
+  });
+
+  return csrfFetchPromise;
 }
 
 export const api = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_URL?.replace(/\/$/, '') || '/api',
   withCredentials: true,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    // Distinguishes admin from LK on a shared host (Origin has no path).
+    'X-AICW-App': 'admin',
+  },
+  timeout: 15_000,
 });
 
 api.interceptors.request.use(async (config) => {
   const method = config.method?.toUpperCase();
-  if (method && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+  if (
+    method &&
+    !['GET', 'HEAD', 'OPTIONS'].includes(method) &&
+    !isCsrfExemptUrl(config.url)
+  ) {
     const csrf = getCsrfToken() ?? (await ensureCsrfToken());
     if (csrf) {
       config.headers['X-CSRF-Token'] = csrf;

@@ -1,16 +1,25 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-300">
+      <div className="max-w-sm space-y-2 text-center">
+        <p>Загрузка...</p>
+        <p className="text-xs text-slate-500">
+          Если экран не меняется — API недоступен или сессия зависла. Обновите страницу.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function ProtectedRoute() {
   const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
-        Загрузка...
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {
@@ -24,11 +33,7 @@ export function GuestRoute() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-slate-500">
-        Загрузка...
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (user) {

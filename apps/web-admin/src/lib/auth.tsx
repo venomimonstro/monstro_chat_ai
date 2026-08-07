@@ -34,13 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshSession = useCallback(async () => {
     try {
-      await ensureCsrfToken();
       const me = await fetchCurrentUser();
       if (me.role !== 'admin' && me.role !== 'owner') {
         setUser(null);
         return false;
       }
       setUser(me);
+      await ensureCsrfToken();
       return true;
     } catch {
       try {
@@ -49,8 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         if (res.data.csrfToken) {
           setCsrfToken(res.data.csrfToken);
-        } else {
-          await ensureCsrfToken();
         }
         const me = await fetchCurrentUser();
         if (me.role !== 'admin' && me.role !== 'owner') {
@@ -67,7 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshSession().finally(() => setLoading(false));
+    const timeout = window.setTimeout(() => setLoading(false), 12_000);
+    refreshSession().finally(() => {
+      window.clearTimeout(timeout);
+      setLoading(false);
+    });
+    return () => window.clearTimeout(timeout);
   }, [refreshSession]);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -75,7 +78,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (res.requires2fa) {
       return { requires2fa: true, twoFaToken: res.twoFaToken };
     }
-    await refreshSession();
+    if (res.user && res.user.role !== 'admin' && res.user.role !== 'owner') {
+      await logoutUser();
+      setUser(null);
+      throw new Error(
+        'Этот аккаунт не имеет доступа к админ-панели. Войдите в личный кабинет.',
+      );
+    }
+    const ok = await refreshSession();
+    if (!ok) {
+      throw new Error(
+        'Этот аккаунт не имеет доступа к админ-панели. Войдите в личный кабинет.',
+      );
+    }
     return {};
   }, [refreshSession]);
 

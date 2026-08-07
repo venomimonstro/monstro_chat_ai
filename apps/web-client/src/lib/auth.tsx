@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { AuthUser } from '@ai-consultant/shared-types';
-import { api, fetchCurrentUser, logoutUser } from './api';
+import { api, ensureCsrfToken, fetchCurrentUser, logoutUser, setCsrfToken } from './api';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -31,10 +31,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const me = await fetchCurrentUser();
       setUser(me);
+      await ensureCsrfToken();
       return true;
     } catch {
       try {
-        await api.post('/auth/refresh');
+        const res = await api.post<{ success: boolean; csrfToken?: string }>(
+          '/auth/refresh',
+        );
+        if (res.data.csrfToken) {
+          setCsrfToken(res.data.csrfToken);
+        }
         const me = await fetchCurrentUser();
         setUser(me);
         return true;
@@ -50,7 +56,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    refreshSession().finally(() => setLoading(false));
+    const timeout = window.setTimeout(() => setLoading(false), 12_000);
+    refreshSession().finally(() => {
+      window.clearTimeout(timeout);
+      setLoading(false);
+    });
+    return () => window.clearTimeout(timeout);
   }, [refreshSession, skipBootstrap]);
 
   const logout = useCallback(async () => {
