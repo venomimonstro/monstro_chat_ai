@@ -22,11 +22,19 @@ install_node() {
 }
 
 build_widget() {
+  if [[ "${SKIP_WIDGET_BUILD:-0}" == "1" ]]; then
+    log "Сборка виджета пропущена (SKIP_WIDGET_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю AI-виджет (embed.js + iframe)..."
   # shellcheck source=lib/deploy-common.sh
   source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
-  deploy_install_all_deps
-  npm run build -w @ai-consultant/shared-types
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
   npm run build -w @ai-consultant/widget
 }
 

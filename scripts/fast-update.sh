@@ -116,12 +116,16 @@ run_parallel_builds() {
     names+=("site")
   fi
 
-  local i failed=0
+  local i failed=0 failed_names=()
   for i in "${!pids[@]}"; do
     if ! wait "${pids[$i]}"; then
-      deploy_fail "Сборка ${names[$i]} провалена"
+      failed=1
+      failed_names+=("${names[$i]}")
     fi
   done
+  if [[ "${failed}" -ne 0 ]]; then
+    deploy_fail "Сборка провалена: ${failed_names[*]}"
+  fi
 }
 
 run_sequential_builds() {
@@ -187,10 +191,21 @@ main() {
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
+  # При любом fail/exit — поднять сервисы, иначе nginx 502
+  trap 'deploy_restore_node_services' EXIT
+
   if [[ "${PARALLEL_BUILDS}" == "1" ]]; then
     run_parallel_builds "${components}"
   else
     run_sequential_builds "${components}"
+  fi
+
+  trap - EXIT
+  deploy_restore_node_services
+
+  if needs_frontend_builds "${components}"; then
+    sleep 2
+    deploy_verify_frontends || deploy_warn "Фронты подняты не полностью — sudo bash scripts/recover-frontends.sh"
   fi
 
   if [[ "${MODE}" == "full" ]] || needs "${components}" "api"; then

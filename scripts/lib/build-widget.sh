@@ -18,7 +18,9 @@ if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
 fi
 npm run build -w @ai-consultant/widget
 
-if ! deploy_restart_if_active monstro-widget; then
-  deploy_warn "monstro-widget не запущен — запускаю start-widget.sh"
-  bash "${INSTALL_DIR}/scripts/start-widget.sh"
+if ! deploy_ensure_service monstro-widget; then
+  deploy_warn "monstro-widget unit отсутствует — start-widget.sh"
+  export DEPLOY_NPM_SKIP=1
+  export DEPLOY_SHARED_TYPES_SKIP=1
+  SKIP_WIDGET_BUILD=1 bash "${INSTALL_DIR}/scripts/start-widget.sh"
 fi

@@ -7,6 +7,9 @@ DEPLOY_STATE_DIR="${INSTALL_DIR}/.deploy"
 DEPLOY_SHA_FILE="${DEPLOY_STATE_DIR}/last-sha"
 NPM_CACHE_DIR="${NPM_CACHE_DIR:-/var/cache/aicw/npm}"
 LOCK_STAMP_DIR="${DEPLOY_STATE_DIR}/lock-stamps"
+STOPPED_UNITS_FILE="${DEPLOY_STATE_DIR}/stopped-units.txt"
+
+FRONTEND_UNITS=(monstro-widget monstro-web-client monstro-web-admin monstro-public-site)
 
 deploy_log()  { echo -e "\n\033[1;32m==>\033[0m $*"; }
 deploy_warn() { echo -e "\033[1;33m!!\033[0m $*"; }
@@ -76,7 +79,8 @@ deploy_detect_components() {
         need_widget=1
         need_frontends=1
         need_site=1 ;;
-      package.json|package-lock.json|turbo.json)
+      # Деплой/сборка трогает фронты — всегда пересоберём и поднимем сервисы
+      scripts/*|package.json|package-lock.json|turbo.json)
         need_api=1
         need_widget=1
         need_frontends=1
@@ -91,7 +95,9 @@ deploy_detect_components() {
   echo ""
 }
 
-deploy_lock_changed() {
+# true (0) если stamp отличается ИЛИ stamp отсутствует — нужен install.
+# НЕ пишет stamp (stamp пишется только после успешного install).
+deploy_lock_needs_install() {
   local scope="$1"
   local stamp="${LOCK_STAMP_DIR}/${scope}.sha"
   local current
@@ -99,8 +105,14 @@ deploy_lock_changed() {
   if [[ -f "${stamp}" ]] && [[ "$(cat "${stamp}")" == "${current}" ]]; then
     return 1
   fi
-  echo "${current}" > "${stamp}"
   return 0
+}
+
+deploy_lock_mark_ok() {
+  local scope="$1"
+  local stamp="${LOCK_STAMP_DIR}/${scope}.sha"
+  mkdir -p "${LOCK_STAMP_DIR}"
+  sha256sum "${INSTALL_DIR}/package-lock.json" | awk '{print $1}' > "${stamp}"
 }
 
 deploy_npm_acquire_lock() {
@@ -120,12 +132,34 @@ deploy_npm_release_lock() {
   fi
 }
 
+deploy_unit_exists() {
+  local unit="$1"
+  [[ -f "/etc/systemd/system/${unit}.service" ]] \
+    || systemctl cat "${unit}.service" >/dev/null 2>&1
+}
+
+# Запоминаем остановленные unit'ы, чтобы поднять после npm/сборки (иначе 502).
+deploy_remember_stopped() {
+  local unit="$1"
+  mkdir -p "${DEPLOY_STATE_DIR}"
+  touch "${STOPPED_UNITS_FILE}"
+  if ! grep -qx "${unit}" "${STOPPED_UNITS_FILE}" 2>/dev/null; then
+    echo "${unit}" >> "${STOPPED_UNITS_FILE}"
+  fi
+}
+
 deploy_stop_node_services() {
   local unit
-  for unit in monstro-widget monstro-web-client monstro-web-admin monstro-public-site; do
+  mkdir -p "${DEPLOY_STATE_DIR}"
+  : > "${STOPPED_UNITS_FILE}"
+  for unit in "${FRONTEND_UNITS[@]}"; do
     if systemctl is-active --quiet "${unit}" 2>/dev/null; then
-      deploy_log "Остановка ${unit} (освобождение esbuild/node)..."
+      deploy_log "Остановка ${unit} (npm/esbuild не должен держать файлы)..."
+      deploy_remember_stopped "${unit}"
       systemctl stop "${unit}" || true
+    elif deploy_unit_exists "${unit}"; then
+      # Уже down — всё равно нужно поднять после деплоя
+      deploy_remember_stopped "${unit}"
     fi
   done
   sleep 2
@@ -148,11 +182,94 @@ deploy_npm_deps_healthy() {
   if [[ ! -f "${esbuild_bin}" ]]; then
     return 1
   fi
-  # Файл есть, но битый/обрезанный — считаем deps broken
   if ! node "${tsc_lib}" --version >/dev/null 2>&1; then
     return 1
   fi
   return 0
+}
+
+# Поднять/перезапустить unit. Работает и для inactive (после stop) — критично против 502.
+deploy_ensure_service() {
+  local unit="$1"
+  if ! deploy_unit_exists "${unit}"; then
+    return 1
+  fi
+  deploy_log "Запуск ${unit}..."
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl enable "${unit}" 2>/dev/null || true
+  if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+    systemctl restart "${unit}" || return 1
+  else
+    systemctl start "${unit}" || return 1
+  fi
+  return 0
+}
+
+# Совместимость со старыми вызовами
+deploy_restart_if_active() {
+  deploy_ensure_service "$1"
+}
+
+# Поднять все фронт-сервисы, которые останавливали / которые есть на машине.
+deploy_restore_node_services() {
+  local unit restored=0
+  local units=()
+
+  if [[ -f "${STOPPED_UNITS_FILE}" ]]; then
+    mapfile -t units < "${STOPPED_UNITS_FILE}" || true
+  fi
+
+  if [[ "${#units[@]}" -eq 0 ]]; then
+    units=("${FRONTEND_UNITS[@]}")
+  fi
+
+  for unit in "${units[@]}"; do
+    [[ -z "${unit}" ]] && continue
+    if deploy_unit_exists "${unit}"; then
+      if deploy_ensure_service "${unit}"; then
+        restored=1
+      else
+        deploy_warn "Не удалось запустить ${unit} — смотрите: journalctl -u ${unit} -n 40"
+      fi
+    fi
+  done
+
+  rm -f "${STOPPED_UNITS_FILE}" 2>/dev/null || true
+  return 0
+}
+
+deploy_check_port() {
+  local port="$1"
+  local unit="$2"
+  local code
+
+  if ! deploy_unit_exists "${unit}"; then
+    return 0
+  fi
+
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo 000)"
+  if [[ "${code}" == "000" || "${code}" == "502" || "${code}" == "503" ]]; then
+    deploy_warn "${unit} :${port} → HTTP ${code} — перезапуск"
+    systemctl restart "${unit}" 2>/dev/null || systemctl start "${unit}" 2>/dev/null || true
+    sleep 3
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}/" 2>/dev/null || echo 000)"
+    if [[ "${code}" == "000" || "${code}" == "502" || "${code}" == "503" ]]; then
+      deploy_warn "${unit} всё ещё недоступен (HTTP ${code}). journalctl -u ${unit} -n 40"
+      return 1
+    fi
+  fi
+  deploy_log "${unit} OK (HTTP ${code})"
+  return 0
+}
+
+# Проверка портов после деплоя (502 = nginx без upstream).
+deploy_verify_frontends() {
+  local failed=0
+  deploy_check_port 5173 monstro-web-client || failed=1
+  deploy_check_port 5174 monstro-web-admin || failed=1
+  deploy_check_port 4321 monstro-public-site || failed=1
+  deploy_check_port 5175 monstro-widget || failed=1
+  return "${failed}"
 }
 
 # Один общий npm install для всего монорепо (никогда не вызывать параллельно из build-*.sh)
@@ -167,12 +284,12 @@ deploy_install_all_deps() {
   deploy_setup_npm_cache
   cd "${INSTALL_DIR}"
 
-  local lock_unchanged=0
-  if ! deploy_lock_changed "deps"; then
-    lock_unchanged=1
+  local needs_install=0
+  if deploy_lock_needs_install "deps"; then
+    needs_install=1
   fi
 
-  if [[ "${lock_unchanged}" -eq 1 ]] && deploy_npm_deps_healthy; then
+  if [[ "${needs_install}" -eq 0 ]] && deploy_npm_deps_healthy; then
     deploy_log "npm install пропущен (зависимости OK)"
     bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
     export DEPLOY_NPM_INSTALL_DONE=1
@@ -181,11 +298,13 @@ deploy_install_all_deps() {
     return 0
   fi
 
-  if [[ "${lock_unchanged}" -eq 1 ]]; then
+  # Любая переустановка ломает running vite/next → stop заранее, restore после сборки
+  if ! deploy_npm_deps_healthy; then
     deploy_warn "node_modules повреждён — полная переустановка зависимостей"
     deploy_remove_node_modules
   else
     deploy_log "npm install (все workspaces)..."
+    deploy_stop_node_services
   fi
 
   if [[ -f package-lock.json ]]; then
@@ -204,6 +323,7 @@ deploy_install_all_deps() {
     deploy_fail "npm install завершился, но typescript/esbuild не найдены. Запустите: sudo bash scripts/fix-npm-install.sh"
   fi
 
+  deploy_lock_mark_ok "deps"
   export DEPLOY_NPM_INSTALL_DONE=1
   deploy_npm_release_lock
   trap - EXIT
@@ -218,15 +338,6 @@ deploy_npm_install() {
   fi
 
   deploy_install_all_deps
-}
-
-deploy_restart_if_active() {
-  local unit="$1"
-  if systemctl is-active --quiet "${unit}" 2>/dev/null; then
-    systemctl restart "${unit}"
-    return 0
-  fi
-  return 1
 }
 
 deploy_export_frontend_env() {

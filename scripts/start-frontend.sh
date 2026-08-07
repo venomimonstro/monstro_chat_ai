@@ -26,6 +26,10 @@ install_node() {
 }
 
 build_frontends() {
+  if [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
+    log "Сборка фронтенда пропущена (SKIP_FRONTEND_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю фронтенд (3–5 мин)..."
   local ip
   ip=$(detect_ip)
@@ -35,8 +39,12 @@ build_frontends() {
   # Один npm ci на всё монорепо (без параллельных install — ломают node_modules)
   # shellcheck source=lib/deploy-common.sh
   source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
-  deploy_install_all_deps
-  npm run build -w @ai-consultant/shared-types
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
   npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin
 }

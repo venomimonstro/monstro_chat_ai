@@ -19,6 +19,10 @@ install_node() {
 }
 
 build_site() {
+  if [[ "${SKIP_SITE_BUILD:-0}" == "1" ]]; then
+    log "Сборка сайта пропущена (SKIP_SITE_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю публичный сайт..."
   export NEXT_PUBLIC_WIDGET_URL="http://${IP}:5175"
   export NEXT_PUBLIC_CLIENT_URL="http://${IP}:5173"
@@ -27,8 +31,12 @@ build_site() {
   export API_INTERNAL_URL="http://127.0.0.1:3000"
   # shellcheck source=lib/deploy-common.sh
   source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
-  deploy_install_all_deps
-  npm run build -w @ai-consultant/shared-types
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
   npm run build -w @ai-consultant/public-site
 }
 
