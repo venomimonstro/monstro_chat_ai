@@ -248,12 +248,14 @@ deploy_check_port() {
     return 0
   fi
 
-  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}${path}" 2>/dev/null || echo 000)"
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}${path}" 2>/dev/null || true)"
+  code="${code:-000}"
   if [[ "${code}" == "000" || "${code}" == "502" || "${code}" == "503" ]]; then
     deploy_warn "${unit} :${port}${path} → HTTP ${code} — перезапуск"
     systemctl restart "${unit}" 2>/dev/null || systemctl start "${unit}" 2>/dev/null || true
     sleep 3
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}${path}" 2>/dev/null || echo 000)"
+    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:${port}${path}" 2>/dev/null || true)"
+  code="${code:-000}"
     if [[ "${code}" == "000" || "${code}" == "502" || "${code}" == "503" ]]; then
       deploy_warn "${unit} всё ещё недоступен (HTTP ${code}). journalctl -u ${unit} -n 40"
       return 1

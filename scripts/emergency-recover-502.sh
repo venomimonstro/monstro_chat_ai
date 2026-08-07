@@ -30,8 +30,9 @@ else
   deploy_warn "docker-compose.yml не найден"
 fi
 
-# 2. Правильные systemd unit'ы (VITE_BASE_PATH, .env)
+# 2. Правильные systemd unit'ы (node vite/next напрямую, без .bin symlink)
 deploy_log "Синхронизация systemd unit'ов..."
+bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
 bash "${INSTALL_DIR}/scripts/lib/sync-systemd-units.sh" "${INSTALL_DIR}"
 
 # 3. Проверка артефактов сборки

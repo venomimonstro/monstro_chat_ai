@@ -4,8 +4,10 @@ set -euo pipefail
 
 sync_systemd_units() {
   local install_dir="${1:?INSTALL_DIR required}"
-  local npm_bin
-  npm_bin="$(command -v npm)"
+  local node_bin
+  node_bin="$(command -v node)"
+  local vite_js="${install_dir}/node_modules/vite/bin/vite.js"
+  local next_js="${install_dir}/node_modules/next/dist/bin/next"
 
   cat > /etc/systemd/system/monstro-public-site.service << EOF
 [Unit]
@@ -16,9 +18,10 @@ After=network.target docker.service
 Type=simple
 WorkingDirectory=${install_dir}/apps/public-site
 EnvironmentFile=-${install_dir}/.env
+Environment=NODE_ENV=production
 Environment=PORT=4321
 Environment=HOSTNAME=0.0.0.0
-ExecStart=${npm_bin} run start
+ExecStart=${node_bin} ${next_js} start -H 0.0.0.0 -p 4321
 Restart=always
 RestartSec=5
 
@@ -35,8 +38,9 @@ After=network.target docker.service
 Type=simple
 WorkingDirectory=${install_dir}/apps/web-client
 EnvironmentFile=-${install_dir}/.env
+Environment=NODE_ENV=production
 Environment=VITE_BASE_PATH=/app/
-ExecStart=${npm_bin} run preview -- --host 0.0.0.0 --port 5173
+ExecStart=${node_bin} ${vite_js} preview --host 0.0.0.0 --port 5173
 Restart=always
 RestartSec=5
 
@@ -53,8 +57,9 @@ After=network.target docker.service
 Type=simple
 WorkingDirectory=${install_dir}/apps/web-admin
 EnvironmentFile=-${install_dir}/.env
+Environment=NODE_ENV=production
 Environment=VITE_BASE_PATH=/admin/
-ExecStart=${npm_bin} run preview -- --host 0.0.0.0 --port 5174
+ExecStart=${node_bin} ${vite_js} preview --host 0.0.0.0 --port 5174
 Restart=always
 RestartSec=5
 
