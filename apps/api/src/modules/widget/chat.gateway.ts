@@ -42,6 +42,7 @@ interface WidgetJoinPayload {
   dialogId?: string;
   visitorId: string;
   parentOrigin?: string;
+  sessionToken?: string;
   attribution?: WidgetAttributionPayload;
 }
 
@@ -139,7 +140,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       client.data.widgetKey === data.widgetKey &&
       client.data.visitorId === data.visitorId;
 
-    if (!alreadyJoined) {
+    const hasValidSession = this.widgetSession.isValidToken(data.sessionToken, {
+      widgetKey: data.widgetKey,
+      visitorId: data.visitorId,
+      dialogId: data.dialogId,
+    });
+
+    if (!alreadyJoined && !hasValidSession) {
       const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
       if (!joinAllowed) {
         client.emit('error', {

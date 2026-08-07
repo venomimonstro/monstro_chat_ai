@@ -308,6 +308,15 @@ export function WidgetApp() {
         setEmojiOpen(false);
         return;
       }
+      if (
+        event.data?.type === 'aicw:parent-origin' &&
+        typeof event.data.parentOrigin === 'string' &&
+        window.parent !== window &&
+        event.source === window.parent
+      ) {
+        parentOriginRef.current = event.data.parentOrigin;
+        return;
+      }
       if (!isTrustedParentMessage(event, preview)) return;
       if (event.data?.type === 'aicw:config' && event.data.config) {
         setConfig(mergeSourceConfig(event.data.config as Partial<SourceConfig>));
@@ -374,9 +383,27 @@ export function WidgetApp() {
     );
   }, [config.appearance.primaryColor]);
 
+  const buildJoinPayload = useCallback(
+    () => ({
+      widgetKey,
+      visitorId,
+      dialogId: dialogIdRef.current ?? undefined,
+      parentOrigin: parentOriginRef.current ?? undefined,
+      sessionToken: sessionTokenRef.current ?? undefined,
+      attribution: attributionRef.current,
+    }),
+    [widgetKey, visitorId],
+  );
+
   const connectSocket = useCallback(async () => {
     if (!widgetKey) return;
-    if (socketRef.current?.connected) return;
+
+    const existing = socketRef.current;
+    if (existing?.connected) {
+      if (joinedRef.current || connectingRef.current) return;
+      existing.emit('join', buildJoinPayload());
+      return;
+    }
     if (connectingRef.current) return;
     connectingRef.current = true;
 
@@ -393,13 +420,7 @@ export function WidgetApp() {
     parentOriginRef.current = parentOrigin;
 
     const emitJoin = (socket: Socket) => {
-      socket.emit('join', {
-        widgetKey,
-        visitorId,
-        dialogId: dialogIdRef.current ?? undefined,
-        parentOrigin: parentOrigin ?? undefined,
-        attribution: attributionRef.current,
-      });
+      socket.emit('join', buildJoinPayload());
     };
 
     const socket = io(`${origin}/widget`, {
@@ -422,6 +443,7 @@ export function WidgetApp() {
     socket.on('disconnect', (reason) => {
       setConnected(false);
       joinedRef.current = false;
+      sendingRef.current = false;
       // Don't treat intentional client closes as fatal stream errors
       if (reason === 'io client disconnect') return;
       if (streamingRef.current) {
@@ -626,6 +648,7 @@ export function WidgetApp() {
     );
 
     const appendError = (text: string) => {
+      sendingRef.current = false;
       if (streamFlushRafRef.current !== null) {
         cancelAnimationFrame(streamFlushRafRef.current);
         streamFlushRafRef.current = null;
@@ -687,6 +710,7 @@ export function WidgetApp() {
         return;
       }
       if (data.code === 'rate_limited') {
+        sendingRef.current = false;
         setConnectionError(true);
         setConnectionErrorText(data.message ?? 'Слишком много подключений');
         return;
@@ -710,7 +734,7 @@ export function WidgetApp() {
     } finally {
       connectingRef.current = false;
     }
-  }, [apiUrl, widgetKey, visitorId, open, preview]);
+  }, [apiUrl, widgetKey, visitorId, buildJoinPayload, preview]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -725,8 +749,7 @@ export function WidgetApp() {
 
     const historyTimeout = window.setTimeout(() => {
       setHistoryLoading(false);
-      // Only show connection error if socket never joined
-      if (!joinedRef.current && !socketRef.current?.connected) {
+      if (!joinedRef.current) {
         setConnectionError(true);
         setConnectionErrorText('Нет соединения с сервером чата');
       }
@@ -756,19 +779,13 @@ export function WidgetApp() {
         setConnectionErrorText(null);
         socket.connect();
       } else if (!joinedRef.current) {
-        socket.emit('join', {
-          widgetKey,
-          visitorId,
-          dialogId: dialogIdRef.current ?? undefined,
-          parentOrigin: parentOriginRef.current ?? undefined,
-          attribution: attributionRef.current,
-        });
+        socket.emit('join', buildJoinPayload());
       }
     };
 
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [connectSocket, deferSocket, open, preview, widgetKey, visitorId]);
+  }, [connectSocket, deferSocket, open, preview, buildJoinPayload]);
 
   useEffect(() => {
     return () => {

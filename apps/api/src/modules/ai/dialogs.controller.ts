@@ -6,6 +6,7 @@ import {
   Query,
   UseGuards,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { DialogsService } from './services/dialogs.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,15 @@ import { PERMISSIONS } from '../../common/constants/permissions';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class DialogsController {
   constructor(private readonly dialogs: DialogsService) {}
+
+  private requireTenantId(user: AuthenticatedUser): string {
+    if (!user.tenantId) {
+      throw new ForbiddenException(
+        'Раздел чатов доступен только в аккаунте клиента. Войдите через «Войти как клиент» в админке.',
+      );
+    }
+    return user.tenantId;
+  }
 
   @Get()
   @RequirePermission(PERMISSIONS.CHATS_VIEW)
@@ -36,7 +46,7 @@ export class DialogsController {
       throw new BadRequestException('limit must be a number');
     }
 
-    return this.dialogs.listDialogs(user.tenantId!, {
+    return this.dialogs.listDialogs(this.requireTenantId(user), {
       sourceId,
       status,
       hasLead: hasLead === undefined ? undefined : hasLead === 'true',
@@ -49,7 +59,7 @@ export class DialogsController {
   @Get(':id/messages')
   @RequirePermission(PERMISSIONS.CHATS_VIEW)
   messages(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.dialogs.getTranscript(user.tenantId!, id);
+    return this.dialogs.getTranscript(this.requireTenantId(user), id);
   }
 
   @Get(':id/export')
@@ -60,12 +70,12 @@ export class DialogsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.dialogs.exportTranscriptText(user.tenantId!, id);
+    return this.dialogs.exportTranscriptText(this.requireTenantId(user), id);
   }
 
   @Get(':id')
   @RequirePermission(PERMISSIONS.CHATS_VIEW)
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.dialogs.getDialog(user.tenantId!, id);
+    return this.dialogs.getDialog(this.requireTenantId(user), id);
   }
 }

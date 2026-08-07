@@ -422,7 +422,8 @@ export class AuthService {
       user,
       data.twoFaVerified ?? false,
     );
-    const csrfToken = this.applyAccessSession(res, req, accessToken);
+    const kind = resolveAppKind(req, this.config);
+    const csrfToken = this.applyAccessSession(res, req, accessToken, kind);
     await this.csrfTokens.bind(refreshToken, csrfToken);
     return { success: true, csrfToken };
   }

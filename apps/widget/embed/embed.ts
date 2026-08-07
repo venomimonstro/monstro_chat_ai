@@ -378,8 +378,18 @@ interface AicwApi {
     window.dispatchEvent(new Event('aicw:opened'));
   }
 
+  function postParentOriginToIframe() {
+    if (!iframe?.contentWindow) return;
+    const targetOrigin = iframe.src ? new URL(iframe.src).origin : '*';
+    iframe.contentWindow.postMessage(
+      { type: 'aicw:parent-origin', parentOrigin: window.location.origin },
+      targetOrigin,
+    );
+  }
+
   function loadIframe(opts: InitOptions, autoOpen = false) {
     if (iframe) {
+      postParentOriginToIframe();
       if (autoOpen) {
         iframe.contentWindow?.postMessage({ type: 'aicw:open' }, '*');
       }
@@ -404,6 +414,7 @@ interface AicwApi {
 
     iframe.onload = () => {
       if (!iframe?.contentWindow) return;
+      postParentOriginToIframe();
       if (autoOpen) {
         iframe.contentWindow.postMessage({ type: 'aicw:open' }, '*');
         openFallbackTimer = setTimeout(finalizeOpen, 600);

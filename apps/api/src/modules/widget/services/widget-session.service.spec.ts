@@ -70,4 +70,13 @@ describe('WidgetSessionService', () => {
       service.assertToken('tok', { widgetKey: 'wk-1', visitorId: 'v-1' }),
     ).toThrow(UnauthorizedException);
   });
+
+  it('isValidToken returns false for invalid token', () => {
+    (jwt.verify as jest.Mock).mockImplementation(() => {
+      throw new Error('invalid');
+    });
+    expect(
+      service.isValidToken('bad', { widgetKey: 'wk-1', visitorId: 'v-1' }),
+    ).toBe(false);
+  });
 });

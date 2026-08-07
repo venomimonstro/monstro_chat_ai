@@ -7,11 +7,7 @@ import {
   AccessTokenPayload,
   AuthenticatedUser,
 } from '../../../common/interfaces/jwt-payload.interface';
-import {
-  ACCESS_COOKIE_ADMIN,
-  ACCESS_COOKIE_CLIENT,
-} from '../../../common/constants/cookies';
-import { resolveAppKind } from '../../../common/utils/request-app.util';
+import { accessCookieName, resolveAppKind } from '../../../common/utils/request-app.util';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -26,18 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           const cookies = req?.cookies;
           if (!cookies) return null;
           const kind = resolveAppKind(req, config);
-          if (kind === 'admin') {
-            return (
-              (cookies[ACCESS_COOKIE_ADMIN] as string | undefined) ??
-              (cookies[ACCESS_COOKIE_CLIENT] as string | undefined) ??
-              null
-            );
-          }
-          return (
-            (cookies[ACCESS_COOKIE_CLIENT] as string | undefined) ??
-            (cookies[ACCESS_COOKIE_ADMIN] as string | undefined) ??
-            null
-          );
+          return (cookies[accessCookieName(kind)] as string | undefined) ?? null;
         },
         ExtractJwt.fromAuthHeaderAsBearerToken(),
       ]),

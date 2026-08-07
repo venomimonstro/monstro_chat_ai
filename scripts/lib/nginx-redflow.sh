@@ -90,6 +90,8 @@ redflow_nginx_locations_block() {
     proxy_set_header Connection $connection_upgrade;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
   }
 
   location /embed.js {

@@ -87,4 +87,16 @@ export class WidgetSessionService {
       });
     }
   }
+
+  isValidToken(
+    token: string | undefined,
+    expected: WidgetSessionVerifyInput,
+  ): boolean {
+    try {
+      this.assertToken(token, expected);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 }
