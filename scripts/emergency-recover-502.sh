@@ -35,26 +35,25 @@ deploy_log "Синхронизация systemd unit'ов..."
 bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
 bash "${INSTALL_DIR}/scripts/lib/sync-systemd-units.sh" "${INSTALL_DIR}"
 
-# 3. Проверка артефактов сборки
-need_rebuild=0
-[[ ! -d apps/web-admin/dist ]] && need_rebuild=1 && deploy_warn "Нет apps/web-admin/dist"
-[[ ! -d apps/web-client/dist ]] && need_rebuild=1 && deploy_warn "Нет apps/web-client/dist"
-[[ ! -d apps/public-site/.next ]] && need_rebuild=1 && deploy_warn "Нет apps/public-site/.next"
-[[ ! -d apps/widget/dist ]] && need_rebuild=1 && deploy_warn "Нет apps/widget/dist"
-
-if [[ "${need_rebuild}" -eq 1 ]]; then
-  deploy_log "Пересборка отсутствующих компонентов..."
-  deploy_export_frontend_env
-  if deploy_npm_deps_healthy; then
-    npm run build -w @ai-consultant/shared-types 2>/dev/null || true
-    [[ ! -d apps/web-client/dist ]] && VITE_BASE_PATH=/app/ npm run build -w @ai-consultant/web-client || true
-    [[ ! -d apps/web-admin/dist ]] && VITE_BASE_PATH=/admin/ npm run build -w @ai-consultant/web-admin || true
-    [[ ! -d apps/public-site/.next ]] && NODE_ENV=production npm run build -w @ai-consultant/public-site || true
-    [[ ! -d apps/widget/dist ]] && npm run build -w @ai-consultant/widget || true
-  else
-    deploy_warn "node_modules повреждён — запустите: sudo bash scripts/fix-npm-install.sh"
-  fi
+# 3. Сборка фронтендов (всегда при 502 — dist мог отсутствовать)
+deploy_log "Сборка фронтендов..."
+deploy_export_frontend_env
+if ! deploy_npm_deps_healthy; then
+  deploy_warn "node_modules повреждён — восстанавливаю..."
+  bash "${INSTALL_DIR}/scripts/fix-npm-install.sh"
 fi
+bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh" "${INSTALL_DIR}"
+
+npm run build -w @ai-consultant/shared-types
+VITE_BASE_PATH=/app/ VITE_API_URL="${VITE_API_URL:-/api}" npm run build -w @ai-consultant/web-client
+VITE_BASE_PATH=/admin/ VITE_API_URL="${VITE_API_URL:-/api}" npm run build -w @ai-consultant/web-admin
+NODE_ENV=production npm run build -w @ai-consultant/public-site
+npm run build -w @ai-consultant/widget 2>/dev/null || true
+
+for d in apps/web-admin/dist apps/web-client/dist apps/public-site/.next; do
+  [[ -d "${INSTALL_DIR}/${d}" ]] || deploy_fail "Сборка не создала ${d}"
+done
+deploy_log "Сборка OK"
 
 # 4. Поднять все фронт-сервисы
 deploy_log "Запуск фронт-сервисов..."
@@ -85,20 +84,28 @@ deploy_log "=== РЕЗУЛЬТАТ ==="
 failed=0
 deploy_verify_frontends || failed=1
 
-api_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null || echo 000)"
-echo "  API health:     HTTP ${api_code}"
-echo "  Сайт :4321:     $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:4321/ 2>/dev/null || echo 000)"
-echo "  Админка :5174:  $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5174/admin/ 2>/dev/null || echo 000)"
-echo "  ЛК :5173:       $(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5173/app/ 2>/dev/null || echo 000)"
+api_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health 2>/dev/null || true)"
+api_code="${api_code:-000}"
+site_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:4321/ 2>/dev/null || true)"
+site_code="${site_code:-000}"
+admin_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5174/admin/ 2>/dev/null || true)"
+admin_code="${admin_code:-000}"
+client_code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5173/app/ 2>/dev/null || true)"
+client_code="${client_code:-000}"
 
-if [[ "${failed}" -eq 0 && "${api_code}" == "200" ]]; then
+echo "  API health:     HTTP ${api_code}"
+echo "  Сайт :4321:     HTTP ${site_code}"
+echo "  Админка :5174:  HTTP ${admin_code}"
+echo "  ЛК :5173:       HTTP ${client_code}"
+
+if [[ "${failed}" -eq 0 && "${api_code}" == "200" && "${site_code}" != "000" && "${admin_code}" != "000" && "${client_code}" != "000" ]]; then
   echo ""
   echo "  ✓ Сервисы подняты. Проверьте https://redflow.ru/ и https://redflow.ru/admin/"
 else
   echo ""
-  echo "  ✗ Часть сервисов ещё не отвечает. Логи:"
-  echo "    journalctl -u monstro-web-admin -n 30 --no-pager"
-  echo "    journalctl -u monstro-public-site -n 30 --no-pager"
-  echo "    docker compose logs --tail 30 api"
+  echo "  ✗ Сервисы не отвечают. Логи:"
+  journalctl -u monstro-web-admin -n 15 --no-pager 2>/dev/null || true
+  journalctl -u monstro-web-client -n 15 --no-pager 2>/dev/null || true
+  journalctl -u monstro-public-site -n 15 --no-pager 2>/dev/null || true
   exit 1
 fi

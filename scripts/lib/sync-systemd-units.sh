@@ -6,8 +6,10 @@ sync_systemd_units() {
   local install_dir="${1:?INSTALL_DIR required}"
   local node_bin
   node_bin="$(command -v node)"
-  local vite_js="${install_dir}/node_modules/vite/bin/vite.js"
   local next_js="${install_dir}/node_modules/next/dist/bin/next"
+  local spa_server="${install_dir}/scripts/serve-spa-dist.mjs"
+
+  chmod +x "${spa_server}" 2>/dev/null || true
 
   cat > /etc/systemd/system/monstro-public-site.service << EOF
 [Unit]
@@ -31,16 +33,20 @@ EOF
 
   cat > /etc/systemd/system/monstro-web-client.service << EOF
 [Unit]
-Description=RedFlow Web Client
+Description=RedFlow Web Client (SPA static)
 After=network.target docker.service
 
 [Service]
 Type=simple
-WorkingDirectory=${install_dir}/apps/web-client
+WorkingDirectory=${install_dir}
 EnvironmentFile=-${install_dir}/.env
 Environment=NODE_ENV=production
-Environment=VITE_BASE_PATH=/app/
-ExecStart=${node_bin} ${vite_js} preview --host 0.0.0.0 --port 5173
+Environment=INSTALL_DIR=${install_dir}
+Environment=SPA_APP=web-client
+Environment=SPA_BASE=/app/
+Environment=PORT=5173
+Environment=HOST=0.0.0.0
+ExecStart=${node_bin} ${spa_server}
 Restart=always
 RestartSec=5
 
@@ -50,16 +56,20 @@ EOF
 
   cat > /etc/systemd/system/monstro-web-admin.service << EOF
 [Unit]
-Description=RedFlow Web Admin
+Description=RedFlow Web Admin (SPA static)
 After=network.target docker.service
 
 [Service]
 Type=simple
-WorkingDirectory=${install_dir}/apps/web-admin
+WorkingDirectory=${install_dir}
 EnvironmentFile=-${install_dir}/.env
 Environment=NODE_ENV=production
-Environment=VITE_BASE_PATH=/admin/
-ExecStart=${node_bin} ${vite_js} preview --host 0.0.0.0 --port 5174
+Environment=INSTALL_DIR=${install_dir}
+Environment=SPA_APP=web-admin
+Environment=SPA_BASE=/admin/
+Environment=PORT=5174
+Environment=HOST=0.0.0.0
+ExecStart=${node_bin} ${spa_server}
 Restart=always
 RestartSec=5
 
@@ -78,7 +88,7 @@ WorkingDirectory=${install_dir}/apps/widget
 EnvironmentFile=-${install_dir}/.env
 Environment=PORT=5175
 Environment=HOST=0.0.0.0
-ExecStart=$(command -v node) ${install_dir}/apps/widget/scripts/serve-static.mjs
+ExecStart=${node_bin} ${install_dir}/apps/widget/scripts/serve-static.mjs
 Restart=always
 RestartSec=5
 
