@@ -134,11 +134,3 @@ export default function App() {
   );
 }
 
-function PlaceholderPage({ title }: { title: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-      <h1 className="text-2xl font-semibold text-slate-900">{title}</h1>
-      <p className="mt-2 text-slate-500">Раздел будет реализован в следующих спринтах.</p>
-    </div>
-  );
-}
