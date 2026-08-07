@@ -343,6 +343,15 @@ deploy_npm_install() {
 deploy_export_frontend_env() {
   local ip
   ip="$(deploy_detect_ip)"
+
+  # Load production .env so apply-redflow-env.sh values are available during build.
+  if [[ -f "${INSTALL_DIR}/.env" ]]; then
+    set -a
+    # shellcheck source=/dev/null
+    source "${INSTALL_DIR}/.env"
+    set +a
+  fi
+
   # Prefer production env already set (e.g. by apply-redflow-env.sh); compute LAN defaults only if empty.
   export VITE_WIDGET_SCRIPT_URL="${VITE_WIDGET_SCRIPT_URL:-http://${ip}:5175/embed.js}"
   export VITE_WIDGET_URL="${VITE_WIDGET_URL:-http://${ip}:5175}"

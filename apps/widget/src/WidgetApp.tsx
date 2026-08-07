@@ -215,6 +215,9 @@ export function WidgetApp() {
   const joinedRef = useRef(false);
   const parentOriginRef = useRef<string | null>(getParentOrigin());
   const rejoinAfterDialogClearRef = useRef(false);
+  const openRef = useRef(open);
+  const connectingRef = useRef(false);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -250,6 +253,7 @@ export function WidgetApp() {
   }, [notifyParent]);
 
   useEffect(() => {
+    openRef.current = open;
     notifyParent(open ? 'aicw:panel-open' : 'aicw:panel-close');
   }, [open, notifyParent]);
 
@@ -373,14 +377,17 @@ export function WidgetApp() {
   const connectSocket = useCallback(async () => {
     if (!widgetKey) return;
     if (socketRef.current?.connected) return;
+    if (connectingRef.current) return;
+    connectingRef.current = true;
 
-    if (socketRef.current) {
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
+    try {
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
 
-    const { io } = await prefetchSocketClient();
+      const { io } = await prefetchSocketClient();
     const origin = getSocketOrigin(apiUrl);
     const parentOrigin = parentOriginRef.current ?? getParentOrigin();
     parentOriginRef.current = parentOrigin;
@@ -561,6 +568,7 @@ export function WidgetApp() {
         cancelAnimationFrame(streamFlushRafRef.current);
         streamFlushRafRef.current = null;
       }
+      sendingRef.current = false;
       setIsTyping(false);
       const content = data.content ?? streamingRef.current;
       streamingRef.current = '';
@@ -611,7 +619,7 @@ export function WidgetApp() {
             },
           ]),
         );
-        if (!open && !preview) {
+        if (!openRef.current && !preview) {
           setOpen(true);
         }
       },
@@ -699,6 +707,9 @@ export function WidgetApp() {
     });
 
     socketRef.current = socket;
+    } finally {
+      connectingRef.current = false;
+    }
   }, [apiUrl, widgetKey, visitorId, open, preview]);
 
   useEffect(() => {
@@ -801,10 +812,12 @@ export function WidgetApp() {
       !socketRef.current?.connected ||
       !joinedRef.current ||
       !pdConsent ||
-      isPending
+      isPending ||
+      sendingRef.current
     ) {
       return;
     }
+    sendingRef.current = true;
 
     setIsTyping(true);
     setMessages((m) =>

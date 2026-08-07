@@ -181,6 +181,7 @@ export async function verifyAdmin2fa(data: Verify2faRequest) {
 
 export async function logoutUser() {
   await api.post('/auth/logout');
+  setCsrfToken(null);
 }
 
 export async function fetchCurrentUser() {

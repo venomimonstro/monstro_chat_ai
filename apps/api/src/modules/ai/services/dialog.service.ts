@@ -114,16 +114,16 @@ export class DialogService {
     });
   }
 
-  async updateSummary(dialogId: string, summary: string) {
+  async updateSummary(dialogId: string, tenantId: string, summary: string) {
     return this.prisma.dialog.update({
-      where: { id: dialogId },
+      where: { id: dialogId, tenantId },
       data: { summary },
     });
   }
 
-  async deleteMessages(ids: string[]) {
+  async deleteMessages(ids: string[], tenantId: string) {
     if (!ids.length) return;
-    await this.prisma.message.deleteMany({ where: { id: { in: ids } } });
+    await this.prisma.message.deleteMany({ where: { id: { in: ids }, tenantId } });
   }
 
   async closeDialog(
@@ -191,7 +191,7 @@ export class DialogService {
       select: { dialogId: true, content: true },
     });
 
-    for (const marker of markers) {
+    for (const marker of markers ?? []) {
       const targetDialogId = marker.content.split(':')[1];
       if (targetDialogId) map.set(marker.dialogId, targetDialogId);
     }

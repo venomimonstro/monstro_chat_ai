@@ -25,6 +25,7 @@ export class TeamService {
     const users = await this.prisma.user.findMany({
       where: { tenantId, status: 'active' },
       orderBy: { createdAt: 'asc' },
+      take: 1000,
     });
     return users.map((u) => ({
       id: u.id,
@@ -39,6 +40,7 @@ export class TeamService {
     const rows = await this.prisma.userInvite.findMany({
       where: { tenantId, acceptedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
     return rows.map((row) => ({
       id: row.id,

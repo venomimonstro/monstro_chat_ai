@@ -10,7 +10,7 @@ describe('KnowledgeService', () => {
   let service: KnowledgeService;
 
   const mockPrisma = {
-    source: { findFirst: jest.fn() },
+    source: { findFirst: jest.fn(), update: jest.fn() },
     indexingJob: {
       create: jest.fn(),
       findFirst: jest.fn(),

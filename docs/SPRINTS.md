@@ -77,6 +77,8 @@
 | 74 | Done | Аудит чата ЛК: ChatsPage/CRM race, message dedupe |
 | 75 | Done | Надёжность чата: origin iframe/parent, reconnect, session recovery |
 | 76 | Done | Админка/ЛК auth + стабильная сборка: CSRF/CORS, npm ci, recover-frontends |
+| 77 | Done | Производственный диагност: `aicw-diagnose`, `force-deploy-main`, fix `/admin/` продакшена (GET /auth/me, VITE_BASE_PATH) |
+| 78 | In progress | Полный аудит проекта: линтеры, тесты, race conditions, RLS/tenant, deploy scripts, CODING_STANDARDS |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

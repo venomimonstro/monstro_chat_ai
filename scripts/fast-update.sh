@@ -23,7 +23,10 @@ DO_PULL=1
 PARALLEL_BUILDS="${PARALLEL_BUILDS:-1}"
 
 # shellcheck source=lib/deploy-common.sh
-source "${INSTALL_DIR}/scripts/lib/deploy-common.sh" 2>/dev/null || true
+source "${INSTALL_DIR}/scripts/lib/deploy-common.sh" 2>/dev/null || {
+  echo "ERROR: scripts/lib/deploy-common.sh не найден" >&2
+  exit 1
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

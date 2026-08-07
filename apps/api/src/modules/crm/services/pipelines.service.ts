@@ -40,6 +40,7 @@ export class PipelinesService {
       where: { tenantId },
       include: { statuses: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { createdAt: 'asc' },
+      take: 1000,
     });
     return pipelines.map((p) => this.toDto(p));
   }

@@ -363,8 +363,23 @@ export class LeadExtractionService {
 
       return { created: true, leadId: lead.id, partial: isPartial };
     } catch (error) {
-      this.logger.warn(`Lead creation skipped: ${String(error)}`);
-      return { created: false };
+      // P2002 — unique constraint (dialogId) violated by concurrent create.
+      const code = (error as { code?: string }).code;
+      if (code === 'P2002') {
+        const existingByDialog = await this.prisma.lead.findUnique({
+          where: { dialogId },
+        });
+        if (existingByDialog) {
+          await this.enrichLead(existingByDialog.id, params.tenantId, accumulated);
+          return {
+            created: false,
+            linked: true,
+            leadId: existingByDialog.id,
+          };
+        }
+      }
+      this.logger.error(`Lead creation failed: ${String(error)}`);
+      throw error;
     }
   }
 

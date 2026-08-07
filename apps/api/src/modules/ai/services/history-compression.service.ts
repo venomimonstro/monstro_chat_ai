@@ -59,7 +59,10 @@ export class HistoryCompressionService {
       summary = transcript.slice(0, 500);
     }
 
-    await this.dialogService.updateSummary(dialogId, summary.trim());
-    await this.dialogService.deleteMessages(toSummarize.map((m) => m.id));
+    await this.dialogService.updateSummary(dialogId, tenantId, summary.trim());
+    await this.dialogService.deleteMessages(
+      toSummarize.map((m) => m.id),
+      tenantId,
+    );
   }
 }

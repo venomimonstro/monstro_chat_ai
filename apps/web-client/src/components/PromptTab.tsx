@@ -86,7 +86,7 @@ export function PromptTab({
         sourceId,
         message: text,
         clientPrompt: content,
-        history: sandboxMessages,
+        history: nextHistory.slice(0, -1),
       });
       setSandboxMessages([
         ...nextHistory,

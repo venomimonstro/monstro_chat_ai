@@ -178,6 +178,7 @@ export class KnowledgeService {
     const documents = await this.prisma.knowledgeDocument.findMany({
       where: { tenantId, sourceId },
       orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
     return documents.map((doc) => this.toDocumentDto(doc));
   }
@@ -397,6 +398,7 @@ export class KnowledgeService {
     const chunks = await this.prisma.knowledgeChunk.findMany({
       where: { documentId },
       orderBy: { chunkIndex: 'asc' },
+      take: 10000,
     });
 
     return {

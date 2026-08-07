@@ -17,6 +17,7 @@ deploy_log "Сборка публичного сайта..."
 if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
   npm run build -w @ai-consultant/shared-types
 fi
+# public-site использует NEXT_PUBLIC_* из .env через deploy_export_frontend_env
 npm run build -w @ai-consultant/public-site
 
 if ! deploy_ensure_service monstro-public-site; then

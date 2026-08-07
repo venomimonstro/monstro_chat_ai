@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '../lib/errors';
 import {
@@ -48,6 +48,7 @@ export function ChatsPage() {
   const [items, setItems] = useState<DialogListItemDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef(selectedId);
   const [detail, setDetail] = useState<DialogDetailDto | null>(null);
   const [messages, setMessages] = useState<DialogMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -153,11 +154,16 @@ export function ChatsPage() {
   }, [selectedId]);
 
   useEffect(() => {
+    selectedIdRef.current = selectedId;
     if (!selectedId || detailLoading) return undefined;
 
+    let currentController: AbortController | null = null;
     const interval = window.setInterval(() => {
-      fetchDialogMessages(selectedId)
+      currentController?.abort();
+      currentController = new AbortController();
+      fetchDialogMessages(selectedId, { signal: currentController.signal })
         .then((msgs) => {
+          if (selectedIdRef.current !== selectedId) return;
           setMessages((prev) => {
             if (msgs.length === prev.length && msgs.at(-1)?.id === prev.at(-1)?.id) {
               return prev;
@@ -168,7 +174,10 @@ export function ChatsPage() {
         .catch(() => undefined);
     }, 20_000);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      currentController?.abort();
+      window.clearInterval(interval);
+    };
   }, [selectedId, detailLoading]);
 
   if (loading && items.length === 0) {

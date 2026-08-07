@@ -69,6 +69,16 @@ stop_api_for_build() {
   docker compose -f "${INSTALL_DIR}/docker-compose.yml" stop api 2>/dev/null || true
 }
 
+stop_frontend_services() {
+  log "Останавливаю фронт-сервисы перед очисткой артефактов..."
+  for unit in monstro-web-client monstro-web-admin monstro-public-site monstro-widget; do
+    if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+      systemctl stop "${unit}" || true
+    fi
+  done
+  sleep 2
+}
+
 main() {
   [[ "${EUID:-$(id -u)}" -eq 0 ]] || {
     echo "Запустите от root: sudo bash scripts/free-disk.sh" >&2
@@ -91,6 +101,7 @@ main() {
 
   warn "Мало места (< ${MIN_FREE_GB} GB). Запускаю глубокую очистку..."
 
+  stop_frontend_services
   prune_frontend_artifacts
   show_disk
   if ! need_cleanup; then exit 0; fi

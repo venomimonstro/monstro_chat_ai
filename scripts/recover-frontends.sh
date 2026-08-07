@@ -15,14 +15,12 @@ deploy_log "Recover frontends — подъём сервисов после 502"
 for unit in monstro-web-client monstro-web-admin monstro-public-site monstro-widget; do
   if deploy_unit_exists "${unit}"; then
     deploy_ensure_service "${unit}" || deploy_warn "Не удалось start ${unit}"
-  else
-    deploy_warn "Unit ${unit} не найден"
   fi
 done
 
 # Если unit'ов нет — создаём без полной пересборки (если dist уже есть)
 if ! deploy_unit_exists monstro-web-admin || ! deploy_unit_exists monstro-web-client; then
-  if [[ -d apps/web-admin/dist && -d apps/web-client/dist ]]; then
+  if [[ -d "${INSTALL_DIR}/apps/web-admin/dist" && -d "${INSTALL_DIR}/apps/web-client/dist" ]]; then
     SKIP_FRONTEND_BUILD=1 bash "${INSTALL_DIR}/scripts/start-frontend.sh"
   else
     deploy_warn "Нет dist у ЛК/админки — нужен: sudo bash scripts/fast-update.sh --frontends --no-pull"
@@ -30,10 +28,18 @@ if ! deploy_unit_exists monstro-web-admin || ! deploy_unit_exists monstro-web-cl
 fi
 
 if ! deploy_unit_exists monstro-public-site; then
-  if [[ -d apps/public-site/.next || -d apps/public-site/dist ]]; then
+  if [[ -d "${INSTALL_DIR}/apps/public-site/.next" || -d "${INSTALL_DIR}/apps/public-site/dist" ]]; then
     SKIP_SITE_BUILD=1 bash "${INSTALL_DIR}/scripts/start-public-site.sh"
   else
     deploy_warn "Нет сборки сайта — нужен: sudo bash scripts/fast-update.sh --site --no-pull"
+  fi
+fi
+
+if ! deploy_unit_exists monstro-widget; then
+  if [[ -d "${INSTALL_DIR}/apps/widget/dist" ]]; then
+    SKIP_WIDGET_BUILD=1 bash "${INSTALL_DIR}/scripts/start-widget.sh"
+  else
+    deploy_warn "Нет dist виджета — нужен: sudo bash scripts/fast-update.sh --widget --no-pull"
   fi
 fi
 

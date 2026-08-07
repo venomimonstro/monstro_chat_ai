@@ -31,6 +31,7 @@ export class IntegrationsService {
   async getOverview(tenantId: string): Promise<IntegrationsOverviewDto> {
     const rows = await this.prisma.integration.findMany({
       where: { tenantId },
+      take: 1000,
     });
 
     const byType = new Map(rows.map((row) => [row.type, row]));

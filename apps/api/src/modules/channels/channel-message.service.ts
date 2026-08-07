@@ -3,6 +3,7 @@ import type { SourceConfig } from '@ai-consultant/shared-types';
 import { DEFAULT_SOURCE_CONFIG } from '@ai-consultant/shared-types';
 import type { Source } from '@prisma/client';
 import { AiOrchestratorService } from '../ai/services/ai-orchestrator.service';
+import { DialogService } from '../ai/services/dialog.service';
 import { ChannelRegistryService } from './channel-adapters';
 import type { UnifiedInboundMessage } from './channel.types';
 
@@ -13,6 +14,7 @@ export class ChannelMessageService {
   constructor(
     private readonly registry: ChannelRegistryService,
     private readonly orchestrator: AiOrchestratorService,
+    private readonly dialogService: DialogService,
   ) {}
 
   async handleInbound(source: Source, payload: unknown) {
@@ -26,10 +28,16 @@ export class ChannelMessageService {
       (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
 
     try {
+      const resumable = await this.dialogService.findResumableDialog(
+        inbound.tenantId,
+        inbound.sourceId,
+        inbound.visitorId,
+      );
       const result = await this.orchestrator.processMessage({
         tenantId: inbound.tenantId,
         sourceId: inbound.sourceId,
         visitorId: inbound.visitorId,
+        dialogId: resumable?.id,
         content: inbound.content,
         sourceConfig: config,
       });

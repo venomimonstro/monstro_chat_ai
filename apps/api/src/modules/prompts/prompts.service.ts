@@ -20,6 +20,7 @@ export class PromptsService {
         ...(scope === 'tenant' ? { tenantId } : { tenantId: null }),
       },
       orderBy: { version: 'desc' },
+      take: 1000,
     });
     return prompts.map((p) => this.toDto(p));
   }

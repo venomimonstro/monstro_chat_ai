@@ -3,6 +3,7 @@ import {
   Injectable,
   NestMiddleware,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'crypto';
 import { ConfigService } from '@nestjs/config';
 import type { NextFunction, Request, Response } from 'express';
 import {
@@ -66,7 +67,7 @@ export class CsrfMiddleware implements NestMiddleware {
       throw new ForbiddenException('Недействительный CSRF-токен');
     }
 
-    if (cookieToken && cookieToken === headerToken) {
+    if (cookieToken && this.constantTimeEquals(cookieToken, headerToken)) {
       if (refreshToken) {
         await this.csrfTokens.bind(refreshToken, headerToken);
       }
@@ -83,6 +84,15 @@ export class CsrfMiddleware implements NestMiddleware {
     }
 
     throw new ForbiddenException('Недействительный CSRF-токен');
+  }
+
+  private constantTimeEquals(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    try {
+      return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+    } catch {
+      return false;
+    }
   }
 
   private setCsrfCookie(res: Response, token: string) {
