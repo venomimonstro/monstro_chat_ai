@@ -33,7 +33,8 @@ function isCsrfExemptUrl(url?: string): boolean {
     url.includes('/auth/csrf') ||
     url.includes('/auth/2fa/verify') ||
     url.includes('/auth/forgot-password') ||
-    url.includes('/auth/reset-password')
+    url.includes('/auth/reset-password') ||
+    url.includes('/admin/impersonation/exchange')
   );
 }
 

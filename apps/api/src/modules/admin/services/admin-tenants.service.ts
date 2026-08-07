@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -457,13 +458,16 @@ export class AdminTenantsService {
     );
 
     const redis = this.redis.getClient();
-    if (redis) {
-      await redis.setex(
-        `impersonation:${exchangeCode}`,
-        this.impersonationTtlSec,
-        accessToken,
+    if (!redis) {
+      throw new ServiceUnavailableException(
+        'Имперсонация временно недоступна: Redis не подключён',
       );
     }
+    await redis.setex(
+      `impersonation:${exchangeCode}`,
+      this.impersonationTtlSec,
+      accessToken,
+    );
 
     await this.auditLog.append({
       actorUserId: actor.id,
