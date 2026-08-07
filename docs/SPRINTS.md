@@ -124,4 +124,8 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
+<<<<<<< HEAD
 | 76 | Админка/ЛК auth: CSRF без deadlock, multi-origin CORS, timeout загрузки, WEB_ADMIN_URLS |
+=======
+| 75 | Надёжность чата: origin iframe/parent, reconnect, session recovery, CORS |
+>>>>>>> origin/cursor/sprint-75-chat-reliability-ab3a

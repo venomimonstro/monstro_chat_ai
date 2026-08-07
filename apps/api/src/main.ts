@@ -42,6 +42,10 @@ async function bootstrap() {
       if (isAdminOrigin(normalized, adminUrls)) {
         return callback(null, true);
       }
+      // Widget embed/config from customer sites — per-source allowlist in WidgetController/ChatGateway.
+      if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS: origin ${origin} not allowed`), false);
     },
     credentials: true,
