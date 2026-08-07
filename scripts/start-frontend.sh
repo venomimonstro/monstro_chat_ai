@@ -32,13 +32,10 @@ build_frontends() {
   export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
   export VITE_WIDGET_URL="http://${ip}:5175"
   export VITE_API_URL="http://${ip}:3000/api"
-  # Только фронтенд — без API (argon2 не нужен на хосте)
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/web-client \
-    --workspace=@ai-consultant/web-admin \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+  # Один npm ci на всё монорепо (без параллельных install — ломают node_modules)
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  deploy_install_all_deps
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/web-client
   npm run build -w @ai-consultant/web-admin

@@ -70,7 +70,7 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
-| 76 | In progress | Аудит админки/ЛК auth: CSRF deadlock, CORS multi-origin, bootstrap timeout, cookie app-kind |
+| 76 | In progress | Админка/ЛК auth + стабильная сборка: CSRF/CORS, один npm ci, fix-npm-install, run-tsc |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

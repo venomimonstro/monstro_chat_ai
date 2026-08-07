@@ -23,11 +23,9 @@ install_node() {
 
 build_widget() {
   log "Собираю AI-виджет (embed.js + iframe)..."
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/widget \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  deploy_install_all_deps
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/widget
 }

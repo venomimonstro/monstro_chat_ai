@@ -14,7 +14,9 @@ deploy_npm_install site \
   --workspace=@ai-consultant/public-site
 
 deploy_log "Сборка публичного сайта..."
-npm run build -w @ai-consultant/shared-types
+if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+  npm run build -w @ai-consultant/shared-types
+fi
 npm run build -w @ai-consultant/public-site
 
 deploy_restart_if_active monstro-public-site || {

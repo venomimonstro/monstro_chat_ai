@@ -25,11 +25,9 @@ build_site() {
   export NEXT_PUBLIC_API_URL="http://${IP}:3000/api"
   export NEXT_PUBLIC_SITE_URL="http://${IP}:4321"
   export API_INTERNAL_URL="http://127.0.0.1:3000"
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/public-site \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  deploy_install_all_deps
   npm run build -w @ai-consultant/shared-types
   npm run build -w @ai-consultant/public-site
 }
