@@ -9,10 +9,10 @@ import { COMMON_EMOJIS } from './constants/emojis';
 import { useChatScroll } from './hooks/useChatScroll';
 import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewport } from './hooks/useViewport';
+import { useWidgetSocket } from './hooks/useWidgetSocket';
 import { MessageBubble } from './components/MessageBubble';
 import { dedupeMessages } from './utils/messages';
 import { generateUuid } from './utils/uuid';
-import { prefetchSocketClient } from './utils/prefetchSocket';
 import './widget-styles.css';
 
 interface ChatMessage {
@@ -71,11 +71,6 @@ function getParams() {
     attribution:
       Object.keys(attribution).length > 0 ? attribution : undefined,
   };
-}
-
-function getSocketOrigin(apiUrl: string): string {
-  if (apiUrl.startsWith('/')) return window.location.origin;
-  return apiUrl.replace(/\/api\/?$/, '');
 }
 
 function safeStorageGet(key: string): string | null {
@@ -202,15 +197,11 @@ export function WidgetApp() {
     widgetKey ? getStoredDialogId(widgetKey) : null,
   );
   const [isTyping, setIsTyping] = useState(false);
-  const [connected, setConnected] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySlow, setHistorySlow] = useState(false);
-  const [connectionError, setConnectionError] = useState(false);
-  const [connectionErrorText, setConnectionErrorText] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [latencyHint, setLatencyHint] = useState<number | null>(null);
 
-  const socketRef = useRef<Socket | null>(null);
   const visitorId = useMemo(() => getVisitorId(), []);
   const streamingRef = useRef('');
   const dialogIdRef = useRef<string | null>(dialogId);
@@ -224,14 +215,10 @@ export function WidgetApp() {
   const sessionTokenRef = useRef<string | null>(
     widgetKey ? getSessionToken(widgetKey) : null,
   );
-  const joinedRef = useRef(false);
   const parentOriginRef = useRef<string | null>(getParentOrigin());
   const rejoinAfterDialogClearRef = useRef(false);
   const openRef = useRef(open);
-  const connectingRef = useRef(false);
   const sendingRef = useRef(false);
-  const specificErrorRef = useRef<string | null>(null);
-  const joinWatchdogRef = useRef<number | null>(null);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -292,11 +279,6 @@ export function WidgetApp() {
     if (!widgetKey || preview) return;
     loadConfig();
   }, [loadConfig, widgetKey, preview]);
-
-  useEffect(() => {
-    if (deferSocket && !open && !preview) return;
-    void prefetchSocketClient();
-  }, [deferSocket, open, preview]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -409,150 +391,248 @@ export function WidgetApp() {
     [widgetKey, visitorId],
   );
 
-  const clearJoinWatchdog = useCallback(() => {
-    if (joinWatchdogRef.current !== null) {
-      window.clearInterval(joinWatchdogRef.current);
-      joinWatchdogRef.current = null;
-    }
-  }, []);
+  const requestJoinRef = useRef<() => void>(() => {});
 
-  const scheduleJoinWatchdog = useCallback(() => {
-    clearJoinWatchdog();
-    let attempts = 0;
-    joinWatchdogRef.current = window.setInterval(() => {
-      if (joinedRef.current) {
-        clearJoinWatchdog();
-        return;
-      }
-      attempts += 1;
-      const socket = socketRef.current;
-      if (socket?.connected) {
-        socket.emit('join', buildJoinPayload());
-        if (!specificErrorRef.current) {
-          setConnectionError(true);
-          setConnectionErrorText('Подключаемся…');
+  const onSocketReady = useCallback(
+    (socket: Socket) => {
+      socket.on('disconnect', (reason) => {
+        sendingRef.current = false;
+        if (reason === 'io client disconnect') return;
+        if (streamingRef.current) {
+          const partial = streamingRef.current;
+          streamingRef.current = '';
+          setIsTyping(false);
+          setMessages((m) => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            if (last?.streaming) {
+              copy[copy.length - 1] = {
+                ...last,
+                streaming: false,
+                content: partial || 'Соединение прервано. Повторите отправку.',
+              };
+            }
+            return copy;
+          });
         }
-      }
-      if (attempts >= 8 && !joinedRef.current && !specificErrorRef.current) {
-        clearJoinWatchdog();
-        setConnectionError(true);
-        setConnectionErrorText('Нет соединения с сервером чата');
-      }
-    }, 3000);
-  }, [buildJoinPayload, clearJoinWatchdog]);
+      });
 
-  const connectSocket = useCallback(async () => {
-    if (!widgetKey) return;
+      socket.on('session:refresh', (data: { sessionToken?: string }) => {
+        if (data.sessionToken && widgetKey) {
+          sessionTokenRef.current = data.sessionToken;
+          storeSessionToken(widgetKey, data.sessionToken);
+        }
+      });
 
-    const existing = socketRef.current;
-    if (existing?.connected) {
-      if (joinedRef.current || connectingRef.current) return;
-      existing.emit('join', buildJoinPayload());
-      scheduleJoinWatchdog();
-      return;
-    }
-    if (connectingRef.current) return;
-    connectingRef.current = true;
+      socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
+        setHistoryLoading(false);
+        setHistorySlow(false);
+        const normalized = data.messages.map((msg) => ({
+          ...msg,
+          createdAt: msg.createdAt ?? new Date().toISOString(),
+        }));
 
-    try {
-      if (socketRef.current) {
-        socketRef.current.removeAllListeners();
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+        if (
+          historyLoadedRef.current === data.dialogId &&
+          messagesLengthRef.current > 0
+        ) {
+          setMessages((prev) => {
+            const streaming = prev.filter((p) => p.streaming);
+            return dedupeMessages([...normalized, ...streaming]);
+          });
+          return;
+        }
 
-      const { io } = await prefetchSocketClient();
-    const origin = getSocketOrigin(apiUrl);
-    const parentOrigin = parentOriginRef.current ?? getParentOrigin();
-    parentOriginRef.current = parentOrigin;
+        historyLoadedRef.current = data.dialogId;
+        historyMessageIdsRef.current = new Set(
+          normalized.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
+        );
+        setDialogId(data.dialogId);
+        dialogIdRef.current = data.dialogId;
+        storeDialogId(widgetKey, data.dialogId);
+        setMessages(dedupeMessages(normalized));
+        if (data.resumed && normalized.length > 0) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === '__resume_hint__')) return prev;
+            return [
+              {
+                id: '__resume_hint__',
+                role: 'assistant',
+                content: 'Продолжаем предыдущий диалог.',
+                createdAt: new Date().toISOString(),
+              },
+              ...prev,
+            ];
+          });
+        }
+      });
 
-    const emitJoin = (socket: Socket) => {
-      socket.emit('join', buildJoinPayload());
-    };
+      socket.on('dialog:created', (data: { dialogId: string }) => {
+        setDialogId(data.dialogId);
+        dialogIdRef.current = data.dialogId;
+        storeDialogId(widgetKey, data.dialogId);
+      });
 
-    const socket = io(`${origin}/widget`, {
-      path: '/socket.io',
-      transports: ['polling', 'websocket'],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 800,
-      reconnectionDelayMax: 8000,
-      randomizationFactor: 0.4,
-      timeout: 20_000,
-    });
-
-    const releaseConnecting = () => {
-      connectingRef.current = false;
-    };
-
-    socket.on('connected', () => {
-      setConnectionError(false);
-      setConnectionErrorText(null);
-    });
-
-    socket.on('connect', () => {
-      releaseConnecting();
-      setConnectionError(false);
-      setConnectionErrorText(null);
-      joinedRef.current = false;
-      emitJoin(socket);
-      scheduleJoinWatchdog();
-    });
-
-    socket.on('disconnect', (reason) => {
-      releaseConnecting();
-      setConnected(false);
-      joinedRef.current = false;
-      sendingRef.current = false;
-      // Don't treat intentional client closes as fatal stream errors
-      if (reason === 'io client disconnect') return;
-      if (streamingRef.current) {
-        const partial = streamingRef.current;
+      socket.on('stream:start', () => {
+        setIsTyping(true);
         streamingRef.current = '';
+      });
+
+      socket.on('stream:token', (data: { token: string }) => {
+        streamingRef.current += data.token;
+        if (streamFlushRafRef.current !== null) return;
+        streamFlushRafRef.current = requestAnimationFrame(() => {
+          streamFlushRafRef.current = null;
+          const content = streamingRef.current;
+          if (!content) return;
+          setMessages((m) => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            if (last?.streaming) {
+              copy[copy.length - 1] = { ...last, content };
+            } else {
+              copy.push({
+                id: 'streaming-assistant',
+                role: 'assistant',
+                content,
+                streaming: true,
+              });
+            }
+            return copy;
+          });
+        });
+      });
+
+      socket.on('stream:end', (data: { messageId?: string; content?: string }) => {
+        if (streamFlushRafRef.current !== null) {
+          cancelAnimationFrame(streamFlushRafRef.current);
+          streamFlushRafRef.current = null;
+        }
+        sendingRef.current = false;
         setIsTyping(false);
+        const content = data.content ?? streamingRef.current;
+        streamingRef.current = '';
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
           if (last?.streaming) {
             copy[copy.length - 1] = {
-              ...last,
+              role: 'assistant',
+              content,
+              id: data.messageId ?? last.id,
               streaming: false,
-              content: partial || 'Соединение прервано. Повторите отправку.',
+              createdAt: new Date().toISOString(),
             };
+          } else if (content) {
+            copy.push({
+              role: 'assistant',
+              content,
+              id: data.messageId,
+              createdAt: new Date().toISOString(),
+            });
+          }
+          return dedupeMessages(copy);
+        });
+      });
+
+      socket.on(
+        'follow_up:message',
+        (data: {
+          dialogId: string;
+          messageId: string;
+          content: string;
+          createdAt: string;
+        }) => {
+          if (data.dialogId) {
+            setDialogId(data.dialogId);
+            dialogIdRef.current = data.dialogId;
+            if (widgetKey) storeDialogId(widgetKey, data.dialogId);
+          }
+          setMessages((m) =>
+            dedupeMessages([
+              ...m.filter((msg) => !msg.streaming),
+              {
+                role: 'assistant',
+                content: data.content,
+                id: data.messageId,
+                createdAt: data.createdAt,
+              },
+            ]),
+          );
+          if (!openRef.current && !preview) {
+            setOpen(true);
+          }
+        },
+      );
+
+      const appendError = (text: string) => {
+        sendingRef.current = false;
+        if (streamFlushRafRef.current !== null) {
+          cancelAnimationFrame(streamFlushRafRef.current);
+          streamFlushRafRef.current = null;
+        }
+        setIsTyping(false);
+        streamingRef.current = '';
+        setMessages((m) =>
+          dedupeMessages([
+            ...m.filter((msg) => !msg.streaming),
+            { role: 'assistant', content: text, createdAt: new Date().toISOString() },
+          ]),
+        );
+      };
+
+      socket.on('stream:error', (data: { error?: string }) => {
+        appendError(data.error ?? 'Ошибка при получении ответа');
+      });
+
+      socket.on('rate_limited', (data: { message: string }) => {
+        setMessages((m) => {
+          const copy = m.filter((msg) => !msg.streaming);
+          const last = copy[copy.length - 1];
+          if (last?.role === 'user' && last.id?.startsWith('local-')) {
+            copy.pop();
           }
           return copy;
         });
-      }
-    });
+        appendError(data.message);
+      });
 
-    socket.on('connect_error', () => {
-      releaseConnecting();
-      setConnected(false);
-      setConnectionError(true);
-      setConnectionErrorText(
-        socket.active ? 'Переподключение…' : 'Нет соединения с сервером чата',
-      );
-    });
+      socket.on('limit_exceeded', (data: { message: string }) => {
+        appendError(
+          data.message ??
+            'Лимит сообщений исчерпан. Попробуйте позже или свяжитесь с компанией.',
+        );
+      });
 
-    socket.on('reconnect_attempt', () => {
-      specificErrorRef.current = null;
-      setConnectionError(true);
-      setConnectionErrorText('Переподключение…');
-    });
+      socket.on('trial_expired', (data: { message: string }) => {
+        appendError(data.message ?? 'Чат временно недоступен. Пробный период закончился.');
+      });
 
-    socket.on('reconnect', () => {
-      joinedRef.current = false;
-      emitJoin(socket);
-      scheduleJoinWatchdog();
-    });
+      socket.on('tenant_suspended', (data: { message: string }) => {
+        appendError(data.message ?? 'Аккаунт приостановлен.');
+      });
+    },
+    [preview, widgetKey],
+  );
 
-    socket.on('joined', (data: { sessionToken?: string; dialogId?: string | null }) => {
-      clearJoinWatchdog();
-      specificErrorRef.current = null;
-      joinedRef.current = true;
-      setConnected(true);
-      setConnectionError(false);
-      setConnectionErrorText(null);
+  const socketEnabled = Boolean(widgetKey) && (!deferSocket || open || preview);
+
+  const {
+    socketRef,
+    phase,
+    statusText,
+    isReady,
+    isConnecting,
+    retry,
+    requestJoin,
+  } = useWidgetSocket({
+    widgetKey,
+    apiUrl,
+    visitorId,
+    enabled: socketEnabled,
+    buildJoinPayload,
+    onSocketReady,
+    onJoined: (data) => {
       if (data.sessionToken && widgetKey) {
         sessionTokenRef.current = data.sessionToken;
         storeSessionToken(widgetKey, data.sessionToken);
@@ -567,229 +647,8 @@ export function WidgetApp() {
       if (rejoinAfterDialogClearRef.current) {
         rejoinAfterDialogClearRef.current = false;
       }
-    });
-
-    socket.on('session:refresh', (data: { sessionToken?: string }) => {
-      if (data.sessionToken && widgetKey) {
-        sessionTokenRef.current = data.sessionToken;
-        storeSessionToken(widgetKey, data.sessionToken);
-      }
-    });
-
-    socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
-      setHistoryLoading(false);
-      setHistorySlow(false);
-      setConnectionError(false);
-      const normalized = data.messages.map((msg) => ({
-        ...msg,
-        createdAt: msg.createdAt ?? new Date().toISOString(),
-      }));
-
-      if (
-        historyLoadedRef.current === data.dialogId &&
-        messagesLengthRef.current > 0
-      ) {
-        // Prefer server history on reconnect; keep in-flight streaming bubble
-        setMessages((prev) => {
-          const streaming = prev.filter((p) => p.streaming);
-          return dedupeMessages([...normalized, ...streaming]);
-        });
-        return;
-      }
-
-      historyLoadedRef.current = data.dialogId;
-      historyMessageIdsRef.current = new Set(
-        normalized.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
-      );
-      setDialogId(data.dialogId);
-      dialogIdRef.current = data.dialogId;
-      storeDialogId(widgetKey, data.dialogId);
-      setMessages(dedupeMessages(normalized));
-      if (data.resumed && normalized.length > 0) {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === '__resume_hint__')) return prev;
-          return [
-            {
-              id: '__resume_hint__',
-              role: 'assistant',
-              content: 'Продолжаем предыдущий диалог.',
-              createdAt: new Date().toISOString(),
-            },
-            ...prev,
-          ];
-        });
-      }
-    });
-
-    socket.on('dialog:created', (data: { dialogId: string }) => {
-      setDialogId(data.dialogId);
-      dialogIdRef.current = data.dialogId;
-      storeDialogId(widgetKey, data.dialogId);
-    });
-
-    socket.on('stream:start', () => {
-      setIsTyping(true);
-      streamingRef.current = '';
-    });
-
-    socket.on('stream:token', (data: { token: string }) => {
-      streamingRef.current += data.token;
-      if (streamFlushRafRef.current !== null) return;
-      streamFlushRafRef.current = requestAnimationFrame(() => {
-        streamFlushRafRef.current = null;
-        const content = streamingRef.current;
-        if (!content) return;
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last?.streaming) {
-            copy[copy.length - 1] = { ...last, content };
-          } else {
-            copy.push({
-              id: 'streaming-assistant',
-              role: 'assistant',
-              content,
-              streaming: true,
-            });
-          }
-          return copy;
-        });
-      });
-    });
-
-    socket.on('stream:end', (data: { messageId?: string; content?: string }) => {
-      if (streamFlushRafRef.current !== null) {
-        cancelAnimationFrame(streamFlushRafRef.current);
-        streamFlushRafRef.current = null;
-      }
-      sendingRef.current = false;
-      setIsTyping(false);
-      const content = data.content ?? streamingRef.current;
-      streamingRef.current = '';
-      setMessages((m) => {
-        const copy = [...m];
-        const last = copy[copy.length - 1];
-        if (last?.streaming) {
-          copy[copy.length - 1] = {
-            role: 'assistant',
-            content,
-            id: data.messageId ?? last.id,
-            streaming: false,
-            createdAt: new Date().toISOString(),
-          };
-        } else if (content) {
-          copy.push({
-            role: 'assistant',
-            content,
-            id: data.messageId,
-            createdAt: new Date().toISOString(),
-          });
-        }
-        return dedupeMessages(copy);
-      });
-    });
-
-    socket.on(
-      'follow_up:message',
-      (data: {
-        dialogId: string;
-        messageId: string;
-        content: string;
-        createdAt: string;
-      }) => {
-        if (data.dialogId) {
-          setDialogId(data.dialogId);
-          dialogIdRef.current = data.dialogId;
-          if (widgetKey) storeDialogId(widgetKey, data.dialogId);
-        }
-        setMessages((m) =>
-          dedupeMessages([
-            ...m.filter((msg) => !msg.streaming),
-            {
-              role: 'assistant',
-              content: data.content,
-              id: data.messageId,
-              createdAt: data.createdAt,
-            },
-          ]),
-        );
-        if (!openRef.current && !preview) {
-          setOpen(true);
-        }
-      },
-    );
-
-    const appendError = (text: string) => {
-      sendingRef.current = false;
-      if (streamFlushRafRef.current !== null) {
-        cancelAnimationFrame(streamFlushRafRef.current);
-        streamFlushRafRef.current = null;
-      }
-      setIsTyping(false);
-      streamingRef.current = '';
-      setMessages((m) =>
-        dedupeMessages([
-          ...m.filter((msg) => !msg.streaming),
-          { role: 'assistant', content: text, createdAt: new Date().toISOString() },
-        ]),
-      );
-    };
-
-    socket.on('stream:error', (data: { error?: string }) => {
-      appendError(data.error ?? 'Ошибка при получении ответа');
-    });
-
-    socket.on('rate_limited', (data: { message: string }) => {
-      setMessages((m) => {
-        const copy = m.filter((msg) => !msg.streaming);
-        const last = copy[copy.length - 1];
-        if (last?.role === 'user' && last.id?.startsWith('local-')) {
-          copy.pop();
-        }
-        return copy;
-      });
-      appendError(data.message);
-    });
-
-    socket.on('limit_exceeded', (data: { message: string }) => {
-      appendError(
-        data.message ??
-          'Лимит сообщений исчерпан. Попробуйте позже или свяжитесь с компанией.',
-      );
-    });
-
-    socket.on('trial_expired', (data: { message: string }) => {
-      appendError(data.message ?? 'Чат временно недоступен. Пробный период закончился.');
-    });
-
-    socket.on('tenant_suspended', (data: { message: string }) => {
-      appendError(data.message ?? 'Аккаунт приостановлен.');
-    });
-
-    socket.on('error', (data: { code?: string; message?: string }) => {
-      if (data.code === 'origin_not_allowed') {
-        specificErrorRef.current = data.message ?? 'origin_not_allowed';
-        setConnected(false);
-        setConnectionError(true);
-        setConnectionErrorText(
-          data.message ?? 'Домен сайта не разрешён для виджета',
-        );
-        return;
-      }
-      if (data.code === 'invalid_widget') {
-        specificErrorRef.current = data.message ?? 'invalid_widget';
-        setConnected(false);
-        setConnectionError(true);
-        setConnectionErrorText('Виджет не найден или отключён');
-        return;
-      }
-      if (data.code === 'rate_limited') {
-        specificErrorRef.current = data.message ?? 'rate_limited';
-        sendingRef.current = false;
-        setConnectionError(true);
-        setConnectionErrorText(data.message ?? 'Слишком много подключений');
-        return;
-      }
+    },
+    onSocketError: (data) => {
       if (data.code === 'dialog_not_found' && widgetKey) {
         clearStoredDialogId(widgetKey);
         clearSessionToken(widgetKey);
@@ -799,71 +658,30 @@ export function WidgetApp() {
         historyLoadedRef.current = null;
         historyMessageIdsRef.current = new Set();
         setHistoryLoading(false);
-        // Keep messages; just clear stale id and rejoin without dialogId
-        if (socket.connected && !rejoinAfterDialogClearRef.current) {
+        if (!rejoinAfterDialogClearRef.current) {
           rejoinAfterDialogClearRef.current = true;
-          emitJoin(socket);
+          requestJoinRef.current();
         }
       }
-    });
+    },
+  });
 
-    socketRef.current = socket;
-    } catch {
-      connectingRef.current = false;
-    }
-  }, [apiUrl, widgetKey, visitorId, buildJoinPayload, preview, scheduleJoinWatchdog, clearJoinWatchdog]);
+  requestJoinRef.current = requestJoin;
+
+  const connected = isReady;
+  const connectionError = phase === 'error';
+  const connectionErrorText = statusText;
 
   useEffect(() => {
-    if (deferSocket && !open && !preview) return;
-
+    if (!socketEnabled) return;
     setHistoryLoading(Boolean(dialogIdRef.current));
     setHistorySlow(false);
-    specificErrorRef.current = null;
-
     const slowTimeout = window.setTimeout(() => {
-      if (historyLoadedRef.current || joinedRef.current) return;
+      if (historyLoadedRef.current || isReady) return;
       setHistorySlow(true);
     }, 1800);
-
-    void connectSocket();
-
-    return () => {
-      window.clearTimeout(slowTimeout);
-      clearJoinWatchdog();
-    };
-  }, [connectSocket, deferSocket, open, preview, clearJoinWatchdog]);
-
-  useEffect(() => {
-    if (deferSocket && !open && !preview) return;
-
-    const onVisibility = () => {
-      if (document.visibilityState !== 'visible') return;
-      const socket = socketRef.current;
-      if (!socket) {
-        void connectSocket();
-        return;
-      }
-      socket.io.opts.reconnection = true;
-      if (!socket.connected) {
-        setConnectionError(false);
-        setConnectionErrorText(null);
-        socket.connect();
-      } else if (!joinedRef.current) {
-        socket.emit('join', buildJoinPayload());
-      }
-    };
-
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [connectSocket, deferSocket, open, preview, buildJoinPayload]);
-
-  useEffect(() => {
-    return () => {
-      clearJoinWatchdog();
-      socketRef.current?.disconnect();
-      socketRef.current = null;
-    };
-  }, [clearJoinWatchdog]);
+    return () => window.clearTimeout(slowTimeout);
+  }, [socketEnabled, isReady]);
 
   const { appearance, personalization, behavior } = config;
   const isLeft = appearance.position === 'bottom-left';
@@ -898,7 +716,7 @@ export function WidgetApp() {
     if (
       !trimmed ||
       !socketRef.current?.connected ||
-      !joinedRef.current ||
+      !isReady ||
       !pdConsent ||
       isPending ||
       sendingRef.current
@@ -989,9 +807,7 @@ export function WidgetApp() {
             ? latencyHint !== null
               ? `Онлайн · ~${latencyHint} мс`
               : 'Онлайн'
-            : historySlow
-              ? 'Подключаемся…'
-              : 'Подключение…'}
+            : statusText ?? (isConnecting || historySlow ? 'Подключаемся…' : 'Подключение…')}
         </div>
       </div>
       <button
@@ -1118,18 +934,7 @@ export function WidgetApp() {
             <button
               type="button"
               className="aicw-retry-link"
-              onClick={() => {
-                specificErrorRef.current = null;
-                setConnectionError(false);
-                setConnectionErrorText(null);
-                clearJoinWatchdog();
-                if (socketRef.current) {
-                  socketRef.current.removeAllListeners();
-                  socketRef.current.disconnect();
-                  socketRef.current = null;
-                }
-                void connectSocket();
-              }}
+              onClick={() => retry()}
             >
               Повторить
             </button>

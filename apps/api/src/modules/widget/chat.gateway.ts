@@ -75,6 +75,9 @@ function normalizeAttribution(
 @WebSocketGateway({
   namespace: '/widget',
   cors: { origin: '*' },
+  pingTimeout: 60_000,
+  pingInterval: 25_000,
+  connectTimeout: 45_000,
 })
 export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   private readonly logger = new Logger(ChatGateway.name);
@@ -121,6 +124,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
   ) {
     if (!data?.widgetKey || !data?.visitorId) return;
 
+    const joinKey = `${data.widgetKey}:${data.visitorId}`;
+    if (client.data.joinKey === joinKey && client.data.joinInFlight) {
+      return;
+    }
+
     const source = await this.sourcesService.findByWidgetKey(data.widgetKey);
     if (!source || source.status !== 'active') {
       client.emit('error', { code: 'invalid_widget' });
@@ -135,17 +143,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       return;
     }
 
-    const ip = this.clientIp(client);
     const alreadyJoined =
       client.data.widgetKey === data.widgetKey &&
       client.data.visitorId === data.visitorId;
 
+    if (alreadyJoined) {
+      this.emitJoined(client, data, client.data.dialogId as string | undefined);
+      return;
+    }
+
+    const ip = this.clientIp(client);
     const hasValidSession = this.widgetSession.isValidToken(data.sessionToken, {
       widgetKey: data.widgetKey,
       visitorId: data.visitorId,
     });
 
-    if (!alreadyJoined && !hasValidSession) {
+    if (!hasValidSession) {
       const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
       if (!joinAllowed) {
         client.emit('error', {
@@ -160,36 +173,60 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     client.data.visitorId = data.visitorId;
     client.data.parentOrigin = data.parentOrigin;
     client.data.attribution = normalizeAttribution(data.attribution);
+    client.data.joinKey = joinKey;
+    client.data.joinInFlight = true;
     client.join(`visitor:${data.visitorId}`);
 
-    // Resolve dialog before advertising session — avoids stale dialogId tokens
-    let resolvedDialogId: string | undefined;
-    try {
-      resolvedDialogId = await this.resolveJoinDialog(client, source, data);
-    } catch (error) {
-      this.logger.warn(`Join history failed: ${String(error)}`);
-      client.emit('joined', {
-        visitorId: data.visitorId,
-        dialogId: null,
-        sessionToken: this.widgetSession.issueToken({
-          widgetKey: data.widgetKey,
-          visitorId: data.visitorId,
-        }),
-      });
-      return;
+    const provisionalDialogId = data.dialogId;
+    if (provisionalDialogId) {
+      client.data.dialogId = provisionalDialogId;
     }
 
+    this.emitJoined(client, data, provisionalDialogId);
+
+    void this.hydrateJoinHistory(client, source, data).finally(() => {
+      client.data.joinInFlight = false;
+    });
+  }
+
+  private emitJoined(
+    client: Socket,
+    data: WidgetJoinPayload,
+    dialogId?: string,
+  ) {
     const sessionToken = this.widgetSession.issueToken({
       widgetKey: data.widgetKey,
       visitorId: data.visitorId,
-      dialogId: resolvedDialogId,
+      dialogId,
     });
-
     client.emit('joined', {
       visitorId: data.visitorId,
-      dialogId: resolvedDialogId ?? null,
+      dialogId: dialogId ?? null,
       sessionToken,
     });
+  }
+
+  private async hydrateJoinHistory(
+    client: Socket,
+    source: Source,
+    data: WidgetJoinPayload,
+  ): Promise<void> {
+    try {
+      const resolvedDialogId = await this.resolveJoinDialog(client, source, data);
+      if (!resolvedDialogId) return;
+
+      client.data.dialogId = resolvedDialogId;
+      if (resolvedDialogId !== data.dialogId) {
+        this.emitSessionToken(
+          client,
+          data.widgetKey,
+          data.visitorId,
+          resolvedDialogId,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(`Join history hydrate failed: ${String(error)}`);
+    }
   }
 
   private async resolveJoinDialog(

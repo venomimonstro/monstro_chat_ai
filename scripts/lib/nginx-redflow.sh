@@ -86,6 +86,7 @@ redflow_nginx_locations_block() {
   location /socket.io/ {
     proxy_pass http://127.0.0.1:3000/socket.io/;
     proxy_http_version 1.1;
+    proxy_buffering off;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection $connection_upgrade;
     proxy_set_header Host $host;

@@ -53,7 +53,7 @@ describe('WidgetRateLimitService', () => {
   });
 
   it('blocks join when visitor join limit exceeded', async () => {
-    mockRedis.zcard.mockResolvedValue(40);
+    mockRedis.zcard.mockResolvedValue(120);
     await expect(service.checkJoinLimit('visitor-1')).resolves.toBe(false);
   });
 
