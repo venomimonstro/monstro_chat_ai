@@ -6,7 +6,7 @@ import { AuditLogService } from './audit-log.service';
 import { MarginAnalyticsService } from './margin-analytics.service';
 
 describe('AdminTenantsService', () => {
-  const mockPrisma = {
+  const mockPrisma: any = {
     tenant: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -25,7 +25,12 @@ describe('AdminTenantsService', () => {
     lead: { count: jest.fn() },
     source: { count: jest.fn() },
     transaction: { create: jest.fn() },
-    $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
+    $transaction: jest.fn(async (arg: unknown) => {
+      if (typeof arg === 'function') {
+        return arg(mockPrisma);
+      }
+      return Promise.all(arg as unknown[]);
+    }),
   };
 
   const mockAudit = { append: jest.fn().mockResolvedValue({}) };

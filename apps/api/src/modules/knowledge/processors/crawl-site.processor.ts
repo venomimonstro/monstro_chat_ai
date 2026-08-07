@@ -30,8 +30,21 @@ export class CrawlSiteProcessor extends WorkerHost {
   }
 
   async process(job: Job<CrawlSiteJobPayload>): Promise<void> {
-    const { jobId, tenantId, sourceId, rootUrl, pageLimit, mode } = job.data;
+    const { jobId, tenantId, sourceId, rootUrl, pageLimit, mode, crawlOptions } =
+      job.data;
     const crawlMode = mode ?? 'full';
+    const options =
+      crawlOptions ??
+      ({
+        pageLimit,
+        maxDepth: 4,
+        strategy: {
+          siteProfile: 'auto',
+          excludeBlog: true,
+          priorityUrls: [],
+          excludePatterns: [],
+        },
+      } satisfies CrawlSiteJobPayload['crawlOptions']);
     const startedAt = Date.now();
     const stats: CrawlJobStats = {
       mode: crawlMode,
@@ -62,7 +75,7 @@ export class CrawlSiteProcessor extends WorkerHost {
 
       const pages = await this.crawler.crawlSite(
         rootUrl,
-        pageLimit,
+        options,
         async (_page, processed, total) => {
           await this.prisma.indexingJob.update({
             where: { id: jobId },

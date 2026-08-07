@@ -19,18 +19,24 @@ install_node() {
 }
 
 build_site() {
+  if [[ "${SKIP_SITE_BUILD:-0}" == "1" ]]; then
+    log "Сборка сайта пропущена (SKIP_SITE_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю публичный сайт..."
   export NEXT_PUBLIC_WIDGET_URL="http://${IP}:5175"
   export NEXT_PUBLIC_CLIENT_URL="http://${IP}:5173"
   export NEXT_PUBLIC_API_URL="http://${IP}:3000/api"
   export NEXT_PUBLIC_SITE_URL="http://${IP}:4321"
   export API_INTERNAL_URL="http://127.0.0.1:3000"
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/public-site \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
-  npm run build -w @ai-consultant/shared-types
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
   npm run build -w @ai-consultant/public-site
 }
 

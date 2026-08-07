@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomBytes } from 'crypto';
 import type { SourceChannelConfig, SourceConfig } from '@ai-consultant/shared-types';
 import { DEFAULT_SOURCE_CONFIG } from '@ai-consultant/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -41,13 +42,14 @@ export class ChannelsSetupService {
       throw new NotFoundException(meData.description ?? 'Неверный Bot Token');
     }
 
+    const webhookSecret = randomBytes(24).toString('hex');
     const webhookUrl = `${this.getWebhookBaseUrl()}/api/channels/telegram/${source.widgetKey}/webhook`;
     const hookRes = await fetchFn(
       `https://api.telegram.org/bot${dto.botToken}/setWebhook`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: webhookUrl }),
+        body: JSON.stringify({ url: webhookUrl, secret_token: webhookSecret }),
       },
     );
     const hookData = (await hookRes.json()) as { ok: boolean; description?: string };
@@ -65,6 +67,7 @@ export class ChannelsSetupService {
         telegram: {
           botTokenEncrypted: this.crypto.encrypt(dto.botToken),
           botUsername: meData.result?.username,
+          webhookSecret,
         },
       },
     };
@@ -110,6 +113,10 @@ export class ChannelsSetupService {
     const channel = this.getConfig(configJson).channel?.telegram;
     if (!channel?.botTokenEncrypted) return null;
     return this.crypto.decrypt(channel.botTokenEncrypted);
+  }
+
+  getTelegramWebhookSecret(configJson: unknown): string | null {
+    return this.getConfig(configJson).channel?.telegram?.webhookSecret ?? null;
   }
 
   decryptVkToken(configJson: unknown): string | null {

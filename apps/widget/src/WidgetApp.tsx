@@ -194,6 +194,7 @@ export function WidgetApp() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historySlow, setHistorySlow] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
+  const [connectionErrorText, setConnectionErrorText] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [latencyHint, setLatencyHint] = useState<number | null>(null);
 
@@ -211,7 +212,12 @@ export function WidgetApp() {
   const sessionTokenRef = useRef<string | null>(
     widgetKey ? getSessionToken(widgetKey) : null,
   );
-  const hiddenDisconnectRef = useRef(false);
+  const joinedRef = useRef(false);
+  const parentOriginRef = useRef<string | null>(getParentOrigin());
+  const rejoinAfterDialogClearRef = useRef(false);
+  const openRef = useRef(open);
+  const connectingRef = useRef(false);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -247,6 +253,7 @@ export function WidgetApp() {
   }, [notifyParent]);
 
   useEffect(() => {
+    openRef.current = open;
     notifyParent(open ? 'aicw:panel-open' : 'aicw:panel-close');
   }, [open, notifyParent]);
 
@@ -370,37 +377,53 @@ export function WidgetApp() {
   const connectSocket = useCallback(async () => {
     if (!widgetKey) return;
     if (socketRef.current?.connected) return;
+    if (connectingRef.current) return;
+    connectingRef.current = true;
 
-    if (socketRef.current) {
-      socketRef.current.removeAllListeners();
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
+    try {
+      if (socketRef.current) {
+        socketRef.current.removeAllListeners();
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
 
-    const { io } = await prefetchSocketClient();
+      const { io } = await prefetchSocketClient();
     const origin = getSocketOrigin(apiUrl);
-    const socket = io(`${origin}/widget`, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 800,
-      reconnectionDelayMax: 4000,
-    });
+    const parentOrigin = parentOriginRef.current ?? getParentOrigin();
+    parentOriginRef.current = parentOrigin;
 
-    socket.on('connect', () => {
-      setConnected(true);
-      setConnectionError(false);
+    const emitJoin = (socket: Socket) => {
       socket.emit('join', {
         widgetKey,
         visitorId,
         dialogId: dialogIdRef.current ?? undefined,
+        parentOrigin: parentOrigin ?? undefined,
         attribution: attributionRef.current,
       });
+    };
+
+    const socket = io(`${origin}/widget`, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 8000,
+      randomizationFactor: 0.4,
     });
 
-    socket.on('disconnect', () => {
+    socket.on('connect', () => {
+      setConnectionError(false);
+      setConnectionErrorText(null);
+      joinedRef.current = false;
+      emitJoin(socket);
+    });
+
+    socket.on('disconnect', (reason) => {
       setConnected(false);
+      joinedRef.current = false;
+      // Don't treat intentional client closes as fatal stream errors
+      if (reason === 'io client disconnect') return;
       if (streamingRef.current) {
         const partial = streamingRef.current;
         streamingRef.current = '';
@@ -420,15 +443,35 @@ export function WidgetApp() {
       }
     });
 
-    socket.on('connect_error', () => setConnectionError(true));
+    socket.on('connect_error', () => {
+      setConnected(false);
+      setConnectionError(true);
+      setConnectionErrorText('Нет соединения с сервером чата');
+    });
 
-    socket.on('joined', (data: { sessionToken?: string }) => {
+    socket.on('reconnect_attempt', () => {
+      setConnectionError(true);
+      setConnectionErrorText('Переподключение…');
+    });
+
+    socket.on('joined', (data: { sessionToken?: string; dialogId?: string | null }) => {
+      joinedRef.current = true;
+      setConnected(true);
+      setConnectionError(false);
+      setConnectionErrorText(null);
       if (data.sessionToken && widgetKey) {
         sessionTokenRef.current = data.sessionToken;
         storeSessionToken(widgetKey, data.sessionToken);
       }
-      if (!dialogIdRef.current) {
+      if (data.dialogId) {
+        setDialogId(data.dialogId);
+        dialogIdRef.current = data.dialogId;
+        storeDialogId(widgetKey, data.dialogId);
+      } else if (!dialogIdRef.current) {
         setHistoryLoading(false);
+      }
+      if (rejoinAfterDialogClearRef.current) {
+        rejoinAfterDialogClearRef.current = false;
       }
     });
 
@@ -442,27 +485,33 @@ export function WidgetApp() {
     socket.on('history', (data: { dialogId: string; messages: ChatMessage[]; resumed?: boolean }) => {
       setHistoryLoading(false);
       setHistorySlow(false);
+      setConnectionError(false);
+      const normalized = data.messages.map((msg) => ({
+        ...msg,
+        createdAt: msg.createdAt ?? new Date().toISOString(),
+      }));
+
       if (
         historyLoadedRef.current === data.dialogId &&
         messagesLengthRef.current > 0
       ) {
+        // Prefer server history on reconnect; keep in-flight streaming bubble
+        setMessages((prev) => {
+          const streaming = prev.filter((p) => p.streaming);
+          return dedupeMessages([...normalized, ...streaming]);
+        });
         return;
       }
+
       historyLoadedRef.current = data.dialogId;
       historyMessageIdsRef.current = new Set(
-        data.messages.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
+        normalized.map((msg) => msg.id).filter((id): id is string => Boolean(id)),
       );
       setDialogId(data.dialogId);
+      dialogIdRef.current = data.dialogId;
       storeDialogId(widgetKey, data.dialogId);
-      setMessages(
-        dedupeMessages(
-          data.messages.map((msg) => ({
-            ...msg,
-            createdAt: msg.createdAt ?? new Date().toISOString(),
-          })),
-        ),
-      );
-      if (data.resumed && data.messages.length > 0) {
+      setMessages(dedupeMessages(normalized));
+      if (data.resumed && normalized.length > 0) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === '__resume_hint__')) return prev;
           return [
@@ -480,6 +529,7 @@ export function WidgetApp() {
 
     socket.on('dialog:created', (data: { dialogId: string }) => {
       setDialogId(data.dialogId);
+      dialogIdRef.current = data.dialogId;
       storeDialogId(widgetKey, data.dialogId);
     });
 
@@ -494,13 +544,19 @@ export function WidgetApp() {
       streamFlushRafRef.current = requestAnimationFrame(() => {
         streamFlushRafRef.current = null;
         const content = streamingRef.current;
+        if (!content) return;
         setMessages((m) => {
           const copy = [...m];
           const last = copy[copy.length - 1];
           if (last?.streaming) {
             copy[copy.length - 1] = { ...last, content };
           } else {
-            copy.push({ role: 'assistant', content, streaming: true });
+            copy.push({
+              id: 'streaming-assistant',
+              role: 'assistant',
+              content,
+              streaming: true,
+            });
           }
           return copy;
         });
@@ -508,8 +564,14 @@ export function WidgetApp() {
     });
 
     socket.on('stream:end', (data: { messageId?: string; content?: string }) => {
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+        streamFlushRafRef.current = null;
+      }
+      sendingRef.current = false;
       setIsTyping(false);
       const content = data.content ?? streamingRef.current;
+      streamingRef.current = '';
       setMessages((m) => {
         const copy = [...m];
         const last = copy[copy.length - 1];
@@ -517,13 +579,20 @@ export function WidgetApp() {
           copy[copy.length - 1] = {
             role: 'assistant',
             content,
-            id: data.messageId,
+            id: data.messageId ?? last.id,
+            streaming: false,
             createdAt: new Date().toISOString(),
           };
+        } else if (content) {
+          copy.push({
+            role: 'assistant',
+            content,
+            id: data.messageId,
+            createdAt: new Date().toISOString(),
+          });
         }
         return dedupeMessages(copy);
       });
-      streamingRef.current = '';
     });
 
     socket.on(
@@ -550,14 +619,19 @@ export function WidgetApp() {
             },
           ]),
         );
-        if (!open && !preview) {
+        if (!openRef.current && !preview) {
           setOpen(true);
         }
       },
     );
 
     const appendError = (text: string) => {
+      if (streamFlushRafRef.current !== null) {
+        cancelAnimationFrame(streamFlushRafRef.current);
+        streamFlushRafRef.current = null;
+      }
       setIsTyping(false);
+      streamingRef.current = '';
       setMessages((m) =>
         dedupeMessages([
           ...m.filter((msg) => !msg.streaming),
@@ -571,6 +645,14 @@ export function WidgetApp() {
     });
 
     socket.on('rate_limited', (data: { message: string }) => {
+      setMessages((m) => {
+        const copy = m.filter((msg) => !msg.streaming);
+        const last = copy[copy.length - 1];
+        if (last?.role === 'user' && last.id?.startsWith('local-')) {
+          copy.pop();
+        }
+        return copy;
+      });
       appendError(data.message);
     });
 
@@ -589,7 +671,26 @@ export function WidgetApp() {
       appendError(data.message ?? 'Аккаунт приостановлен.');
     });
 
-    socket.on('error', (data: { code?: string }) => {
+    socket.on('error', (data: { code?: string; message?: string }) => {
+      if (data.code === 'origin_not_allowed') {
+        setConnected(false);
+        setConnectionError(true);
+        setConnectionErrorText(
+          data.message ?? 'Домен сайта не разрешён для виджета',
+        );
+        return;
+      }
+      if (data.code === 'invalid_widget') {
+        setConnected(false);
+        setConnectionError(true);
+        setConnectionErrorText('Виджет не найден или отключён');
+        return;
+      }
+      if (data.code === 'rate_limited') {
+        setConnectionError(true);
+        setConnectionErrorText(data.message ?? 'Слишком много подключений');
+        return;
+      }
       if (data.code === 'dialog_not_found' && widgetKey) {
         clearStoredDialogId(widgetKey);
         setDialogId(null);
@@ -597,12 +698,19 @@ export function WidgetApp() {
         historyLoadedRef.current = null;
         historyMessageIdsRef.current = new Set();
         setHistoryLoading(false);
-        setMessages([]);
+        // Keep messages; just clear stale id and rejoin without dialogId
+        if (socket.connected && !rejoinAfterDialogClearRef.current) {
+          rejoinAfterDialogClearRef.current = true;
+          emitJoin(socket);
+        }
       }
     });
 
     socketRef.current = socket;
-  }, [apiUrl, widgetKey, visitorId]);
+    } finally {
+      connectingRef.current = false;
+    }
+  }, [apiUrl, widgetKey, visitorId, open, preview]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -611,16 +719,18 @@ export function WidgetApp() {
     setHistorySlow(false);
 
     const slowTimeout = window.setTimeout(() => {
-      if (historyLoadedRef.current) return;
+      if (historyLoadedRef.current || joinedRef.current) return;
       setHistorySlow(true);
     }, 1800);
 
     const historyTimeout = window.setTimeout(() => {
       setHistoryLoading(false);
-      if (!historyLoadedRef.current && dialogIdRef.current) {
+      // Only show connection error if socket never joined
+      if (!joinedRef.current && !socketRef.current?.connected) {
         setConnectionError(true);
+        setConnectionErrorText('Нет соединения с сервером чата');
       }
-    }, 2500);
+    }, 8000);
 
     void connectSocket();
 
@@ -633,38 +743,32 @@ export function WidgetApp() {
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
-    const pauseReconnect = () => {
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
       const socket = socketRef.current;
-      if (!socket) return;
-      hiddenDisconnectRef.current = true;
-      socket.io.opts.reconnection = false;
-      if (socket.connected) {
-        socket.disconnect();
+      if (!socket) {
+        void connectSocket();
+        return;
       }
-    };
-
-    const resumeReconnect = () => {
-      const socket = socketRef.current;
-      if (!socket) return;
-      hiddenDisconnectRef.current = false;
       socket.io.opts.reconnection = true;
       if (!socket.connected) {
         setConnectionError(false);
+        setConnectionErrorText(null);
         socket.connect();
+      } else if (!joinedRef.current) {
+        socket.emit('join', {
+          widgetKey,
+          visitorId,
+          dialogId: dialogIdRef.current ?? undefined,
+          parentOrigin: parentOriginRef.current ?? undefined,
+          attribution: attributionRef.current,
+        });
       }
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        pauseReconnect();
-        return;
-      }
-      resumeReconnect();
     };
 
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [deferSocket, open, preview]);
+  }, [connectSocket, deferSocket, open, preview, widgetKey, visitorId]);
 
   useEffect(() => {
     return () => {
@@ -706,11 +810,14 @@ export function WidgetApp() {
     if (
       !trimmed ||
       !socketRef.current?.connected ||
+      !joinedRef.current ||
       !pdConsent ||
-      isPending
+      isPending ||
+      sendingRef.current
     ) {
       return;
     }
+    sendingRef.current = true;
 
     setIsTyping(true);
     setMessages((m) =>
@@ -732,6 +839,7 @@ export function WidgetApp() {
       widgetKey,
       visitorId,
       dialogId: dialogIdRef.current ?? undefined,
+      parentOrigin: parentOriginRef.current ?? undefined,
       content: trimmed,
       attribution,
     });
@@ -918,12 +1026,13 @@ export function WidgetApp() {
         )}
         {connectionError && !connected && (
           <div className="aicw-error-banner" role="alert">
-            Нет соединения.{' '}
+            {connectionErrorText ?? 'Нет соединения.'}{' '}
             <button
               type="button"
               className="aicw-retry-link"
               onClick={() => {
                 setConnectionError(false);
+                setConnectionErrorText(null);
                 if (socketRef.current) {
                   socketRef.current.removeAllListeners();
                   socketRef.current.disconnect();

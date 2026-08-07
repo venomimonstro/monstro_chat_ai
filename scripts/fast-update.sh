@@ -23,7 +23,10 @@ DO_PULL=1
 PARALLEL_BUILDS="${PARALLEL_BUILDS:-1}"
 
 # shellcheck source=lib/deploy-common.sh
-source "${INSTALL_DIR}/scripts/lib/deploy-common.sh" 2>/dev/null || true
+source "${INSTALL_DIR}/scripts/lib/deploy-common.sh" 2>/dev/null || {
+  echo "ERROR: scripts/lib/deploy-common.sh не найден" >&2
+  exit 1
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -84,8 +87,17 @@ needs() {
   [[ " ${list} " == *" ${item} "* ]]
 }
 
+needs_frontend_builds() {
+  local components="$1"
+  needs "${components}" "widget" || needs "${components}" "frontends" || needs "${components}" "site"
+}
+
 run_parallel_builds() {
   local components="$1"
+  if needs_frontend_builds "${components}"; then
+    deploy_prepare_frontend_builds
+  fi
+
   local pids=() names=()
 
   if needs "${components}" "widget"; then
@@ -107,16 +119,23 @@ run_parallel_builds() {
     names+=("site")
   fi
 
-  local i failed=0
+  local i failed=0 failed_names=()
   for i in "${!pids[@]}"; do
     if ! wait "${pids[$i]}"; then
-      deploy_fail "Сборка ${names[$i]} провалена"
+      failed=1
+      failed_names+=("${names[$i]}")
     fi
   done
+  if [[ "${failed}" -ne 0 ]]; then
+    deploy_fail "Сборка провалена: ${failed_names[*]}"
+  fi
 }
 
 run_sequential_builds() {
   local components="$1"
+  if needs_frontend_builds "${components}"; then
+    deploy_prepare_frontend_builds
+  fi
   needs "${components}" "widget" && bash "${INSTALL_DIR}/scripts/lib/build-widget.sh"
   needs "${components}" "frontends" && bash "${INSTALL_DIR}/scripts/lib/build-frontends.sh"
   needs "${components}" "site" && bash "${INSTALL_DIR}/scripts/lib/build-site.sh"
@@ -147,6 +166,10 @@ main() {
 
   pull_code
 
+  # После pull подхватываем актуальный deploy-common (иначе остаются функции из старого файла)
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+
   # После pull — актуальный free-disk.sh; чистим до любой Docker/npm сборки
   if [[ "${MODE}" == "full" ]]; then
     ensure_disk_space
@@ -171,11 +194,25 @@ main() {
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
+  # При любом fail/exit — поднять сервисы, иначе nginx 502
+  trap 'deploy_restore_node_services' EXIT
+
   if [[ "${PARALLEL_BUILDS}" == "1" ]]; then
     run_parallel_builds "${components}"
   else
     run_sequential_builds "${components}"
   fi
+
+  trap - EXIT
+  deploy_restore_node_services
+
+  if needs_frontend_builds "${components}"; then
+    sleep 2
+    deploy_verify_frontends || deploy_warn "Фронты подняты не полностью — sudo bash scripts/recover-frontends.sh"
+  fi
+
+  # Записываем отчёт диагностического агента (quick) — чтобы видеть проблемы сразу
+  bash "${INSTALL_DIR}/scripts/aicw-diagnose.sh" --quick 2>/dev/null || true
 
   if [[ "${MODE}" == "full" ]] || needs "${components}" "api"; then
     bash "${INSTALL_DIR}/scripts/ensure-boot-stability.sh" 2>/dev/null || true

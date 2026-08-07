@@ -40,6 +40,7 @@ export class WidgetController {
 
   @Get('config/:widgetKey')
   @Header('Cache-Control', 'no-cache')
+  @Header('Access-Control-Allow-Origin', '*')
   async getConfig(
     @Param('widgetKey') widgetKey: string,
     @Req() req: Request,
@@ -70,6 +71,7 @@ export class WidgetController {
 
   @Get('config/version/:widgetKey')
   @Header('Cache-Control', 'no-cache')
+  @Header('Access-Control-Allow-Origin', '*')
   async getConfigVersion(
     @Param('widgetKey') widgetKey: string,
     @Req() req: Request,

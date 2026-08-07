@@ -22,13 +22,19 @@ install_node() {
 }
 
 build_widget() {
+  if [[ "${SKIP_WIDGET_BUILD:-0}" == "1" ]]; then
+    log "Сборка виджета пропущена (SKIP_WIDGET_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю AI-виджет (embed.js + iframe)..."
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/widget \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
-  npm run build -w @ai-consultant/shared-types
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
   npm run build -w @ai-consultant/widget
 }
 

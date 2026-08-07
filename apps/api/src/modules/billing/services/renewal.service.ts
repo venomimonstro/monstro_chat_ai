@@ -51,6 +51,24 @@ export class RenewalService {
       return;
     }
 
+    const pendingRenewal = await this.prisma.payment.findFirst({
+      where: {
+        tenantId: sub.tenantId,
+        status: 'pending',
+        metadataJson: {
+          path: ['renewal'],
+          equals: true,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (pendingRenewal) {
+      this.logger.log(
+        `Subscription ${sub.id} already has pending renewal ${pendingRenewal.id} — skipping`,
+      );
+      return;
+    }
+
     const payment = await this.prisma.payment.create({
       data: {
         tenantId: sub.tenantId,

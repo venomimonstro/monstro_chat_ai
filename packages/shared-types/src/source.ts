@@ -14,6 +14,14 @@ export interface WidgetAppearanceConfig {
   offsetX: number;
   offsetY: number;
   hideOnMobile: boolean;
+  /** Анимация кнопки на сайте (Sprint 69). */
+  launcherAnimation?: import('./widget-launcher').LauncherAnimation;
+  /** Текст рядом с кнопкой, напр. «Оператор онлайн». */
+  launcherLabel?: string;
+  /** Показывать подпись у кнопки. */
+  showLauncherLabel?: boolean;
+  /** Зелёная точка «онлайн» на кнопке. */
+  launcherOnlineIndicator?: boolean;
 }
 
 export interface WidgetSecurityConfig {
@@ -40,6 +48,12 @@ export interface WidgetBehaviorConfig {
   quickReplies?: string[];
   /** When true (default), embed makes no API/iframe requests until user clicks launcher */
   lazyLoad?: boolean;
+  /** Чат сразу раскрыт при загрузке страницы (Sprint 69). */
+  defaultOpen?: boolean;
+  /** Задержка появления кнопки, сек (0 — сразу). */
+  showLauncherDelaySeconds?: number;
+  /** Показывать виджет только на выбранных страницах (Sprint 69). */
+  pageActivation?: import('./widget-launcher').WidgetPageActivationConfig;
 }
 
 export type LeadProfileMode =
@@ -85,6 +99,8 @@ export interface SourceConfig {
   security?: WidgetSecurityConfig;
   ai?: SourceAiConfig;
   channel?: import('./channels').SourceChannelConfig;
+  /** Стратегия индексации / обучения (Sprint 68). */
+  training?: import('./crawl').SourceTrainingConfig;
 }
 
 /** Merge stored/partial config with platform defaults (e.g. red primary when DB has legacy blue). */
@@ -102,6 +118,9 @@ export function mergeSourceConfig(
       ? { ai: { ...base.ai, ...existing.ai } }
       : {}),
     ...(existing.channel ? { channel: existing.channel } : {}),
+    ...(existing.training
+      ? { training: { ...existing.training } }
+      : {}),
   };
 }
 
@@ -121,7 +140,13 @@ export function patchSourceConfig(
       ? { ...base.personalization, ...patch.personalization }
       : base.personalization,
     behavior: patch.behavior
-      ? { ...base.behavior, ...patch.behavior }
+      ? {
+          ...base.behavior,
+          ...patch.behavior,
+          pageActivation: patch.behavior.pageActivation
+            ? { ...base.behavior.pageActivation, ...patch.behavior.pageActivation }
+            : base.behavior.pageActivation,
+        }
       : base.behavior,
     security: patch.security
       ? { ...base.security, ...patch.security }
@@ -139,6 +164,9 @@ export function patchSourceConfig(
         }
       : base.ai,
     channel: patch.channel ?? base.channel,
+    training: patch.training
+      ? { ...base.training, ...patch.training }
+      : base.training,
   });
 }
 
@@ -152,6 +180,10 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
     offsetX: 20,
     offsetY: 20,
     hideOnMobile: false,
+    launcherAnimation: 'gentle',
+    showLauncherLabel: false,
+    launcherLabel: 'Оператор онлайн',
+    launcherOnlineIndicator: true,
   },
   personalization: {
     companyName: 'Поддержка',
@@ -163,6 +195,9 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
   behavior: {
     exitIntent: false,
     lazyLoad: true,
+    defaultOpen: false,
+    showLauncherDelaySeconds: 0,
+    pageActivation: { mode: 'all', patterns: [] },
     quickReplies: [
       'Сколько это стоит?',
       'Как быстро подключить?',

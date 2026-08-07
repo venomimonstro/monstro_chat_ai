@@ -70,6 +70,15 @@
 | 65 | Done | Стабильность виджета: аудит зависаний, UI/UX polish, origin-guard, rate limit join, perf |
 | 66 | Done | AI-closer: автодожим лидов, follow-up по таймеру, без передачи оператору |
 | 67 | Done | Безопасность виджета: session token REST, origin deny-by-default prod, pause reconnect |
+| 68 | Done | Умный краулер обучения (профиль сайта, приоритеты) |
+| 69 | Done | Кастомизация лаунчера виджета и страниц показа |
+| 70 | Done | RedFlow: nginx/SSL scripts, brand, vite base paths |
+| 73 | Done | Security audit: CSRF admin, JWT sessionVersion, RLS interceptor |
+| 74 | Done | Аудит чата ЛК: ChatsPage/CRM race, message dedupe |
+| 75 | Done | Надёжность чата: origin iframe/parent, reconnect, session recovery |
+| 76 | Done | Админка/ЛК auth + стабильная сборка: CSRF/CORS, npm ci, recover-frontends |
+| 77 | Done | Производственный диагност: `aicw-diagnose`, `force-deploy-main`, fix `/admin/` продакшена (GET /auth/me, VITE_BASE_PATH) |
+| 78 | In progress | Полный аудит проекта: линтеры, тесты, race conditions, RLS/tenant, deploy scripts, CODING_STANDARDS |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 
@@ -123,3 +132,5 @@ VK/Telegram как входящие каналы, A/B промптов, PWA дл
 | 65 | Стабильность виджета: perf, origin-guard, UI polish |
 | 66 | AI-closer: дожим, follow-up, обработка возражений — полная автономия |
 | 67 | Безопасность виджета: session token, origin deny-by-default, reconnect pause |
+| 75 | Надёжность чата: origin iframe/parent, reconnect, session recovery, CORS |
+| 76 | Админка/ЛК auth: CSRF без deadlock, multi-origin CORS, timeout, deploy 502 fix |

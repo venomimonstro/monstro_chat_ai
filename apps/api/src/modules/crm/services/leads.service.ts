@@ -64,6 +64,7 @@ export class LeadsService {
         source: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
     return leads.map((l) => this.toDto(l));
   }

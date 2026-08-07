@@ -9,6 +9,12 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import {
+  mergeSourceConfig,
+  patchSourceConfig,
+  resolveTrainingConfig,
+  type SourceConfig,
+} from '@ai-consultant/shared-types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IndexingPipelineService } from './services/indexing-pipeline.service';
 import {
@@ -18,6 +24,11 @@ import {
   QUEUE_CRAWL_SITE,
   QUEUE_INGEST_DOCUMENT,
 } from './constants';
+import {
+  resolveEffectivePageLimit,
+  resolveMaxDepth,
+  type CrawlStrategyOptions,
+} from './utils/crawl-strategy.util';
 
 export const MANUAL_TEXT_MIME = 'text/manual';
 
@@ -28,6 +39,11 @@ export interface CrawlSiteJobPayload {
   rootUrl: string;
   pageLimit: number;
   mode: 'full' | 'incremental';
+  crawlOptions: {
+    pageLimit: number;
+    maxDepth: number;
+    strategy: CrawlStrategyOptions;
+  };
 }
 
 export interface CrawlJobStats {
@@ -61,9 +77,18 @@ export class KnowledgeService {
     url: string,
     mode: 'full' | 'incremental' = 'full',
   ) {
-    await this.assertSource(tenantId, sourceId);
+    const source = await this.assertSource(tenantId, sourceId);
     await this.assertNoRunningJob(tenantId, sourceId);
-    const pageLimit = await this.getPageLimit(tenantId);
+
+    const tariffLimit = await this.getPageLimit(tenantId);
+    const config = mergeSourceConfig(
+      source.configJson as Partial<SourceConfig> | null,
+    );
+    const training = resolveTrainingConfig(config.training);
+    const pageLimit = resolveEffectivePageLimit(tariffLimit, training.siteProfile);
+    const crawlOptions = this.buildCrawlOptions(training, pageLimit);
+
+    await this.persistCrawlRootUrl(sourceId, config, url);
 
     const job = await this.prisma.indexingJob.create({
       data: {
@@ -86,6 +111,7 @@ export class KnowledgeService {
         rootUrl: url,
         pageLimit,
         mode,
+        crawlOptions,
       } satisfies CrawlSiteJobPayload,
       {
         jobId: job.id,
@@ -152,6 +178,7 @@ export class KnowledgeService {
     const documents = await this.prisma.knowledgeDocument.findMany({
       where: { tenantId, sourceId },
       orderBy: { createdAt: 'desc' },
+      take: 1000,
     });
     return documents.map((doc) => this.toDocumentDto(doc));
   }
@@ -371,6 +398,7 @@ export class KnowledgeService {
     const chunks = await this.prisma.knowledgeChunk.findMany({
       where: { documentId },
       orderBy: { chunkIndex: 'asc' },
+      take: 10000,
     });
 
     return {
@@ -441,6 +469,37 @@ export class KnowledgeService {
         currentBytes: current,
       });
     }
+  }
+
+  private async persistCrawlRootUrl(
+    sourceId: string,
+    config: SourceConfig,
+    url: string,
+  ) {
+    const merged = patchSourceConfig(config, {
+      training: { ...config.training, crawlRootUrl: url },
+    });
+    await this.prisma.source.update({
+      where: { id: sourceId },
+      data: { configJson: merged as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  private buildCrawlOptions(
+    training: ReturnType<typeof resolveTrainingConfig>,
+    pageLimit: number,
+  ): CrawlSiteJobPayload['crawlOptions'] {
+    const strategy: CrawlStrategyOptions = {
+      siteProfile: training.siteProfile,
+      excludeBlog: training.excludeBlog,
+      priorityUrls: training.priorityUrls,
+      excludePatterns: training.excludePatterns,
+    };
+    return {
+      pageLimit,
+      maxDepth: resolveMaxDepth(training.siteProfile),
+      strategy,
+    };
   }
 
   private async assertSource(tenantId: string, sourceId: string) {

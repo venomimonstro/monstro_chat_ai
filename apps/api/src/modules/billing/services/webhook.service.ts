@@ -49,8 +49,12 @@ export class WebhookService {
       (payment.metadataJson as { tariffId?: string })?.tariffId ??
       metadata.tariff_id;
 
-    if (payment.status === 'succeeded' && payload.event === 'payment.succeeded') {
-      this.logger.log(`Payment ${payment.id} already succeeded`);
+    // Idempotency: terminal statuses never regress.
+    const terminalStatuses = ['succeeded', 'refunded', 'canceled'];
+    if (terminalStatuses.includes(payment.status)) {
+      this.logger.log(
+        `Payment ${payment.id} already terminal (${payment.status}) — ignoring ${payload.event}`,
+      );
       return { received: true };
     }
 
@@ -163,10 +167,14 @@ export class WebhookService {
   }
 
   private async cancelPayment(paymentId: string, tenantId: string) {
-    await this.prisma.payment.update({
-      where: { id: paymentId },
+    const updated = await this.prisma.payment.updateMany({
+      where: { id: paymentId, status: { in: ['pending', 'succeeded'] } },
       data: { status: 'canceled' },
     });
+    if (updated.count === 0) {
+      this.logger.log(`Payment ${paymentId} not canceled (already terminal or missing)`);
+      return;
+    }
     this.logger.log(`Payment ${paymentId} canceled for tenant ${tenantId}`);
   }
 
@@ -180,10 +188,14 @@ export class WebhookService {
       : new Prisma.Decimal(0);
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.payment.update({
-        where: { id: paymentId },
+      const updated = await tx.payment.updateMany({
+        where: { id: paymentId, status: { in: ['pending', 'succeeded'] } },
         data: { status: 'refunded' },
       });
+      if (updated.count === 0) {
+        this.logger.log(`Payment ${paymentId} not refunded (already terminal or missing)`);
+        return;
+      }
       await tx.transaction.create({
         data: {
           tenantId,

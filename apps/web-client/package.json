@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --port 5173",
     "build": "vite build",
-    "lint": "tsc --noEmit",
+    "lint": "node ../../node_modules/typescript/lib/tsc.js --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -69,9 +69,16 @@ export async function fetchDialog(id: string) {
   return withRetry(() => api.get<DialogDetailDto>(`/dialogs/${id}`).then((r) => r.data));
 }
 
-export async function fetchDialogMessages(id: string) {
+export async function fetchDialogMessages(
+  id: string,
+  options?: { signal?: AbortSignal },
+) {
   return withRetry(() =>
-    api.get<DialogMessageDto[]>(`/dialogs/${id}/messages`).then((r) => r.data),
+    api
+      .get<DialogMessageDto[]>(`/dialogs/${id}/messages`, {
+        signal: options?.signal,
+      })
+      .then((r) => r.data),
   );
 }
 

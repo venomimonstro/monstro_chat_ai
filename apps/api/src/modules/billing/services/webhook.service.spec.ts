@@ -7,6 +7,7 @@ describe('WebhookService', () => {
     payment: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     transaction: { create: jest.fn() },
     subscription: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
@@ -68,8 +69,8 @@ describe('WebhookService', () => {
       object: { id: 'yoo-1', status: 'canceled', amount: { value: '990.00', currency: 'RUB' } },
     });
 
-    expect(mockPrisma.payment.update).toHaveBeenCalledWith({
-      where: { id: 'p1' },
+    expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'p1', status: { in: ['pending', 'succeeded'] } },
       data: { status: 'canceled' },
     });
     expect(mockPrisma.transaction.create).not.toHaveBeenCalled();

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { CrawlerService } from './crawler.service';
 
 function mockRobots(rules: { allowRoot: boolean }) {
@@ -17,7 +18,13 @@ describe('CrawlerService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [CrawlerService],
+      providers: [
+        CrawlerService,
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn() },
+        },
+      ],
     }).compile();
     service = module.get(CrawlerService);
   });

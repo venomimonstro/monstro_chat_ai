@@ -52,8 +52,9 @@ export function useChatScroll({
 
   useEffect(() => {
     if (messageCount > prevMessageCountRef.current) {
-      pinnedRef.current = true;
-      requestAnimationFrame(() => scrollToBottom(false));
+      if (pinnedRef.current) {
+        requestAnimationFrame(() => scrollToBottom(false));
+      }
     }
     prevMessageCountRef.current = messageCount;
   }, [messageCount, scrollToBottom]);

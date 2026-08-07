@@ -14,10 +14,15 @@ deploy_npm_install site \
   --workspace=@ai-consultant/public-site
 
 deploy_log "Сборка публичного сайта..."
-npm run build -w @ai-consultant/shared-types
+if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+  npm run build -w @ai-consultant/shared-types
+fi
+# public-site использует NEXT_PUBLIC_* из .env через deploy_export_frontend_env
 npm run build -w @ai-consultant/public-site
 
-deploy_restart_if_active monstro-public-site || {
-  deploy_warn "monstro-public-site не запущен — start-public-site.sh"
-  bash "${INSTALL_DIR}/scripts/start-public-site.sh"
-}
+if ! deploy_ensure_service monstro-public-site; then
+  deploy_warn "monstro-public-site unit отсутствует — start-public-site.sh"
+  export DEPLOY_NPM_SKIP=1
+  export DEPLOY_SHARED_TYPES_SKIP=1
+  SKIP_SITE_BUILD=1 bash "${INSTALL_DIR}/scripts/start-public-site.sh"
+fi

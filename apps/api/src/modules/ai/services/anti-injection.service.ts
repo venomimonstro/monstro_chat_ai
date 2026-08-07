@@ -41,7 +41,7 @@ export class AntiInjectionService {
     return {
       isSuspicious,
       shouldBlock,
-      instruction: isSuspicious && !shouldBlock ? INJECTION_INSTRUCTION : null,
+      instruction: isSuspicious ? INJECTION_INSTRUCTION : null,
       blockedReply: shouldBlock ? BLOCKED_REPLY : null,
     };
   }

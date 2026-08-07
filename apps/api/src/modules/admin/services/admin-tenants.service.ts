@@ -44,7 +44,7 @@ export class AdminTenantsService {
   ) {
     this.impersonationTtlSec = this.config.get<number>(
       'IMPERSONATION_TTL_SEC',
-      3600,
+      300,
     );
   }
 
@@ -329,25 +329,35 @@ export class AdminTenantsService {
       throw new BadRequestException('Сумма должна быть ненулевым числом');
     }
 
-    const tenant = await this.requireTenant(tenantId);
-    const beforeBalance = Number(tenant.balance);
-    const afterBalance = beforeBalance + amount;
+    await this.requireTenant(tenantId);
 
-    await this.prisma.$transaction([
-      this.prisma.tenant.update({
-        where: { id: tenantId },
-        data: { balance: afterBalance },
-      }),
-      this.prisma.transaction.create({
-        data: {
-          tenantId,
-          type: 'correction',
-          amount,
-          currency: 'RUB',
-          description: `Корректировка админом: ${reason}`,
-        },
-      }),
-    ]);
+    const { beforeBalance, afterBalance } = await this.prisma.$transaction(
+      async (tx) => {
+        const current = await tx.tenant.findUnique({
+          where: { id: tenantId },
+          select: { balance: true },
+        });
+        const beforeBalance = Number(current?.balance ?? 0);
+        const afterBalance = beforeBalance + amount;
+        if (afterBalance < 0) {
+          throw new BadRequestException('Баланс не может стать отрицательным');
+        }
+        await tx.tenant.update({
+          where: { id: tenantId },
+          data: { balance: { increment: amount } },
+        });
+        await tx.transaction.create({
+          data: {
+            tenantId,
+            type: 'correction',
+            amount,
+            currency: 'RUB',
+            description: `Корректировка админом: ${reason}`,
+          },
+        });
+        return { beforeBalance, afterBalance };
+      },
+    );
 
     await this.auditLog.append({
       actorUserId: actor.id,
@@ -406,7 +416,7 @@ export class AdminTenantsService {
       userAgent: meta.userAgent,
     });
 
-    return { userEmail: owner.email };
+    return { userEmail: owner.email, temporaryPassword };
   }
 
   async impersonate(
@@ -435,6 +445,7 @@ export class AdminTenantsService {
       tenantId: tenant.id,
       type: 'access',
       twoFaVerified: true,
+      sessionVersion: targetUser.sessionVersion,
       impersonatedBy: actor.id,
       impersonationActorEmail: actor.email,
       impersonationReason: reason,

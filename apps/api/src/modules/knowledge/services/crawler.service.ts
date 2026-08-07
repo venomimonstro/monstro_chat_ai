@@ -2,12 +2,30 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cheerio from 'cheerio';
 import robotsParser from 'robots-parser';
-import { CRAWL_MAX_DEPTH } from '../constants';
+import {
+  normalizeCrawlUrl,
+  resolveMaxDepth,
+  scoreUrl,
+  shouldSkipUrl,
+  type CrawlStrategyOptions,
+} from '../utils/crawl-strategy.util';
 
 export interface CrawledPage {
   url: string;
   title: string;
   text: string;
+}
+
+export interface CrawlSiteOptions {
+  pageLimit: number;
+  maxDepth?: number;
+  strategy: CrawlStrategyOptions;
+}
+
+interface QueueItem {
+  url: string;
+  depth: number;
+  score: number;
 }
 
 @Injectable()
@@ -40,10 +58,10 @@ export class CrawlerService {
 
   async crawlSite(
     rootUrl: string,
-    pageLimit: number,
+    options: CrawlSiteOptions,
     onPage?: (page: CrawledPage, processed: number, total: number) => Promise<void>,
   ): Promise<CrawledPage[]> {
-    const normalizedRoot = this.normalizeUrl(rootUrl);
+    const normalizedRoot = normalizeCrawlUrl(rootUrl);
     const robots = await this.fetchRobots(normalizedRoot);
 
     if (this.isRootDisallowed(robots, normalizedRoot)) {
@@ -53,18 +71,43 @@ export class CrawlerService {
     }
 
     const origin = new URL(normalizedRoot).origin;
+    const maxDepth = options.maxDepth ?? resolveMaxDepth(options.strategy.siteProfile);
+    const pageLimit = options.pageLimit;
     const visited = new Set<string>();
-    const queue: Array<{ url: string; depth: number }> = [
-      { url: normalizedRoot, depth: 0 },
-    ];
+    const queue: QueueItem[] = [];
+
+    const seedUrls = new Set<string>([normalizedRoot]);
+    for (const priority of options.strategy.priorityUrls) {
+      try {
+        seedUrls.add(normalizeCrawlUrl(new URL(priority, normalizedRoot).href));
+      } catch {
+        /* skip invalid priority url */
+      }
+    }
+
+    const sitemapUrls = await this.discoverSitemapUrls(normalizedRoot, robots);
+    for (const url of sitemapUrls.slice(0, 300)) {
+      if (this.isSameOrigin(url, origin)) seedUrls.add(url);
+    }
+
+    for (const url of seedUrls) {
+      if (shouldSkipUrl(url, options.strategy)) continue;
+      queue.push({ url, depth: 0, score: scoreUrl(url, options.strategy) + 1000 });
+    }
+
     const pages: CrawledPage[] = [];
     let lastError: string | null = null;
 
     while (queue.length > 0 && pages.length < pageLimit) {
+      queue.sort((a, b) => b.score - a.score);
       const current = queue.shift()!;
-      const canonical = this.normalizeUrl(current.url);
+      const canonical = normalizeCrawlUrl(current.url);
 
       if (visited.has(canonical)) continue;
+      if (shouldSkipUrl(canonical, options.strategy)) {
+        visited.add(canonical);
+        continue;
+      }
       visited.add(canonical);
 
       const path = new URL(canonical).pathname || '/';
@@ -77,18 +120,22 @@ export class CrawlerService {
         if (page.text.length > 0) {
           pages.push(page);
           if (onPage) {
-            await onPage(page, pages.length, Math.min(pageLimit, visited.size));
+            await onPage(page, pages.length, pageLimit);
           }
         } else {
           lastError = `Страница ${canonical} не содержит текста для индексации`;
         }
 
-        if (current.depth < CRAWL_MAX_DEPTH) {
+        if (current.depth < maxDepth) {
           const links = this.extractLinks(page.html, canonical);
           for (const link of links) {
-            if (!visited.has(link) && this.isSameOrigin(link, origin)) {
-              queue.push({ url: link, depth: current.depth + 1 });
-            }
+            if (visited.has(link) || !this.isSameOrigin(link, origin)) continue;
+            if (shouldSkipUrl(link, options.strategy)) continue;
+            queue.push({
+              url: link,
+              depth: current.depth + 1,
+              score: scoreUrl(link, options.strategy),
+            });
           }
         }
       } catch (error) {
@@ -106,12 +153,45 @@ export class CrawlerService {
       throw new Error(
         (lastError
           ? `Не удалось проиндексировать сайт: ${lastError}`
-          : 'Не удалось получить ни одной страницы. Проверьте URL и доступность сайта с сервера API.') +
+          : 'Не удалось получить ни одной страницы. Проверьте URL, robots.txt и фильтры индексации.') +
           hint,
       );
     }
 
     return pages;
+  }
+
+  private async discoverSitemapUrls(
+    rootUrl: string,
+    robots: ReturnType<typeof robotsParser>,
+  ): Promise<string[]> {
+    const origin = new URL(rootUrl).origin;
+    const candidates = new Set<string>([`${origin}/sitemap.xml`]);
+
+    try {
+      const robotsSitemaps = robots.getSitemaps?.() ?? [];
+      for (const sm of robotsSitemaps) candidates.add(sm);
+    } catch {
+      /* ignore */
+    }
+
+    const urls: string[] = [];
+    for (const sitemapUrl of candidates) {
+      try {
+        const response = await this.fetchWithTimeout(sitemapUrl);
+        if (!response.ok) continue;
+        const xml = await response.text();
+        const matches = xml.matchAll(/<loc>([^<]+)<\/loc>/gi);
+        for (const match of matches) {
+          const loc = match[1]?.trim();
+          if (loc) urls.push(normalizeCrawlUrl(loc));
+        }
+        if (urls.length) break;
+      } catch {
+        /* try next candidate */
+      }
+    }
+    return urls;
   }
 
   extractTextFromHtml(html: string): { title: string; text: string; html: string } {
@@ -162,7 +242,7 @@ export class CrawlerService {
       if (!href || href.startsWith('#') || href.startsWith('mailto:')) return;
       try {
         const absolute = new URL(href, baseUrl).href;
-        links.add(this.normalizeUrl(absolute));
+        links.add(normalizeCrawlUrl(absolute));
       } catch {
         // skip invalid URLs
       }
@@ -172,12 +252,7 @@ export class CrawlerService {
   }
 
   private normalizeUrl(url: string): string {
-    const parsed = new URL(url);
-    parsed.hash = '';
-    if (parsed.pathname.endsWith('/') && parsed.pathname.length > 1) {
-      parsed.pathname = parsed.pathname.slice(0, -1);
-    }
-    return parsed.href;
+    return normalizeCrawlUrl(url);
   }
 
   private isSameOrigin(url: string, origin: string): boolean {

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
@@ -39,6 +40,7 @@ export class PipelinesService {
       where: { tenantId },
       include: { statuses: { orderBy: { sortOrder: 'asc' } } },
       orderBy: { createdAt: 'asc' },
+      take: 1000,
     });
     return pipelines.map((p) => this.toDto(p));
   }
@@ -105,10 +107,17 @@ export class PipelinesService {
     orderedIds: string[],
   ) {
     await this.getOrThrow(tenantId, pipelineId);
+    const statuses = await this.prisma.pipelineStatus.findMany({
+      where: { pipelineId, id: { in: orderedIds } },
+      select: { id: true },
+    });
+    if (statuses.length !== orderedIds.length) {
+      throw new ForbiddenException('Недопустимый список статусов');
+    }
     await this.prisma.$transaction(
       orderedIds.map((id, index) =>
         this.prisma.pipelineStatus.update({
-          where: { id },
+          where: { id, pipelineId },
           data: { sortOrder: index },
         }),
       ),

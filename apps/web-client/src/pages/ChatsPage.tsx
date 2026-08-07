@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { extractErrorMessage } from '../lib/errors';
 import {
@@ -34,14 +34,25 @@ function roleLabel(role: string) {
   return 'Ассистент';
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 export function ChatsPage() {
   const [sources, setSources] = useState<SourceDto[]>([]);
   const [items, setItems] = useState<DialogListItemDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef(selectedId);
   const [detail, setDetail] = useState<DialogDetailDto | null>(null);
   const [messages, setMessages] = useState<DialogMessageDto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listLoading, setListLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,15 +60,16 @@ export function ChatsPage() {
   const [status, setStatus] = useState<'all' | 'active' | 'closed'>('all');
   const [hasLead, setHasLead] = useState<'all' | 'true' | 'false'>('all');
   const [query, setQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 350);
 
   const listParams = useMemo(() => {
     const params: Record<string, string> = { limit: '40' };
     if (sourceId) params.sourceId = sourceId;
     if (status !== 'all') params.status = status;
     if (hasLead !== 'all') params.hasLead = hasLead;
-    if (query.trim()) params.q = query.trim();
+    if (debouncedQuery.trim()) params.q = debouncedQuery.trim();
     return params;
-  }, [sourceId, status, hasLead, query]);
+  }, [sourceId, status, hasLead, debouncedQuery]);
 
   const reloadList = useCallback(
     async (cursor?: string) => {
@@ -75,22 +87,24 @@ export function ChatsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setItems([]);
-    setSelectedId(null);
+    setListLoading(true);
+    if (items.length === 0) setLoading(true);
     setError(null);
 
-    Promise.all([
-      fetchSources(),
-      fetchDialogs(listParams),
-    ])
+    Promise.all([fetchSources(), fetchDialogs(listParams)])
       .then(([sourceList, data]) => {
         if (cancelled) return;
         setSources(sourceList);
         setItems(data.items);
         setNextCursor(data.nextCursor);
         if (data.items.length > 0) {
-          setSelectedId(data.items[0].id);
+          setSelectedId((prev) =>
+            prev && data.items.some((item) => item.id === prev)
+              ? prev
+              : data.items[0].id,
+          );
+        } else {
+          setSelectedId(null);
         }
       })
       .catch((e: unknown) => {
@@ -99,7 +113,10 @@ export function ChatsPage() {
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setListLoading(false);
+        }
       });
 
     return () => {
@@ -113,17 +130,55 @@ export function ChatsPage() {
       setMessages([]);
       return;
     }
+
+    let cancelled = false;
     setDetailLoading(true);
+
     Promise.all([fetchDialog(selectedId), fetchDialogMessages(selectedId)])
       .then(([d, msgs]) => {
+        if (cancelled) return;
         setDetail(d);
         setMessages(msgs);
       })
-      .catch((e: unknown) =>
-        setError(extractErrorMessage(e, 'Не удалось загрузить переписку')),
-      )
-      .finally(() => setDetailLoading(false));
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(extractErrorMessage(e, 'Не удалось загрузить переписку'));
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedId]);
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+    if (!selectedId || detailLoading) return undefined;
+
+    let currentController: AbortController | null = null;
+    const interval = window.setInterval(() => {
+      currentController?.abort();
+      currentController = new AbortController();
+      fetchDialogMessages(selectedId, { signal: currentController.signal })
+        .then((msgs) => {
+          if (selectedIdRef.current !== selectedId) return;
+          setMessages((prev) => {
+            if (msgs.length === prev.length && msgs.at(-1)?.id === prev.at(-1)?.id) {
+              return prev;
+            }
+            return msgs;
+          });
+        })
+        .catch(() => undefined);
+    }, 20_000);
+
+    return () => {
+      currentController?.abort();
+      window.clearInterval(interval);
+    };
+  }, [selectedId, detailLoading]);
 
   if (loading && items.length === 0) {
     return <LoadingState message="Загрузка диалогов…" />;
@@ -148,7 +203,6 @@ export function ChatsPage() {
           onChange={(e) => {
             setSourceId(e.target.value);
             setSelectedId(null);
-            setItems([]);
           }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
@@ -164,7 +218,6 @@ export function ChatsPage() {
           onChange={(e) => {
             setStatus(e.target.value as typeof status);
             setSelectedId(null);
-            setItems([]);
           }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
@@ -177,11 +230,10 @@ export function ChatsPage() {
           onChange={(e) => {
             setHasLead(e.target.value as typeof hasLead);
             setSelectedId(null);
-            setItems([]);
           }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
         >
-          <option value="all">Лид: все</option>
+          <option value="all">Все диалоги</option>
           <option value="true">С лидом</option>
           <option value="false">Без лида</option>
         </select>
@@ -189,64 +241,54 @@ export function ChatsPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Телефон, имя, visitor…"
+          placeholder="Поиск по тексту…"
           className="min-w-[200px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
       </div>
 
-      <div className="grid min-h-[560px] grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <div className="border-b border-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
-            {items.length} диалогов
-          </div>
-          <ul className="max-h-[640px] overflow-y-auto divide-y divide-slate-100">
-            {items.length === 0 && (
-              <li className="p-4">
-                <EmptyState title="Диалогов пока нет" />
-              </li>
-            )}
-            {items.map((dialog) => (
-              <li key={dialog.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(dialog.id)}
-                  className={`w-full px-3 py-3 text-left transition hover:bg-slate-50 ${
-                    selectedId === dialog.id ? 'bg-brand-50' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-slate-900">
-                      {dialog.lead?.name ?? dialog.lead?.phone ?? 'Посетитель'}
+      <div className="grid min-h-[520px] grid-cols-1 gap-4 lg:grid-cols-[320px_1fr]">
+        <section className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white">
+          {listLoading && (
+            <p className="border-b border-slate-100 px-3 py-2 text-xs text-slate-500">
+              Обновление списка…
+            </p>
+          )}
+          {items.length === 0 ? (
+            <EmptyState title="Диалогов нет" description="Пока нет переписок" />
+          ) : (
+            <ul className="flex-1 divide-y divide-slate-100 overflow-y-auto">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(item.id)}
+                    className={`w-full px-3 py-3 text-left text-sm transition hover:bg-slate-50 ${
+                      selectedId === item.id ? 'bg-brand-50' : ''
+                    }`}
+                  >
+                    <p className="font-medium text-slate-900">
+                      {item.lead?.name ?? item.visitorId.slice(0, 12)}
                     </p>
-                    <span className="shrink-0 text-[10px] text-slate-400">
-                      {formatDateTime(dialog.updatedAt)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
-                    {dialog.sourceName ?? 'Источник'} ·{' '}
-                    {STATUS_LABELS[dialog.status] ?? dialog.status}
-                    {dialog.hasLead ? ' · лид' : ''}
-                    {dialog.visitorDialogCount > 1 ? ' · возврат' : ''}
-                  </p>
-                  {dialog.lastMessage && (
-                    <p className="mt-1 line-clamp-2 text-xs text-slate-600">
-                      {dialog.lastMessage.content}
+                    <p className="mt-1 line-clamp-2 text-xs text-slate-500">
+                      {item.lastMessage?.content ?? '—'}
                     </p>
-                  )}
-                </button>
-              </li>
-            ))}
-          </ul>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           {nextCursor && (
-            <div className="border-t border-slate-100 p-2">
-              <button
-                type="button"
-                onClick={() => reloadList(nextCursor).catch(() => undefined)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
-              >
-                Загрузить ещё
-              </button>
-            </div>
+            <button
+              type="button"
+              className="border-t border-slate-100 px-3 py-2 text-sm text-brand-600 hover:bg-slate-50"
+              onClick={() =>
+                reloadList(nextCursor).catch((e: unknown) =>
+                  setError(extractErrorMessage(e, 'Не удалось загрузить ещё')),
+                )
+              }
+            >
+              Загрузить ещё
+            </button>
           )}
         </section>
 
@@ -279,7 +321,7 @@ export function ChatsPage() {
                   <div className="flex gap-2">
                     {detail.lead && (
                       <Link
-                        to="/crm"
+                        to={`/crm?leadId=${detail.lead.id}`}
                         className="rounded-lg border border-brand-600 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50"
                       >
                         Открыть лид
@@ -287,7 +329,11 @@ export function ChatsPage() {
                     )}
                     <button
                       type="button"
-                      onClick={() => downloadDialogTranscript(detail.id).catch(() => undefined)}
+                      onClick={() =>
+                        downloadDialogTranscript(detail.id).catch((e: unknown) =>
+                          setError(extractErrorMessage(e, 'Не удалось экспортировать')),
+                        )
+                      }
                       className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
                     >
                       Экспорт .txt

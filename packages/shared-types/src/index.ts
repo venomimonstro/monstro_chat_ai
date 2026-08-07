@@ -62,6 +62,17 @@ export * from './channels';
 export * from './prompt-experiment';
 export * from './persona';
 export * from './closer';
+export * from './crawl';
+export * from './brand';
+export * from './widget-launcher';
+export {
+  BRAND,
+  productionUrls,
+} from './brand';
+export type {
+  CrawlSiteProfile,
+  SourceTrainingConfig,
+} from './crawl';
 export {
   buildPersonaInstruction,
   DEFAULT_FORBIDDEN_PHRASES,
@@ -105,6 +116,16 @@ export type {
   SourceLeadConfig,
   LeadProfileMode,
 } from './source';
+export type {
+  LauncherAnimation,
+  WidgetPageActivationConfig,
+  WidgetPageActivationMode,
+} from './widget-launcher';
+export {
+  LAUNCHER_ANIMATION_LABELS,
+  isWidgetActiveOnPage,
+  pathMatchesWidgetPattern,
+} from './widget-launcher';
 export type {
   PromptDto,
   PlaygroundTestRequest,

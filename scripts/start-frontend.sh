@@ -26,22 +26,29 @@ install_node() {
 }
 
 build_frontends() {
+  if [[ "${SKIP_FRONTEND_BUILD:-0}" == "1" ]]; then
+    log "Сборка фронтенда пропущена (SKIP_FRONTEND_BUILD=1) — только systemd unit"
+    return 0
+  fi
   log "Собираю фронтенд (3–5 мин)..."
   local ip
   ip=$(detect_ip)
   export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
   export VITE_WIDGET_URL="http://${ip}:5175"
   export VITE_API_URL="http://${ip}:3000/api"
-  # Только фронтенд — без API (argon2 не нужен на хосте)
-  npm install \
-    --workspace=@ai-consultant/shared-types \
-    --workspace=@ai-consultant/web-client \
-    --workspace=@ai-consultant/web-admin \
-    --include-workspace-root
-  bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
-  npm run build -w @ai-consultant/shared-types
-  npm run build -w @ai-consultant/web-client
-  npm run build -w @ai-consultant/web-admin
+  export VITE_CLIENT_BASE_PATH="/app/"
+  export VITE_ADMIN_BASE_PATH="/admin/"
+  # Один npm ci на всё монорепо (без параллельных install — ломают node_modules)
+  # shellcheck source=lib/deploy-common.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
+  if [[ "${DEPLOY_NPM_SKIP:-0}" != "1" ]]; then
+    deploy_install_all_deps
+  fi
+  if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
+    npm run build -w @ai-consultant/shared-types
+  fi
+  VITE_BASE_PATH=/app/ npm run build -w @ai-consultant/web-client
+  VITE_BASE_PATH=/admin/ npm run build -w @ai-consultant/web-admin
 }
 
 start_service() {
