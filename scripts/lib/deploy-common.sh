@@ -343,14 +343,18 @@ deploy_npm_install() {
 deploy_export_frontend_env() {
   local ip
   ip="$(deploy_detect_ip)"
-  export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
-  export VITE_WIDGET_URL="http://${ip}:5175"
-  export VITE_API_URL="http://${ip}:3000/api"
-  export NEXT_PUBLIC_WIDGET_URL="http://${ip}:5175"
-  export NEXT_PUBLIC_CLIENT_URL="http://${ip}:5173"
-  export NEXT_PUBLIC_API_URL="http://${ip}:3000/api"
-  export NEXT_PUBLIC_SITE_URL="http://${ip}:4321"
-  export API_INTERNAL_URL="http://127.0.0.1:3000"
+  # Prefer production env already set (e.g. by apply-redflow-env.sh); compute LAN defaults only if empty.
+  export VITE_WIDGET_SCRIPT_URL="${VITE_WIDGET_SCRIPT_URL:-http://${ip}:5175/embed.js}"
+  export VITE_WIDGET_URL="${VITE_WIDGET_URL:-http://${ip}:5175}"
+  export VITE_API_URL="${VITE_API_URL:-http://${ip}:3000/api}"
+  export NEXT_PUBLIC_WIDGET_URL="${NEXT_PUBLIC_WIDGET_URL:-http://${ip}:5175}"
+  export NEXT_PUBLIC_CLIENT_URL="${NEXT_PUBLIC_CLIENT_URL:-http://${ip}:5173}"
+  export NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL:-http://${ip}:3000/api}"
+  export NEXT_PUBLIC_SITE_URL="${NEXT_PUBLIC_SITE_URL:-http://${ip}:4321}"
+  export API_INTERNAL_URL="${API_INTERNAL_URL:-http://127.0.0.1:3000}"
+  # Base paths for sub-path deployment on production domain
+  export VITE_ADMIN_BASE_PATH="${VITE_ADMIN_BASE_PATH:-/admin/}"
+  export VITE_CLIENT_BASE_PATH="${VITE_CLIENT_BASE_PATH:-/app/}"
 }
 
 # Перед параллельной сборкой: один npm install + shared-types

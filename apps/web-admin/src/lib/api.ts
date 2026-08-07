@@ -184,7 +184,7 @@ export async function logoutUser() {
 }
 
 export async function fetchCurrentUser() {
-  const res = await api.post<{ user: AuthResponse['user'] }>('/auth/me');
+  const res = await api.get<{ user: AuthResponse['user'] }>('/auth/me');
   return res.data.user;
 }
 

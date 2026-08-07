@@ -146,7 +146,7 @@ export class AuthController {
     return { token: this.authService.createWsToken(dbUser) };
   }
 
-  @Post('me')
+  @Get('me')
   @Allow2faSetup()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)

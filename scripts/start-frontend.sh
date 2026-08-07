@@ -36,6 +36,8 @@ build_frontends() {
   export VITE_WIDGET_SCRIPT_URL="http://${ip}:5175/embed.js"
   export VITE_WIDGET_URL="http://${ip}:5175"
   export VITE_API_URL="http://${ip}:3000/api"
+  export VITE_CLIENT_BASE_PATH="/app/"
+  export VITE_ADMIN_BASE_PATH="/admin/"
   # Один npm ci на всё монорепо (без параллельных install — ломают node_modules)
   # shellcheck source=lib/deploy-common.sh
   source "${INSTALL_DIR}/scripts/lib/deploy-common.sh"
@@ -45,8 +47,8 @@ build_frontends() {
   if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
     npm run build -w @ai-consultant/shared-types
   fi
-  npm run build -w @ai-consultant/web-client
-  npm run build -w @ai-consultant/web-admin
+  VITE_BASE_PATH=/app/ npm run build -w @ai-consultant/web-client
+  VITE_BASE_PATH=/admin/ npm run build -w @ai-consultant/web-admin
 }
 
 start_service() {

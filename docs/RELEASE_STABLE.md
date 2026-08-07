@@ -1,47 +1,62 @@
-# Stable release (sprints 68–76 consolidated)
+# Stable release (sprints 68–77 consolidated)
 
-Ветка: `cursor/release-stable-ab3a` → merge into `main`.
+Ветка: `main` (merged).
 
 ## Что вошло (проверено)
 
 | Sprint | Содержание | Статус |
 |--------|------------|--------|
-| 76 | Auth hang (CSRF deadlock), multi-origin CORS, deploy 502 fix, run-tsc, recover-frontends | база |
-| 75 | Chat reliability: origin/reconnect/session | merged |
+| 68 | Умный краулер обучения | API + types |
+| 69 | Кастомизация лаунчера виджета | types + UI |
+| 70 | nginx/SSL redflow.ru, brand, vite base | scripts only |
 | 73 | Security: CSRF не skip /api/admin, JWT sessionVersion, tenant RLS | security-only |
 | 74 | ChatsPage/CRM/message dedupe (UI) | cherry-pick |
-| 70 | nginx/SSL redflow.ru, brand, vite base | scripts only |
-| 69 | Launcher customization | types + UI |
-| 68 | Smart crawl strategy | API + types |
+| 75 | Chat reliability: origin/reconnect/session | merged |
+| 76 | Auth hang, multi-origin CORS, deploy 502 fix, run-tsc, recover-frontends | база |
+| 77 | `GET /api/auth/me` fix, Vite base paths for /admin/ /app/, diagnostic agent | fixes |
 
-## Намеренно не брали / superseded
+## Критические баги, исправленные в 77
 
-- Deploy-скрипты из 70/73 → **только 76** (`deploy_ensure_service`, restore после npm)
-- Auth из 68/72 → **только 76**
-- Полный tip 73/74 с conflict markers в jwt → переписан чисто
-- Sprint 71 stream batching — опционально позже (конфликт с 75 WidgetApp)
+1. `GET /api/auth/me` был `@Post('me')` — админка/ЛК зависали на «Загрузка...» при 404.
+2. `VITE_BASE_PATH` не проставлялся для `/admin/` и `/app/` — ассеты уходили на публичный сайт.
+3. `deploy_export_frontend_env` перезаписывал `VITE_API_URL` на HTTP-IP вместо production HTTPS-домена.
+4. Диагностический агент теперь фиксирует состояние деплоя и сразу показывает ошибки.
 
-## Чистая установка на сервере
+## Чистая установка / принудительный деплой
 
 ```bash
 cd /opt/monstro_chat_ai   # или /opt/redflow
 git fetch origin
 git checkout main
 git reset --hard origin/main
-sudo bash scripts/fix-npm-install.sh
-sudo bash scripts/fast-update.sh --full --no-pull
-# если 502:
-sudo bash scripts/recover-frontends.sh
-# SSL redflow.ru (если нужно):
-# sudo bash scripts/setup-ssl-redflow.sh
+sudo bash scripts/force-deploy-main.sh
+# или вручную:
+# sudo bash scripts/fix-npm-install.sh
+# sudo bash scripts/fast-update.sh --full --no-pull
+# sudo bash scripts/recover-frontends.sh
 ```
 
-## Smoke-check после деплоя
+## Диагностика
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/api/health
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5174/
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:4321/
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:5175/embed.js
-systemctl is-active monstro-web-admin monstro-public-site monstro-widget
+# Ручной запуск
+sudo bash scripts/aicw-diagnose.sh --full
+
+# Просмотр отчёта
+journalctl -u aicw-diagnose -n 50
+
+curl -s https://redflow.ru/api/diagnostic | python3 -m json.tool
+# или на сервере:
+curl -s http://127.0.0.1:3000/api/diagnostic
+```
+
+## Smoke-check
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://redflow.ru/api/health
+curl -s -o /dev/null -w '%{http_code}\n' https://redflow.ru/admin/
+curl -s -o /dev/null -w '%{http_code}\n' https://redflow.ru/app/
+curl -s -o /dev/null -w '%{http_code}\n' https://redflow.ru/
+curl -s -o /dev/null -w '%{http_code}\n' https://redflow.ru/embed.js
+systemctl is-active monstro-web-admin monstro-web-client monstro-public-site monstro-widget
 ```

@@ -208,6 +208,9 @@ main() {
     deploy_verify_frontends || deploy_warn "Фронты подняты не полностью — sudo bash scripts/recover-frontends.sh"
   fi
 
+  # Записываем отчёт диагностического агента (quick) — чтобы видеть проблемы сразу
+  bash "${INSTALL_DIR}/scripts/aicw-diagnose.sh" --quick 2>/dev/null || true
+
   if [[ "${MODE}" == "full" ]] || needs "${components}" "api"; then
     bash "${INSTALL_DIR}/scripts/ensure-boot-stability.sh" 2>/dev/null || true
   fi

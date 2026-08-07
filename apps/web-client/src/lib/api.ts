@@ -178,7 +178,7 @@ export async function logoutUser() {
 
 export async function fetchCurrentUser() {
   return withRetry(() =>
-    api.post<{ user: AuthResponse['user'] }>('/auth/me').then((res) => res.data.user),
+    api.get<{ user: AuthResponse['user'] }>('/auth/me').then((res) => res.data.user),
   );
 }
 
