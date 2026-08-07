@@ -615,7 +615,8 @@ export function WidgetApp() {
     [preview, widgetKey],
   );
 
-  const socketEnabled = Boolean(widgetKey) && (!deferSocket || open || preview);
+  // Connect as soon as the iframe is mounted — do not wait for panel open.
+  const socketEnabled = Boolean(widgetKey);
 
   const {
     socketRef,

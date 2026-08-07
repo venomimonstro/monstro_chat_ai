@@ -10,6 +10,30 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: aicw
+          POSTGRES_PASSWORD: aicw_dev_password
+          POSTGRES_DB: aicw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aicw -d aicw"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -51,8 +75,22 @@ jobs:
         run: npm run build -w @ai-consultant/widget
 
       - name: E2E smoke
-        working-directory: e2e
-        run: npm install && npm test
+        env:
+          DATABASE_URL: postgresql://aicw:aicw_dev_password@localhost:5432/aicw?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long
+          NODE_ENV: development
+        run: |
+          cd apps/api
+          npx prisma migrate deploy
+          npm run build
+          node dist/main.js &
+          API_PID=$!
+          sleep 8
+          cd ../../e2e
+          npm install
+          npm test
+          kill $API_PID
 
       - name: Install k6
         run: |
