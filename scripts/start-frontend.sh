@@ -55,31 +55,10 @@ start_service() {
   local name="$1"
   local workdir="$2"
   local port="$3"
-  local unit="/etc/systemd/system/${name}.service"
-
   log "Запускаю ${name} на порту ${port}..."
-
-  cat > "${unit}" << EOF
-[Unit]
-Description=${name}
-After=network.target docker.service
-Wants=docker.service
-
-[Service]
-Type=simple
-WorkingDirectory=${workdir}
-ExecStart=$(command -v npm) run preview -- --host 0.0.0.0 --port ${port}
-Restart=always
-RestartSec=5
-Environment=NODE_ENV=production
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-  systemctl daemon-reload
-  systemctl enable "${name}"
+  # Используем единый генератор unit'ов (VITE_BASE_PATH, EnvironmentFile)
+  bash "${INSTALL_DIR}/scripts/lib/sync-systemd-units.sh" "${INSTALL_DIR}"
+  systemctl enable "${name}" 2>/dev/null || true
   systemctl restart "${name}"
 }
 

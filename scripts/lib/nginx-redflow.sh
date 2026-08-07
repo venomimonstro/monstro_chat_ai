@@ -13,10 +13,13 @@ redflow_nginx_write_config() {
     has_ssl=1
   fi
 
-  local locations
+  local locations ssl_extra=""
   locations="$(redflow_nginx_locations_block)"
 
   if [[ "${has_ssl}" -eq 1 ]]; then
+    [[ -f /etc/letsencrypt/options-ssl-nginx.conf ]] && ssl_extra+="  include /etc/letsencrypt/options-ssl-nginx.conf;"$'\n'
+    [[ -f /etc/letsencrypt/ssl-dhparams.pem ]] && ssl_extra+="  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;"$'\n'
+
     cat > "${out}" << EOF
 # RedFlow — ${domain} (auto-generated, SSL enabled)
 map \$http_upgrade \$connection_upgrade {
@@ -39,9 +42,7 @@ server {
 
   ssl_certificate ${cert_dir}/fullchain.pem;
   ssl_certificate_key ${cert_dir}/privkey.pem;
-  include /etc/letsencrypt/options-ssl-nginx.conf;
-  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-
+${ssl_extra}
 ${locations}
 }
 EOF
