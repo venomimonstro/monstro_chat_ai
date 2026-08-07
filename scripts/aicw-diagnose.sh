@@ -98,11 +98,10 @@ check_node_modules() {
   fi
 }
 
-# 5. systemd units
+# 5. systemd units (frontend + nginx) + docker API container
 check_units() {
   local unit status
   local -A units=(
-    [monstro-api]="API"
     [monstro-web-client]="ЛК"
     [monstro-web-admin]="Админка"
     [monstro-public-site]="Сайт"
@@ -122,6 +121,14 @@ check_units() {
       add_warning "Unit ${unit} не найден — возможно, сервис не создавался"
     fi
   done
+
+  # API runs in Docker, not systemd
+  if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'aicw-api'; then
+    record_check "api_container" "ok" "aicw-api running"
+  else
+    record_check "api_container" "fail" "aicw-api not running"
+    add_error "API-контейнер aicw-api не запущен — docker compose up -d api"
+  fi
 }
 
 # 6. HTTP smoke tests
