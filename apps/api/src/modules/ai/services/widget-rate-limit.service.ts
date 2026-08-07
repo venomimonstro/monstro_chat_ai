@@ -68,12 +68,26 @@ export class WidgetRateLimitService {
       WIDGET_JOIN_RATE_LIMIT_MAX,
     );
     if (!visitor.allowed) return false;
-    if (ip) {
+    if (ip && this.isDistinctClientIp(ip)) {
       const ipResult = await this.checkKey(
         `rate:widget:join:ip:${ip}`,
         WIDGET_JOIN_RATE_LIMIT_MAX * 2,
       );
       if (!ipResult.allowed) return false;
+    }
+    return true;
+  }
+
+  /** Skip shared proxy loopback — all visitors would share one bucket otherwise. */
+  private isDistinctClientIp(ip: string): boolean {
+    const normalized = ip.trim().toLowerCase();
+    if (!normalized || normalized === 'unknown') return false;
+    if (
+      normalized === '127.0.0.1' ||
+      normalized === '::1' ||
+      normalized === '::ffff:127.0.0.1'
+    ) {
+      return false;
     }
     return true;
   }

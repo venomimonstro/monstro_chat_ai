@@ -158,8 +158,20 @@ function safeSessionSet(key: string, value: string): void {
   }
 }
 
+function safeSessionRemove(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
 function storeSessionToken(widgetKey: string, token: string) {
   safeSessionSet(`aicw_session_${widgetKey}`, token);
+}
+
+function clearSessionToken(widgetKey: string) {
+  safeSessionRemove(`aicw_session_${widgetKey}`);
 }
 
 function getSessionToken(widgetKey: string): string | null {
@@ -218,6 +230,8 @@ export function WidgetApp() {
   const openRef = useRef(open);
   const connectingRef = useRef(false);
   const sendingRef = useRef(false);
+  const specificErrorRef = useRef<string | null>(null);
+  const joinWatchdogRef = useRef<number | null>(null);
 
   useEffect(() => {
     attributionRef.current = attribution;
@@ -395,6 +409,38 @@ export function WidgetApp() {
     [widgetKey, visitorId],
   );
 
+  const clearJoinWatchdog = useCallback(() => {
+    if (joinWatchdogRef.current !== null) {
+      window.clearInterval(joinWatchdogRef.current);
+      joinWatchdogRef.current = null;
+    }
+  }, []);
+
+  const scheduleJoinWatchdog = useCallback(() => {
+    clearJoinWatchdog();
+    let attempts = 0;
+    joinWatchdogRef.current = window.setInterval(() => {
+      if (joinedRef.current) {
+        clearJoinWatchdog();
+        return;
+      }
+      attempts += 1;
+      const socket = socketRef.current;
+      if (socket?.connected) {
+        socket.emit('join', buildJoinPayload());
+        if (!specificErrorRef.current) {
+          setConnectionError(true);
+          setConnectionErrorText('Подключаемся…');
+        }
+      }
+      if (attempts >= 8 && !joinedRef.current && !specificErrorRef.current) {
+        clearJoinWatchdog();
+        setConnectionError(true);
+        setConnectionErrorText('Нет соединения с сервером чата');
+      }
+    }, 3000);
+  }, [buildJoinPayload, clearJoinWatchdog]);
+
   const connectSocket = useCallback(async () => {
     if (!widgetKey) return;
 
@@ -402,6 +448,7 @@ export function WidgetApp() {
     if (existing?.connected) {
       if (joinedRef.current || connectingRef.current) return;
       existing.emit('join', buildJoinPayload());
+      scheduleJoinWatchdog();
       return;
     }
     if (connectingRef.current) return;
@@ -425,22 +472,35 @@ export function WidgetApp() {
 
     const socket = io(`${origin}/widget`, {
       path: '/socket.io',
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 800,
       reconnectionDelayMax: 8000,
       randomizationFactor: 0.4,
+      timeout: 20_000,
+    });
+
+    const releaseConnecting = () => {
+      connectingRef.current = false;
+    };
+
+    socket.on('connected', () => {
+      setConnectionError(false);
+      setConnectionErrorText(null);
     });
 
     socket.on('connect', () => {
+      releaseConnecting();
       setConnectionError(false);
       setConnectionErrorText(null);
       joinedRef.current = false;
       emitJoin(socket);
+      scheduleJoinWatchdog();
     });
 
     socket.on('disconnect', (reason) => {
+      releaseConnecting();
       setConnected(false);
       joinedRef.current = false;
       sendingRef.current = false;
@@ -466,17 +526,29 @@ export function WidgetApp() {
     });
 
     socket.on('connect_error', () => {
+      releaseConnecting();
       setConnected(false);
       setConnectionError(true);
-      setConnectionErrorText('Нет соединения с сервером чата');
+      setConnectionErrorText(
+        socket.active ? 'Переподключение…' : 'Нет соединения с сервером чата',
+      );
     });
 
     socket.on('reconnect_attempt', () => {
+      specificErrorRef.current = null;
       setConnectionError(true);
       setConnectionErrorText('Переподключение…');
     });
 
+    socket.on('reconnect', () => {
+      joinedRef.current = false;
+      emitJoin(socket);
+      scheduleJoinWatchdog();
+    });
+
     socket.on('joined', (data: { sessionToken?: string; dialogId?: string | null }) => {
+      clearJoinWatchdog();
+      specificErrorRef.current = null;
       joinedRef.current = true;
       setConnected(true);
       setConnectionError(false);
@@ -696,6 +768,7 @@ export function WidgetApp() {
 
     socket.on('error', (data: { code?: string; message?: string }) => {
       if (data.code === 'origin_not_allowed') {
+        specificErrorRef.current = data.message ?? 'origin_not_allowed';
         setConnected(false);
         setConnectionError(true);
         setConnectionErrorText(
@@ -704,12 +777,14 @@ export function WidgetApp() {
         return;
       }
       if (data.code === 'invalid_widget') {
+        specificErrorRef.current = data.message ?? 'invalid_widget';
         setConnected(false);
         setConnectionError(true);
         setConnectionErrorText('Виджет не найден или отключён');
         return;
       }
       if (data.code === 'rate_limited') {
+        specificErrorRef.current = data.message ?? 'rate_limited';
         sendingRef.current = false;
         setConnectionError(true);
         setConnectionErrorText(data.message ?? 'Слишком много подключений');
@@ -717,6 +792,8 @@ export function WidgetApp() {
       }
       if (data.code === 'dialog_not_found' && widgetKey) {
         clearStoredDialogId(widgetKey);
+        clearSessionToken(widgetKey);
+        sessionTokenRef.current = null;
         setDialogId(null);
         dialogIdRef.current = null;
         historyLoadedRef.current = null;
@@ -731,37 +808,30 @@ export function WidgetApp() {
     });
 
     socketRef.current = socket;
-    } finally {
+    } catch {
       connectingRef.current = false;
     }
-  }, [apiUrl, widgetKey, visitorId, buildJoinPayload, preview]);
+  }, [apiUrl, widgetKey, visitorId, buildJoinPayload, preview, scheduleJoinWatchdog, clearJoinWatchdog]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
 
     setHistoryLoading(Boolean(dialogIdRef.current));
     setHistorySlow(false);
+    specificErrorRef.current = null;
 
     const slowTimeout = window.setTimeout(() => {
       if (historyLoadedRef.current || joinedRef.current) return;
       setHistorySlow(true);
     }, 1800);
 
-    const historyTimeout = window.setTimeout(() => {
-      setHistoryLoading(false);
-      if (!joinedRef.current) {
-        setConnectionError(true);
-        setConnectionErrorText('Нет соединения с сервером чата');
-      }
-    }, 8000);
-
     void connectSocket();
 
     return () => {
-      window.clearTimeout(historyTimeout);
       window.clearTimeout(slowTimeout);
+      clearJoinWatchdog();
     };
-  }, [connectSocket, deferSocket, open, preview]);
+  }, [connectSocket, deferSocket, open, preview, clearJoinWatchdog]);
 
   useEffect(() => {
     if (deferSocket && !open && !preview) return;
@@ -789,10 +859,11 @@ export function WidgetApp() {
 
   useEffect(() => {
     return () => {
+      clearJoinWatchdog();
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, []);
+  }, [clearJoinWatchdog]);
 
   const { appearance, personalization, behavior } = config;
   const isLeft = appearance.position === 'bottom-left';
@@ -1048,8 +1119,10 @@ export function WidgetApp() {
               type="button"
               className="aicw-retry-link"
               onClick={() => {
+                specificErrorRef.current = null;
                 setConnectionError(false);
                 setConnectionErrorText(null);
+                clearJoinWatchdog();
                 if (socketRef.current) {
                   socketRef.current.removeAllListeners();
                   socketRef.current.disconnect();

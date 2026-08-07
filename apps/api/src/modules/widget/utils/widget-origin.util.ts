@@ -53,11 +53,10 @@ export function isWidgetOriginAllowed(
   const widgetHosts = getWidgetHostOrigins();
 
   if (requestOrigin && widgetHosts.some((host) => originsMatch(requestOrigin, host))) {
-    if (!parentOrigin) return true;
     const allowed = sourcesService.getAllowedOrigins(source);
-    if (!allowed.length) {
-      return process.env.NODE_ENV !== 'production';
-    }
+    // Iframe on widget host: works without allowlist (configure allowlist in LK for strict mode).
+    if (!allowed.length) return true;
+    if (!parentOrigin) return true;
     return allowed.some((entry) => originsMatch(parentOrigin, entry));
   }
 

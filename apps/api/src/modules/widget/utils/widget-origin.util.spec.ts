@@ -43,6 +43,20 @@ describe('isWidgetOriginAllowed', () => {
     ).toBe(true);
   });
 
+  it('allows widget iframe with parentOrigin when allowlist is empty', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.WIDGET_URL = 'http://31.128.42.106:5175';
+    expect(
+      isWidgetOriginAllowed(
+        sourcesService as never,
+        source,
+        'http://31.128.42.106:5175',
+        undefined,
+        'https://client.com',
+      ),
+    ).toBe(true);
+  });
+
   it('checks parentOrigin against allowlist when iframe origin is widget host', () => {
     process.env.NODE_ENV = 'production';
     process.env.WIDGET_URL = 'http://31.128.42.106:5175';

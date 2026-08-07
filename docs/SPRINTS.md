@@ -79,7 +79,7 @@
 | 76 | Done | Админка/ЛК auth + стабильная сборка: CSRF/CORS, npm ci, recover-frontends |
 | 77 | Done | Производственный диагност: `aicw-diagnose`, `force-deploy-main`, fix `/admin/` продакшена (GET /auth/me, VITE_BASE_PATH) |
 | 78 | Done | Полный аудит проекта: линтеры, тесты, race conditions, RLS/tenant, deploy scripts, CODING_STANDARDS |
-| 79 | Done | Стабильность чата и ЛК: reconnect/rate-limit, nginx WS timeout, JWT cookie isolation, parentOrigin embed |
+| 79 | Done | Стабильность чата и ЛК: reconnect/rate-limit, nginx WS timeout, JWT cookie isolation, parentOrigin embed, nginx X-Forwarded-For, join watchdog |
 
 Подробности — в `AI-Consultant-Platform-MASTER.md`, раздел «Спринт-план».
 

@@ -143,7 +143,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     const hasValidSession = this.widgetSession.isValidToken(data.sessionToken, {
       widgetKey: data.widgetKey,
       visitorId: data.visitorId,
-      dialogId: data.dialogId,
     });
 
     if (!alreadyJoined && !hasValidSession) {

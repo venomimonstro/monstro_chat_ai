@@ -56,4 +56,10 @@ describe('WidgetRateLimitService', () => {
     mockRedis.zcard.mockResolvedValue(40);
     await expect(service.checkJoinLimit('visitor-1')).resolves.toBe(false);
   });
+
+  it('skips IP join bucket for loopback proxy addresses', async () => {
+    mockRedis.zcard.mockResolvedValue(0);
+    await expect(service.checkJoinLimit('visitor-1', '127.0.0.1')).resolves.toBe(true);
+    expect(mockRedis.zcard).toHaveBeenCalledTimes(1);
+  });
 });
