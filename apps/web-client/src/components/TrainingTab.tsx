@@ -263,7 +263,7 @@ export function TrainingTab({ sourceId }: { sourceId: string }) {
             >
               {probeResult.sufficient
                 ? `Контекста достаточно · max similarity ${probeResult.maxSimilarity.toFixed(2)} (порог ${probeResult.threshold})`
-                : `Недостаточно релевантности · max ${probeResult.maxSimilarity.toFixed(2)} < порог ${probeResult.threshold} — агент честно скажет «не знаю»`}
+                : `Низкая релевантность · max ${probeResult.maxSimilarity.toFixed(2)} < порог ${probeResult.threshold} — в гибридном режиме агент уточнит вопрос и предложит контакт`}
             </div>
             <p className="text-xs text-slate-500">
               Кандидатов: {probeResult.candidateCount} → отобрано:{' '}

@@ -11,6 +11,11 @@ import { ProviderRegistryService } from '../ai/providers/provider-registry.servi
 import { PromptAssemblyService } from '../ai/services/prompt-assembly.service';
 import { AntiInjectionService } from '../ai/services/anti-injection.service';
 import type { ChatMessage } from '../ai/providers/llm-provider.interface';
+import {
+  DEFAULT_SOURCE_CONFIG,
+  buildPersonaInstruction,
+  type SourceConfig,
+} from '@ai-consultant/shared-types';
 
 @Injectable()
 export class PlaygroundService {
@@ -51,12 +56,20 @@ export class PlaygroundService {
       params.sourceId,
       params.message,
     );
-    const contextBlock = this.retrieval.formatRagContext(retrieval);
+    const sourceConfig =
+      (source.configJson as unknown as SourceConfig) ?? DEFAULT_SOURCE_CONFIG;
+    const knowledgeMode = sourceConfig.ai?.knowledgeMode ?? 'hybrid';
+    const contextBlock = this.retrieval.formatRagContext(retrieval, {
+      knowledgeMode,
+    });
 
     const assembled = await this.assembly.assemble({
       tenantId: params.tenantId,
       ragContext: contextBlock,
       fallbackClientPrompt: params.clientPrompt,
+      personaInstruction: buildPersonaInstruction(sourceConfig.ai),
+      knowledgeMode,
+      ragSufficient: retrieval.sufficient,
       antiInjectionInstruction: instruction,
     });
 

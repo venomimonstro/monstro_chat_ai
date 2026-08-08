@@ -3,15 +3,20 @@ import type {
   PersonaStyle,
 } from '@ai-consultant/shared-types';
 import {
+  KNOWLEDGE_MODE_DESCRIPTIONS,
+  KNOWLEDGE_MODE_LABELS,
   OBJECTION_HANDLING_LABELS,
   PERSONA_STYLE_DESCRIPTIONS,
   PERSONA_STYLE_LABELS,
+  type KnowledgeMode,
 } from '@ai-consultant/shared-types';
 
 interface PersonaSettingsProps {
+  knowledgeMode: KnowledgeMode;
   personaStyle: PersonaStyle;
   objectionHandling: ObjectionHandling;
   forbiddenPhrases: string[];
+  onKnowledgeModeChange: (mode: KnowledgeMode) => void;
   onPersonaStyleChange: (style: PersonaStyle) => void;
   onObjectionHandlingChange: (mode: ObjectionHandling) => void;
   onForbiddenPhrasesChange: (phrases: string[]) => void;
@@ -30,10 +35,14 @@ const OBJECTION_MODES: ObjectionHandling[] = [
   'value_focus',
 ];
 
+const KNOWLEDGE_MODES: KnowledgeMode[] = ['hybrid', 'strict_kb'];
+
 export function PersonaSettings({
+  knowledgeMode,
   personaStyle,
   objectionHandling,
   forbiddenPhrases,
+  onKnowledgeModeChange,
   onPersonaStyleChange,
   onObjectionHandlingChange,
   onForbiddenPhrasesChange,
@@ -56,6 +65,41 @@ export function PersonaSettings({
 
   return (
     <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900">Режим знаний</h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Как агент использует базу знаний и нейросеть.
+        </p>
+      </div>
+
+      <div className="grid gap-3">
+        {KNOWLEDGE_MODES.map((mode) => (
+          <label
+            key={mode}
+            className={`cursor-pointer rounded-xl border p-4 transition ${
+              knowledgeMode === mode
+                ? 'border-brand-600 bg-brand-50 ring-1 ring-brand-600'
+                : 'border-slate-200 hover:border-slate-300'
+            }`}
+          >
+            <input
+              type="radio"
+              name="knowledgeMode"
+              value={mode}
+              checked={knowledgeMode === mode}
+              onChange={() => onKnowledgeModeChange(mode)}
+              className="sr-only"
+            />
+            <span className="font-medium text-slate-900">
+              {KNOWLEDGE_MODE_LABELS[mode]}
+            </span>
+            <p className="mt-1 text-sm text-slate-600">
+              {KNOWLEDGE_MODE_DESCRIPTIONS[mode]}
+            </p>
+          </label>
+        ))}
+      </div>
+
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Стиль общения</h2>
         <p className="mt-1 text-sm text-slate-500">

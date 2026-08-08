@@ -36,7 +36,7 @@ export class MockLLMProvider implements LLMProviderAdapter {
       [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
 
     const kbMatch = system.match(
-      /\[Материалы из базы знаний[\s\S]*?\]\n([\s\S]*?)(?:\n\n\[|$)/,
+      /\[База знаний\]\n([\s\S]*?)(?:\n\n\[|$)/,
     );
     const softMatch = system.match(
       /\[Возможно релевантные материалы[\s\S]*?\]\n([\s\S]*?)(?:\n\n\[|$)/,

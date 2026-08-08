@@ -83,6 +83,18 @@ export interface SourceLeadConfig {
 
 export type KnowledgeMode = 'hybrid' | 'strict_kb';
 
+export const KNOWLEDGE_MODE_LABELS: Record<KnowledgeMode, string> = {
+  hybrid: 'AI-консультант (рекомендуется)',
+  strict_kb: 'Только база знаний',
+};
+
+export const KNOWLEDGE_MODE_DESCRIPTIONS: Record<KnowledgeMode, string> = {
+  hybrid:
+    'Нейросеть ведёт диалог как менеджер. База знаний — для точных фактов. Вне базы — уточняет и ведёт к контакту, а не отказывает.',
+  strict_kb:
+    'Только факты из базы знаний. Без обобщений. Если факта нет — просит контакт.',
+};
+
 export interface SourceAiConfig {
   clientPrompt?: string;
   /**

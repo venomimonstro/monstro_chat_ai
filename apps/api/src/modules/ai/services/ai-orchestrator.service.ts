@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { SourceConfig } from '@ai-consultant/shared-types';
+import { buildPersonaInstruction } from '@ai-consultant/shared-types';
 import { RetrievalService } from './retrieval.service';
 import { DialogService } from './dialog.service';
 import { HistoryCompressionService } from './history-compression.service';
@@ -264,11 +265,13 @@ export class AiOrchestratorService {
 
     const assembled = await this.promptAssembly.assemble({
       tenantId: input.tenantId,
-      dialogId: activeDialogId,
       ragContext: contextBlock,
       dialogSummary: activeDialog.summary,
       fallbackClientPrompt: input.sourceConfig.ai?.clientPrompt,
       clientPromptOverride: experimentPrompt,
+      personaInstruction: buildPersonaInstruction(input.sourceConfig.ai),
+      knowledgeMode,
+      ragSufficient: retrieval.sufficient,
       antiInjectionInstruction: injection.instruction,
       leadGoalInstruction: leadState.instruction,
     });

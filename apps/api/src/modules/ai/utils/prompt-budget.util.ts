@@ -4,6 +4,8 @@ export const PROMPT_BUDGET = {
   SUMMARY_CHARS: 400,
   LEAD_CHARS: 280,
   CLIENT_FALLBACK_CHARS: 4000,
+  PERSONA_CHARS: 900,
+  MODE_CHARS: 520,
 } as const;
 
 export function truncatePromptSection(text: string, maxChars: number): string {

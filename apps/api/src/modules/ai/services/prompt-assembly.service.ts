@@ -6,6 +6,8 @@ import {
   PROMPT_BUDGET,
   truncatePromptSection,
 } from '../utils/prompt-budget.util';
+import { buildKnowledgeModeInstruction } from '../utils/knowledge-mode.util';
+import type { KnowledgeMode } from '@ai-consultant/shared-types';
 
 export interface AssembledPrompt {
   systemContent: string;
@@ -50,6 +52,9 @@ export class PromptAssemblyService {
     dialogSummary?: string | null;
     fallbackClientPrompt?: string;
     clientPromptOverride?: string | null;
+    personaInstruction?: string | null;
+    knowledgeMode?: KnowledgeMode;
+    ragSufficient?: boolean;
     antiInjectionInstruction?: string | null;
     leadGoalInstruction?: string | null;
   }): Promise<AssembledPrompt> {
@@ -76,12 +81,29 @@ export class PromptAssemblyService {
       parts.push(`[Клиент]\n${clientPrompt}`);
     }
 
+    const persona = truncatePromptSection(
+      params.personaInstruction?.trim() ?? '',
+      PROMPT_BUDGET.PERSONA_CHARS,
+    );
+    if (persona) {
+      parts.push(`[Поведение]\n${persona}`);
+    }
+
     const rag = truncatePromptSection(
       params.ragContext,
       PROMPT_BUDGET.RAG_CHARS,
     );
     if (rag) {
       parts.push(`[База знаний]\n${rag}`);
+    }
+
+    const modeInstruction = buildKnowledgeModeInstruction({
+      mode: params.knowledgeMode ?? 'hybrid',
+      ragSufficient: params.ragSufficient ?? Boolean(rag),
+      hasRagContext: Boolean(rag),
+    });
+    if (modeInstruction) {
+      parts.push(modeInstruction);
     }
 
     if (params.dialogSummary?.trim()) {

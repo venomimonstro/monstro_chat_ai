@@ -97,6 +97,8 @@ export {
   DEFAULT_SOURCE_CONFIG,
   mergeSourceConfig,
   patchSourceConfig,
+  KNOWLEDGE_MODE_DESCRIPTIONS,
+  KNOWLEDGE_MODE_LABELS,
 } from './source';
 export type {
   WidgetPosition,
@@ -115,6 +117,7 @@ export type {
   SourceAiConfig,
   SourceLeadConfig,
   LeadProfileMode,
+  KnowledgeMode,
 } from './source';
 export type {
   LauncherAnimation,

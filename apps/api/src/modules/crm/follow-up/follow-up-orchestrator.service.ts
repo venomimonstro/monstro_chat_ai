@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { SourceConfig } from '@ai-consultant/shared-types';
+import { buildPersonaInstruction } from '@ai-consultant/shared-types';
 import { DialogService } from '../../ai/services/dialog.service';
 import { PromptAssemblyService } from '../../ai/services/prompt-assembly.service';
 import { ProviderRegistryService } from '../../ai/providers/provider-registry.service';
@@ -73,6 +74,9 @@ export class FollowUpOrchestratorService {
       ragContext: '',
       dialogSummary: dialog.summary,
       fallbackClientPrompt: params.sourceConfig.ai?.clientPrompt,
+      personaInstruction: buildPersonaInstruction(params.sourceConfig.ai),
+      knowledgeMode: params.sourceConfig.ai?.knowledgeMode ?? 'hybrid',
+      ragSufficient: false,
       leadGoalInstruction: leadState.instruction,
     });
 

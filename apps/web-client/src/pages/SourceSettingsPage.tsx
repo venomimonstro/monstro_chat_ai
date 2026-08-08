@@ -286,9 +286,11 @@ export function SourceSettingsPage() {
       ) : tab === 'persona' ? (
         <div className="mt-6 max-w-2xl">
           <PersonaSettings
+            knowledgeMode={config.ai?.knowledgeMode ?? 'hybrid'}
             personaStyle={config.ai?.personaStyle ?? 'friendly_pro'}
             objectionHandling={config.ai?.objectionHandling ?? 'balanced'}
             forbiddenPhrases={config.ai?.forbiddenPhrases ?? []}
+            onKnowledgeModeChange={(knowledgeMode) => patchAi({ knowledgeMode })}
             onPersonaStyleChange={(personaStyle) => patchAi({ personaStyle })}
             onObjectionHandlingChange={(objectionHandling) =>
               patchAi({ objectionHandling })
