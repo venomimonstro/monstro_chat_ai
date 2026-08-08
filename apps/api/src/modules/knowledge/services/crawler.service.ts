@@ -40,7 +40,10 @@ export class CrawlerService {
     const robotsUrl = `${origin}/robots.txt`;
 
     try {
-      const response = await this.fetchWithTimeout(robotsUrl);
+      const response = await this.fetchWithTimeout(
+        this.preferInternalIfOwnSite(robotsUrl),
+        robotsUrl,
+      );
       if (!response.ok) {
         return robotsParser(robotsUrl, '');
       }
@@ -178,7 +181,10 @@ export class CrawlerService {
     const urls: string[] = [];
     for (const sitemapUrl of candidates) {
       try {
-        const response = await this.fetchWithTimeout(sitemapUrl);
+        const response = await this.fetchWithTimeout(
+          this.preferInternalIfOwnSite(sitemapUrl),
+          sitemapUrl,
+        );
         if (!response.ok) continue;
         const xml = await response.text();
         const matches = xml.matchAll(/<loc>([^<]+)<\/loc>/gi);
@@ -215,7 +221,8 @@ export class CrawlerService {
   }
 
   private async fetchPage(url: string): Promise<CrawledPage & { html: string }> {
-    const response = await this.fetchWithTimeout(url);
+    const fetchUrl = this.preferInternalIfOwnSite(url);
+    const response = await this.fetchWithTimeout(fetchUrl, url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -263,14 +270,29 @@ export class CrawlerService {
     }
   }
 
+  private getConfiguredInternalOrigin(): string | null {
+    return (
+      this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
+      'http://host.docker.internal:4321'
+    );
+  }
+
+  private isConfiguredInternalUrl(url: string): boolean {
+    const internal = this.getConfiguredInternalOrigin();
+    if (!internal) return false;
+    try {
+      return new URL(url).host === new URL(internal).host;
+    } catch {
+      return false;
+    }
+  }
+
   private getInternalFallbackUrl(url: string): string | null {
     const publicSite =
       this.config.get<string>('PUBLIC_SITE_URL') ??
       this.config.get<string>('STABILITY_PUBLIC_URL');
-    const internal =
-      this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
-      'http://host.docker.internal:4321';
-    if (!publicSite) return null;
+    const internal = this.getConfiguredInternalOrigin();
+    if (!publicSite || !internal) return null;
 
     try {
       const target = new URL(url);
@@ -285,7 +307,13 @@ export class CrawlerService {
     }
   }
 
+  /** For own public site — crawl via Docker-internal origin first (avoids hairpin NAT). */
+  private preferInternalIfOwnSite(url: string): string {
+    return this.getInternalFallbackUrl(url) ?? url;
+  }
+
   private isPrivateAddress(url: string): boolean {
+    if (this.isConfiguredInternalUrl(url)) return false;
     try {
       const parsed = new URL(url);
       const hostname = parsed.hostname.toLowerCase();
@@ -305,7 +333,10 @@ export class CrawlerService {
     }
   }
 
-  private async fetchWithTimeout(url: string): Promise<Response> {
+  private async fetchWithTimeout(
+    url: string,
+    originalUrl?: string,
+  ): Promise<Response> {
     if (this.isPrivateAddress(url)) {
       throw new BadRequestException('Crawling private/internal addresses is not allowed');
     }
@@ -313,6 +344,7 @@ export class CrawlerService {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
     const headers = { 'User-Agent': 'AI-Consultant-Crawler/1.0' };
+    const publicUrl = originalUrl ?? url;
 
     try {
       const response = await fetch(url, {
@@ -322,7 +354,7 @@ export class CrawlerService {
       });
       if (response.ok) return response;
 
-      const fallback = this.getInternalFallbackUrl(url);
+      const fallback = this.getInternalFallbackUrl(publicUrl);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin: ${fallback}`);
         return await fetch(fallback, {
@@ -333,7 +365,7 @@ export class CrawlerService {
       }
       return response;
     } catch (error) {
-      const fallback = this.getInternalFallbackUrl(url);
+      const fallback = this.getInternalFallbackUrl(publicUrl);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin after error: ${fallback}`);
         return await fetch(fallback, {

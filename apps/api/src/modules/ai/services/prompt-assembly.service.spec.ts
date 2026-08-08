@@ -55,16 +55,44 @@ describe('PromptAssemblyService', () => {
     expect(result.systemContent).toContain('понимание');
   });
 
-  it('adds insufficient-context instruction when flagged', async () => {
+  it('adds hybrid AI manager instruction by default', async () => {
+    mockPrisma.prompt.findFirst.mockResolvedValue(null);
+
+    const result = await service.assemble({
+      tenantId: 't1',
+      ragContext: 'Test context',
+      knowledgeMode: 'hybrid',
+    });
+
+    expect(result.systemContent).toContain('[Режим AI-менеджера]');
+    expect(result.systemContent).toContain('не скрипт');
+  });
+
+  it('adds insufficient-context instruction when flagged in strict mode', async () => {
     mockPrisma.prompt.findFirst.mockResolvedValue(null);
 
     const result = await service.assemble({
       tenantId: 't1',
       ragContext: 'empty',
       insufficientContext: true,
+      knowledgeMode: 'strict_kb',
     });
 
     expect(result.systemContent).toContain('[Недостаточно знаний]');
     expect(result.systemContent).toContain('Не выдумывай');
+  });
+
+  it('adds soft insufficient instruction in hybrid mode', async () => {
+    mockPrisma.prompt.findFirst.mockResolvedValue(null);
+
+    const result = await service.assemble({
+      tenantId: 't1',
+      ragContext: 'empty',
+      insufficientContext: true,
+      knowledgeMode: 'hybrid',
+    });
+
+    expect(result.systemContent).toContain('[Мало данных в базе]');
+    expect(result.systemContent).toContain('уточняющих');
   });
 });

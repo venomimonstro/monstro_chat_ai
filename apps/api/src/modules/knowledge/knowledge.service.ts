@@ -115,7 +115,8 @@ export class KnowledgeService {
       } satisfies CrawlSiteJobPayload,
       {
         jobId: job.id,
-        attempts: 1,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: 100,
         removeOnFail: 50,
       },

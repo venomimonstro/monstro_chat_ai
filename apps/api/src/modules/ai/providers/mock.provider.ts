@@ -29,29 +29,50 @@ export class MockLLMProvider implements LLMProviderAdapter {
     _opts?: StreamChatOptions,
   ): AsyncIterable<StreamToken> {
     const system = messages.find((m) => m.role === 'system')?.content ?? '';
+    const history = messages.filter(
+      (m) => m.role === 'user' || m.role === 'assistant',
+    );
     const lastUser =
-      [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
+      [...history].reverse().find((m) => m.role === 'user')?.content ?? '';
 
-    const contextMatch = system.match(
+    const kbMatch = system.match(
+      /\[Материалы из базы знаний[\s\S]*?\]\n([\s\S]*?)(?:\n\n\[|$)/,
+    );
+    const softMatch = system.match(
+      /\[Возможно релевантные материалы[\s\S]*?\]\n([\s\S]*?)(?:\n\n\[|$)/,
+    );
+    const legacyMatch = system.match(
       /Контекст из базы знаний:\n([\s\S]*?)(?:\n\n|$)/,
     );
-    const context = contextMatch?.[1]?.trim() ?? '';
+    const context =
+      kbMatch?.[1]?.trim() ||
+      softMatch?.[1]?.trim() ||
+      legacyMatch?.[1]?.trim() ||
+      '';
+
+    const cleanedContext = context.replace(/^\[\d+\]\s*/, '').trim();
 
     let response: string;
-    if (context) {
-      const snippet = context.slice(0, 400);
-      response = `На основе информации с вашего сайта: ${snippet}${context.length > 400 ? '…' : ''} Если нужны детали — уточните вопрос.`;
+    if (cleanedContext && !cleanedContext.startsWith('[')) {
+      const snippet = cleanedContext.slice(0, 500);
+      response =
+        `Понял ваш вопрос. По материалам компании: ${snippet}${cleanedContext.length > 500 ? '…' : ''} ` +
+        `Если нужны детали — уточните, что именно вас интересует, и я помогу разобраться.`;
     } else if (lastUser) {
-      response = `Спасибо за вопрос! К сожалению, в базе знаний пока нет релевантных материалов по теме «${lastUser.slice(0, 80)}».`;
+      response =
+        `Спасибо за вопрос! Чтобы ответить точно, уточните, пожалуйста: ` +
+        `что именно вас интересует в теме «${lastUser.slice(0, 80)}»? ` +
+        `Могу также записать ваш контакт — команда перезвонит с подробностями.`;
     } else {
-      response = 'Здравствуйте! Чем могу помочь?';
+      response =
+        'Здравствуйте! Расскажите, чем могу помочь — отвечу по делу и подскажу лучший вариант.';
     }
 
     const parts = response.split(/(\s+)/);
     for (const part of parts) {
       if (!part) continue;
       yield { content: part };
-      await new Promise((r) => setTimeout(r, 15));
+      await new Promise((r) => setTimeout(r, 12));
     }
     yield { content: '', done: true };
   }
