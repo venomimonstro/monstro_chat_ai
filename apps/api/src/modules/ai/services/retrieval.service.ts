@@ -5,6 +5,7 @@ import { EmbeddingService } from '../../knowledge/services/embedding.service';
 import {
   DEFAULT_RAG_CANDIDATE_K,
   DEFAULT_RAG_SIMILARITY_THRESHOLD,
+  DEFAULT_RAG_SOFT_THRESHOLD,
   DEFAULT_RAG_TOP_K,
   INSUFFICIENT_RAG_CONTEXT,
   RAG_TOP_K,
@@ -23,9 +24,11 @@ export interface RetrievedChunk {
 
 export interface RetrievalResult {
   chunks: RetrievedChunk[];
+  softChunks: RetrievedChunk[];
   candidates: RetrievedChunk[];
   maxSimilarity: number;
   threshold: number;
+  softThreshold: number;
   topK: number;
   candidateK: number;
   sufficient: boolean;
@@ -37,6 +40,7 @@ export class RetrievalService {
   private readonly topK: number;
   private readonly candidateK: number;
   private readonly threshold: number;
+  private readonly softThreshold: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -54,6 +58,10 @@ export class RetrievalService {
           DEFAULT_RAG_SIMILARITY_THRESHOLD,
         ),
       ) || DEFAULT_RAG_SIMILARITY_THRESHOLD;
+    this.softThreshold =
+      Number(
+        config.get('RAG_SOFT_THRESHOLD', DEFAULT_RAG_SOFT_THRESHOLD),
+      ) || DEFAULT_RAG_SOFT_THRESHOLD;
   }
 
   /** Backward-compatible: returns filtered+reranked top chunks. */
@@ -127,6 +135,16 @@ export class RetrievalService {
     const reranked = [...candidates].sort((a, b) => b.score - a.score);
     const aboveThreshold = reranked.filter((c) => c.similarity >= threshold);
     const chunks = aboveThreshold.slice(0, topK);
+    const softChunks =
+      chunks.length === 0
+        ? reranked
+            .filter(
+              (c) =>
+                c.similarity >= this.softThreshold &&
+                c.similarity < threshold,
+            )
+            .slice(0, topK)
+        : [];
     const maxSimilarity =
       candidates.length > 0
         ? Math.max(...candidates.map((c) => c.similarity))
@@ -134,9 +152,11 @@ export class RetrievalService {
 
     return {
       chunks,
+      softChunks,
       candidates: reranked,
       maxSimilarity,
       threshold,
+      softThreshold: this.softThreshold,
       topK,
       candidateK,
       sufficient: chunks.length > 0,
@@ -144,11 +164,28 @@ export class RetrievalService {
     };
   }
 
-  formatRagContext(result: RetrievalResult): string {
-    if (!result.sufficient || result.chunks.length === 0) {
+  formatRagContext(
+    result: RetrievalResult,
+    options?: { knowledgeMode?: 'hybrid' | 'strict_kb' },
+  ): string {
+    const mode = options?.knowledgeMode ?? 'hybrid';
+    const activeChunks =
+      mode === 'strict_kb'
+        ? result.chunks
+        : result.chunks.length > 0
+          ? result.chunks
+          : result.softChunks;
+
+    if (activeChunks.length === 0) {
       return INSUFFICIENT_RAG_CONTEXT;
     }
-    return result.chunks
+
+    const header =
+      result.chunks.length > 0
+        ? '[Материалы из базы знаний — используй как основной источник фактов]'
+        : '[Возможно релевантные материалы — проверь применимость, не выдумывай цифры]';
+
+    const body = activeChunks
       .map((c, i) => {
         const src =
           c.documentTitle || c.documentUrl
@@ -157,6 +194,8 @@ export class RetrievalService {
         return `[${i + 1}]${src}\n${c.content}`;
       })
       .join('\n\n');
+
+    return `${header}\n${body}`;
   }
 
   toDiagnostic(result: RetrievalResult) {
@@ -165,9 +204,11 @@ export class RetrievalService {
       sufficient: result.sufficient,
       maxSimilarity: round4(result.maxSimilarity),
       threshold: result.threshold,
+      softThreshold: result.softThreshold,
       topK: result.topK,
       candidateK: result.candidateK,
       selectedCount: result.chunks.length,
+      softCount: result.softChunks.length,
       candidateCount: result.candidates.length,
       chunks: result.chunks.map((c) => ({
         id: c.id,

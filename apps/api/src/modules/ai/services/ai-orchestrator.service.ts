@@ -235,7 +235,10 @@ export class AiOrchestratorService {
       input.sourceId,
       input.content,
     );
-    const contextBlock = this.retrieval.formatRagContext(retrieval);
+    const knowledgeMode = input.sourceConfig.ai?.knowledgeMode ?? 'hybrid';
+    const contextBlock = this.retrieval.formatRagContext(retrieval, {
+      knowledgeMode,
+    });
 
     const experimentPrompt = await this.promptExperiments.resolveClientPrompt(
       input.tenantId,
@@ -260,7 +263,11 @@ export class AiOrchestratorService {
       antiInjectionInstruction: injection.instruction,
       leadGoalInstruction: leadState.instruction,
       personaConfig: input.sourceConfig.ai,
-      insufficientContext: !retrieval.sufficient,
+      insufficientContext:
+        knowledgeMode === 'strict_kb'
+          ? !retrieval.sufficient
+          : !retrieval.sufficient && retrieval.softChunks.length === 0,
+      knowledgeMode,
     });
 
     const history = await this.dialogService.getMessages(
@@ -286,6 +293,12 @@ export class AiOrchestratorService {
 
     const tier = this.modelRouter.classify(input.content, Boolean(cacheHit));
     const chain = this.providers.getChainForTier(tier, allowedProviders);
+    const realProviders = chain.filter((p) => p.name !== 'mock');
+    if (realProviders.length === 0) {
+      this.logger.warn(
+        `No real LLM providers available for tenant ${input.tenantId} — using mock fallback. Configure OpenRouter/OpenAI keys in admin.`,
+      );
+    }
     this.logger.debug(
       `Model router: tier=${tier}, chain=${chain.map((p) => p.name).join('→')}`,
     );
@@ -301,7 +314,10 @@ export class AiOrchestratorService {
         usedModel = provider.defaultModel;
         fullResponse = '';
 
-        for await (const token of provider.streamChat(messages)) {
+        for await (const token of provider.streamChat(messages, {
+          temperature: knowledgeMode === 'hybrid' ? 0.65 : 0.4,
+          maxTokens: 1200,
+        })) {
           if (token.content) {
             fullResponse += token.content;
             yield {

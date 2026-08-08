@@ -81,8 +81,15 @@ export interface SourceLeadConfig {
   dedupeByVisitor?: boolean;
 }
 
+export type KnowledgeMode = 'hybrid' | 'strict_kb';
+
 export interface SourceAiConfig {
   clientPrompt?: string;
+  /**
+   * hybrid (default): нейросеть ведёт диалог как менеджер, база знаний — источник фактов.
+   * strict_kb: только материалы из KB, без обобщений.
+   */
+  knowledgeMode?: KnowledgeMode;
   leadExtraction?: SourceLeadConfig;
   /** Автономный дожим лидов — follow-up без оператора (Sprint 66). */
   closer?: import('./closer').SourceCloserConfig;
@@ -208,6 +215,7 @@ export const DEFAULT_SOURCE_CONFIG: SourceConfig = {
     allowedOrigins: [],
   },
   ai: {
+    knowledgeMode: 'hybrid',
     personaStyle: 'friendly_pro',
     objectionHandling: 'balanced',
     closer: {

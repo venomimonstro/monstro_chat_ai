@@ -3,14 +3,15 @@ export const RAG_TOP_K = 5;
 export const DEFAULT_RAG_TOP_K = 5;
 /** Wider pool before rerank + threshold filter. */
 export const DEFAULT_RAG_CANDIDATE_K = 15;
-/** Min cosine similarity (1 - distance) to keep a chunk. */
-export const DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.72;
+/** Min cosine similarity (1 - distance) to keep a chunk as high-confidence. */
+export const DEFAULT_RAG_SIMILARITY_THRESHOLD = 0.58;
+/** Soft floor: include best-effort chunks for LLM reasoning when nothing passes threshold. */
+export const DEFAULT_RAG_SOFT_THRESHOLD = 0.42;
 
 export const INSUFFICIENT_RAG_CONTEXT =
-  '[Недостаточно релевантного контекста в базе знаний. ' +
-  'Не выдумывай факты. Честно скажи, что точной информации по этому вопросу нет в материалах, ' +
-  'предложи уточнить детали или оставить контакт — команда перезвонит с точным ответом. ' +
-  'Не предлагай передать диалог оператору.]';
+  '[В базе знаний нет точного совпадения по вопросу. ' +
+  'Отвечай как менеджер: помоги сформулировать запрос, задай уточняющие вопросы, ' +
+  'предложи оставить контакт для точного ответа. Не выдумывай конкретные цены, сроки и цифры.]';
 export const MAX_HISTORY_MESSAGES = 12;
 export const HISTORY_SUMMARY_THRESHOLD = 15;
 export const KEEP_RECENT_MESSAGES = 8;
