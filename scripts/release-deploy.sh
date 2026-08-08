@@ -149,8 +149,16 @@ main() {
 
   log "Post-deploy проверка..."
   if ! bash "${INSTALL_DIR}/scripts/verify-release.sh" post "${VERSION}" "${SPRINT}"; then
-    report "deploy" "error" "Post-deploy проверка не прошла для ${VERSION}"
-    fail "Деплой не прошёл проверку. Код мог обновиться — проверьте: curl -s ${API_BASE}/health. НЕ запускайте старые команды из админки (0.31.0/0.32.0). Используйте: sudo bash scripts/deploy-latest.sh"
+    report "deploy" "error" "Post-deploy проверка не прошла для ${VERSION} — автоматический откат"
+    warn "Post-deploy провален — откат на предыдущую рабочую версию..."
+    if [[ -f "${INSTALL_DIR}/scripts/lib/deploy-checkpoint.sh" ]]; then
+      # shellcheck source=lib/deploy-checkpoint.sh
+      source "${INSTALL_DIR}/scripts/lib/deploy-checkpoint.sh"
+      deploy_restore_last_good 2>/dev/null || bash "${INSTALL_DIR}/scripts/release-rollback.sh" || true
+    else
+      bash "${INSTALL_DIR}/scripts/release-rollback.sh" || true
+    fi
+    fail "Деплой ${VERSION} не прошёл проверку — выполнен откат. Проверьте: curl -s ${API_BASE}/health"
   fi
 
   MANIFEST_JSON=$(save_manifest "${PENDING_MANIFEST}")
