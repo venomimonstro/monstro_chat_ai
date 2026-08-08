@@ -2,6 +2,7 @@
 const internalApiUrl = process.env.API_INTERNAL_URL ?? 'http://localhost:3000';
 
 const nextConfig = {
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   transpilePackages: ['@ai-consultant/shared-types'],
   async rewrites() {
