@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsEnum, IsOptional, IsArray, ValidateNested } from 'class-validator';
+import { IsString, IsUUID, IsEnum, IsOptional, IsArray, ValidateNested, ArrayMinSize, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PromptScope } from '@prisma/client';
 
@@ -50,4 +50,15 @@ export class CreateExperimentDto {
 
   @IsOptional()
   minSampleSize?: number;
+}
+
+export class GeneratePromptFromUrlsDto {
+  @IsUUID()
+  sourceId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  urls!: string[];
 }

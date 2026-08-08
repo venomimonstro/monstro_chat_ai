@@ -229,6 +229,66 @@ export class CrawlerService {
     return { title, text, html };
   }
 
+  /** Fetch explicit URLs for prompt generation (no sitemap crawl). */
+  async fetchPagesForPrompt(
+    rawUrls: string[],
+    maxPages = 5,
+  ): Promise<{
+    pages: CrawledPage[];
+    errors: Array<{ url: string; error: string }>;
+  }> {
+    const pages: CrawledPage[] = [];
+    const errors: Array<{ url: string; error: string }> = [];
+    const seen = new Set<string>();
+
+    for (const raw of rawUrls) {
+      if (pages.length >= maxPages) break;
+
+      const normalized = this.normalizePromptUrl(raw);
+      if (!normalized) {
+        errors.push({ url: raw.trim(), error: 'Некорректный URL' });
+        continue;
+      }
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+
+      try {
+        const page = await this.fetchPage(normalized);
+        pages.push({ url: page.url, title: page.title, text: page.text });
+      } catch (err) {
+        errors.push({
+          url: raw.trim(),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (!pages.length && errors.length) {
+      throw new BadRequestException(
+        errors[0]?.error ?? 'Не удалось загрузить страницы',
+      );
+    }
+
+    return { pages, errors };
+  }
+
+  normalizePromptUrl(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    try {
+      const withProtocol = /^https?:\/\//i.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+      const parsed = new URL(withProtocol);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return null;
+      }
+      return normalizeCrawlUrl(parsed.href);
+    } catch {
+      return null;
+    }
+  }
+
   private async fetchPage(url: string): Promise<CrawledPage & { html: string }> {
     const fetchUrl = this.preferInternalIfOwnSite(url);
     const response = await this.fetchWithTimeout(fetchUrl, url);
