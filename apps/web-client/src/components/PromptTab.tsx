@@ -6,9 +6,11 @@ import {
   fetchActivePrompt,
   fetchPromptCharLimit,
   fetchPromptHistory,
+  generatePromptFromUrls,
   savePrompt,
   testPlayground,
 } from '../lib/prompts';
+import { extractErrorMessage } from '../lib/errors';
 
 interface SandboxMessage {
   role: 'user' | 'assistant';
@@ -33,6 +35,10 @@ export function PromptTab({
   const [sandboxInput, setSandboxInput] = useState('');
   const [sandboxMessages, setSandboxMessages] = useState<SandboxMessage[]>([]);
   const [sandboxLoading, setSandboxLoading] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [generateInfo, setGenerateInfo] = useState<string | null>(null);
 
   const onPromptChangeRef = useRef(onPromptChange);
   onPromptChangeRef.current = onPromptChange;
@@ -75,6 +81,39 @@ export function PromptTab({
     await activatePrompt(id);
     await reload();
     setSaved(true);
+  };
+
+  const handleGenerateFromUrls = async () => {
+    const urls = urlInput
+      .split(/[\n,]+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!urls.length) {
+      setGenerateError('Укажите хотя бы одну ссылку');
+      return;
+    }
+
+    setGenerating(true);
+    setGenerateError(null);
+    setGenerateInfo(null);
+    try {
+      const res = await generatePromptFromUrls({ sourceId, urls });
+      setContent(res.content);
+      onPromptChangeRef.current(res.content);
+      setSaved(false);
+      const pageList = res.pages.map((p) => p.title || p.url).join(', ');
+      const warn =
+        res.errors.length > 0
+          ? ` Не загружено: ${res.errors.map((e) => e.url).join(', ')}.`
+          : '';
+      setGenerateInfo(
+        `Промпт создан по ${res.pages.length} стр.: ${pageList}.${warn} Проверьте текст и сохраните версию.`,
+      );
+    } catch (err) {
+      setGenerateError(extractErrorMessage(err, 'Не удалось сгенерировать промпт'));
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleSandboxSend = async () => {
@@ -124,6 +163,40 @@ export function PromptTab({
           Инструкции для ИИ-агента. Глобальные правила платформы имеют
           наивысший приоритет.
         </p>
+
+        <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-700">
+            Сгенерировать из сайта
+          </h3>
+          <p className="mt-1 text-xs text-slate-500">
+            Укажите ссылку на главную или несколько страниц — мы загрузим текст
+            и составим черновик промпта. До 5 URL, по одному в строке.
+          </p>
+          <textarea
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            rows={3}
+            placeholder={'https://example.com\nhttps://example.com/pricing'}
+            className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGenerateFromUrls}
+              disabled={generating}
+              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              {generating ? 'Генерация…' : 'Сгенерировать промпт'}
+            </button>
+          </div>
+          {generateError && (
+            <p className="mt-2 text-xs text-red-600">{generateError}</p>
+          )}
+          {generateInfo && (
+            <p className="mt-2 text-xs text-green-700">{generateInfo}</p>
+          )}
+        </div>
+
         <textarea
           value={content}
           onChange={(e) => {

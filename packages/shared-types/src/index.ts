@@ -130,6 +130,8 @@ export type {
   PromptDto,
   PlaygroundTestRequest,
   PlaygroundTestResponse,
+  GeneratePromptFromUrlsRequest,
+  GeneratePromptFromUrlsResponse,
 } from './prompt';
 export type {
   PipelineDto,

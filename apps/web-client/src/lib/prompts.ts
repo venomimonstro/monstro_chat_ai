@@ -40,6 +40,15 @@ export async function testPlayground(data: PlaygroundTestRequest) {
   return res.data;
 }
 
+export async function generatePromptFromUrls(
+  data: import('@ai-consultant/shared-types').GeneratePromptFromUrlsRequest,
+) {
+  const res = await api.post<
+    import('@ai-consultant/shared-types').GeneratePromptFromUrlsResponse
+  >('/prompts/generate-from-urls', data);
+  return res.data;
+}
+
 export async function fetchPromptExperiments() {
   const res = await api.get<import('@ai-consultant/shared-types').PromptExperimentDto[]>(
     '/prompts/experiments',

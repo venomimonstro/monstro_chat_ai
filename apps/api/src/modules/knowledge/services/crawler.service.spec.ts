@@ -48,6 +48,12 @@ describe('CrawlerService', () => {
     expect(result.text).not.toContain('bad()');
   });
 
+  it('normalizes prompt URLs without protocol', () => {
+    expect(service.normalizePromptUrl('example.com/pricing')).toBe(
+      'https://example.com/pricing',
+    );
+  });
+
   it('maps public site URL to internal origin for self-crawl', async () => {
     const module = await Test.createTestingModule({
       providers: [

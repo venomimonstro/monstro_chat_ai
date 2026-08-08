@@ -10,7 +10,8 @@ import {
 import { PromptScope } from '@prisma/client';
 import { PromptsService } from './prompts.service';
 import { PlaygroundService } from './playground.service';
-import { CreatePromptDto, CreateExperimentDto, PlaygroundTestDto } from './dto/prompt.dto';
+import { PromptGenerationService } from './prompt-generation.service';
+import { CreatePromptDto, CreateExperimentDto, PlaygroundTestDto, GeneratePromptFromUrlsDto } from './dto/prompt.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermission } from '../../common/decorators/auth.decorators';
@@ -25,6 +26,7 @@ export class PromptsController {
   constructor(
     private readonly promptsService: PromptsService,
     private readonly playgroundService: PlaygroundService,
+    private readonly promptGenerationService: PromptGenerationService,
     private readonly experiments: PromptExperimentService,
   ) {}
 
@@ -67,12 +69,6 @@ export class PromptsController {
     });
   }
 
-  @Post(':id/activate')
-  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
-  activate(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.promptsService.activateVersion(id, user.tenantId!, user.role);
-  }
-
   @Post('playground/test')
   @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
   playgroundTest(
@@ -86,6 +82,25 @@ export class PromptsController {
       clientPrompt: dto.clientPrompt,
       history: dto.history,
     });
+  }
+
+  @Post('generate-from-urls')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  generateFromUrls(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: GeneratePromptFromUrlsDto,
+  ) {
+    return this.promptGenerationService.generateFromUrls({
+      tenantId: user.tenantId!,
+      sourceId: dto.sourceId,
+      urls: dto.urls,
+    });
+  }
+
+  @Post(':id/activate')
+  @RequirePermission(PERMISSIONS.SOURCES_MANAGE)
+  activate(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.promptsService.activateVersion(id, user.tenantId!, user.role);
   }
 
   @Get('experiments')

@@ -45,6 +45,11 @@ import { QUEUE_CRAWL_SITE, QUEUE_INGEST_DOCUMENT } from './constants';
     CrawlSiteProcessor,
     IngestDocumentProcessor,
   ],
-  exports: [KnowledgeService, IndexingPipelineService, EmbeddingService],
+  exports: [
+    KnowledgeService,
+    IndexingPipelineService,
+    EmbeddingService,
+    CrawlerService,
+  ],
 })
 export class KnowledgeModule {}

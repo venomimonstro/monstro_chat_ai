@@ -24,6 +24,20 @@ export interface PlaygroundTestResponse {
   retrieval?: import('./retrieval').RetrievalDiagnosticDto;
 }
 
+export interface GeneratePromptFromUrlsRequest {
+  sourceId: string;
+  urls: string[];
+}
+
+export interface GeneratePromptFromUrlsResponse {
+  content: string;
+  charLimit: number;
+  provider: string;
+  model: string;
+  pages: Array<{ url: string; title: string }>;
+  errors: Array<{ url: string; error: string }>;
+}
+
 export interface LeadExtractDto {
   id: string;
   tenantId: string;
