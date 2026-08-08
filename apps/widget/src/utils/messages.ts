@@ -49,6 +49,17 @@ export function dedupeMessages<T extends ChatMessageLike>(messages: T[]): T[] {
   return result;
 }
 
+/** Keep optimistic user sends when server history arrives late or during streaming. */
+export function shouldMergeChatHistory<T extends ChatMessageLike>(
+  local: T[],
+  options: { sameDialogReload: boolean },
+): boolean {
+  if (options.sameDialogReload) return true;
+  return local.some(
+    (msg) => msg.streaming || (msg.id?.startsWith('local-') ?? false),
+  );
+}
+
 /** Merge server history with local optimistic messages on reconnect. */
 export function mergeChatHistory<T extends ChatMessageLike>(
   local: T[],

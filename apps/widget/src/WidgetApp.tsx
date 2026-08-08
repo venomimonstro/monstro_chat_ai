@@ -11,7 +11,11 @@ import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewport } from './hooks/useViewport';
 import { useWidgetSocket } from './hooks/useWidgetSocket';
 import { MessageBubble } from './components/MessageBubble';
-import { dedupeMessages, mergeChatHistory } from './utils/messages';
+import {
+  dedupeMessages,
+  mergeChatHistory,
+  shouldMergeChatHistory,
+} from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
 
@@ -208,7 +212,6 @@ export function WidgetApp() {
   const dialogIdRef = useRef<string | null>(dialogId);
   const historyLoadedRef = useRef<string | null>(null);
   const historyMessageIdsRef = useRef<Set<string>>(new Set());
-  const messagesLengthRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const attributionRef = useRef(attribution);
@@ -375,10 +378,6 @@ export function WidgetApp() {
   }, [scrollToBottom]);
 
   useEffect(() => {
-    messagesLengthRef.current = messages.length;
-  }, [messages.length]);
-
-  useEffect(() => {
     document.documentElement.style.setProperty(
       '--aicw-primary',
       config.appearance.primaryColor,
@@ -443,15 +442,30 @@ export function WidgetApp() {
           createdAt: msg.createdAt ?? new Date().toISOString(),
         }));
 
-        if (
-          historyLoadedRef.current === data.dialogId &&
-          messagesLengthRef.current > 0
-        ) {
-          setMessages((prev) =>
-            mergeChatHistory(prev, normalized),
-          );
-          return;
-        }
+        setMessages((prev) => {
+          const merge = shouldMergeChatHistory(prev, {
+            sameDialogReload:
+              historyLoadedRef.current === data.dialogId && prev.length > 0,
+          });
+
+          if (merge) {
+            return mergeChatHistory(prev, normalized);
+          }
+
+          const baseMessages = dedupeMessages(normalized);
+          if (data.resumed && normalized.length > 0) {
+            return [
+              {
+                id: '__resume_hint__',
+                role: 'assistant',
+                content: 'Продолжаем предыдущий диалог.',
+                createdAt: new Date().toISOString(),
+              },
+              ...baseMessages,
+            ];
+          }
+          return baseMessages;
+        });
 
         historyLoadedRef.current = data.dialogId;
         historyMessageIdsRef.current = new Set(
@@ -460,20 +474,6 @@ export function WidgetApp() {
         setDialogId(data.dialogId);
         dialogIdRef.current = data.dialogId;
         storeDialogId(widgetKey, data.dialogId);
-        const baseMessages = dedupeMessages(normalized);
-        if (data.resumed && normalized.length > 0) {
-          setMessages([
-            {
-              id: '__resume_hint__',
-              role: 'assistant',
-              content: 'Продолжаем предыдущий диалог.',
-              createdAt: new Date().toISOString(),
-            },
-            ...baseMessages,
-          ]);
-        } else {
-          setMessages(baseMessages);
-        }
       });
 
       socket.on('dialog:created', (data: { dialogId: string }) => {
@@ -669,6 +669,7 @@ export function WidgetApp() {
         dialogIdRef.current = null;
         historyLoadedRef.current = null;
         historyMessageIdsRef.current = new Set();
+        setMessages([]);
         setHistoryLoading(false);
         if (!rejoinAfterDialogClearRef.current) {
           rejoinAfterDialogClearRef.current = true;
