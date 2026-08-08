@@ -2,7 +2,6 @@ import {
   BadRequestException,
   Injectable,
   Logger,
-  OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -12,8 +11,11 @@ import type { OpenAIProvider } from '../providers/openai.provider';
 import type { DeepSeekProvider } from '../providers/deepseek.provider';
 import type { AnthropicProvider } from '../providers/anthropic.provider';
 import type { OpenRouterProvider } from '../providers/openrouter.provider';
-
-const REDIS_KEY = 'admin:llm-provider-credentials';
+import {
+  LLM_CREDENTIALS_REDIS_KEY,
+  loadLlmCredentialsFromRedis,
+  type LlmProviderName,
+} from './llm-credentials.store';
 
 type CredentialProvider =
   | OpenAIProvider
@@ -21,12 +23,16 @@ type CredentialProvider =
   | AnthropicProvider
   | OpenRouterProvider;
 
+export type LlmKeySource = 'redis' | 'env' | 'none' | 'corrupt';
+
 @Injectable()
-export class ProviderCredentialsService implements OnModuleInit {
+export class ProviderCredentialsService {
   private readonly logger = new Logger(ProviderCredentialsService.name);
-  private readonly envKeys: Record<string, string | undefined>;
+  private readonly envKeys: Record<LlmProviderName, string | undefined>;
   private providers: Record<string, CredentialProvider> = {};
   private storedInRedis = new Set<string>();
+  private decryptFailed = new Set<string>();
+  private effectiveKeys: Partial<Record<LlmProviderName, string>> = {};
 
   constructor(
     private readonly redis: RedisService,
@@ -45,21 +51,33 @@ export class ProviderCredentialsService implements OnModuleInit {
     this.providers = providers;
   }
 
-  async onModuleInit() {
-    await this.loadAndApply();
-  }
-
   async loadAndApply(): Promise<void> {
-    const stored = await this.loadStoredDecrypted();
-    this.storedInRedis = new Set(Object.keys(stored));
+    const loaded = await loadLlmCredentialsFromRedis(this.redis, this.crypto);
+    this.storedInRedis = new Set(loaded.storedInRedis);
+    this.decryptFailed = new Set(loaded.decryptFailed);
+    this.effectiveKeys = {};
+
+    for (const name of loaded.decryptFailed) {
+      this.logger.error(
+        `Ключ ${name} в Redis не расшифровался — проверьте INTEGRATION_ENCRYPTION_KEY или сохраните ключ заново в админке`,
+      );
+    }
+
     for (const [name, provider] of Object.entries(this.providers)) {
-      const key = stored[name] ?? this.envKeys[name];
+      const normalized = name as LlmProviderName;
+      const redisKey = loaded.keys[normalized];
+      const key = redisKey ?? this.envKeys[normalized];
+      this.effectiveKeys[normalized] = key;
       provider.setApiKey(key);
     }
   }
 
+  getEffectiveKey(name: LlmProviderName): string | undefined {
+    return this.effectiveKeys[name] ?? this.envKeys[name];
+  }
+
   async saveCredential(name: string, apiKey: string): Promise<void> {
-    const normalized = name.trim().toLowerCase();
+    const normalized = name.trim().toLowerCase() as LlmProviderName;
     const trimmed = apiKey.trim();
     if (!trimmed || trimmed.length < 8) {
       throw new BadRequestException('API-ключ должен содержать минимум 8 символов');
@@ -72,8 +90,10 @@ export class ProviderCredentialsService implements OnModuleInit {
 
     const stored = await this.loadStored();
     stored[normalized] = this.crypto.encrypt(trimmed);
-    await client.set(REDIS_KEY, JSON.stringify(stored));
+    await client.set(LLM_CREDENTIALS_REDIS_KEY, JSON.stringify(stored));
     this.storedInRedis.add(normalized);
+    this.decryptFailed.delete(normalized);
+    this.effectiveKeys[normalized] = trimmed;
 
     const provider = this.providers[normalized];
     if (provider) {
@@ -83,58 +103,62 @@ export class ProviderCredentialsService implements OnModuleInit {
   }
 
   async clearCredential(name: string): Promise<void> {
-    const normalized = name.trim().toLowerCase();
+    const normalized = name.trim().toLowerCase() as LlmProviderName;
     const client = this.redis.getClient();
     if (!client) {
       throw new ServiceUnavailableException('Redis недоступен');
     }
     const stored = await this.loadStored();
     delete stored[normalized];
-    await client.set(REDIS_KEY, JSON.stringify(stored));
+    await client.set(LLM_CREDENTIALS_REDIS_KEY, JSON.stringify(stored));
     this.storedInRedis.delete(normalized);
+    this.decryptFailed.delete(normalized);
 
+    const envKey = this.envKeys[normalized];
+    this.effectiveKeys[normalized] = envKey;
     const provider = this.providers[normalized];
     if (provider) {
-      provider.setApiKey(this.envKeys[normalized]);
+      provider.setApiKey(envKey);
     }
     this.logger.log(`API key cleared for provider: ${normalized}`);
   }
 
-  getKeySource(name: string): 'redis' | 'env' | 'none' {
+  getKeySource(name: string): LlmKeySource {
     const normalized = name.trim().toLowerCase();
-    if (this.storedInRedis.has(normalized)) return 'redis';
-    if (this.envKeys[normalized]) return 'env';
+    if (this.decryptFailed.has(normalized)) {
+      return this.envKeys[normalized as LlmProviderName] ? 'env' : 'corrupt';
+    }
+    if (this.storedInRedis.has(normalized) && this.providers[normalized]?.isAvailable()) {
+      return 'redis';
+    }
+    if (this.envKeys[normalized as LlmProviderName]) return 'env';
     return 'none';
+  }
+
+  getDiagnostics(): Array<{
+    name: LlmProviderName;
+    keySource: LlmKeySource;
+    available: boolean;
+    decryptFailed: boolean;
+  }> {
+    const names: LlmProviderName[] = ['openrouter', 'deepseek', 'openai', 'anthropic'];
+    return names.map((name) => ({
+      name,
+      keySource: this.getKeySource(name),
+      available: Boolean(this.providers[name]?.isAvailable()),
+      decryptFailed: this.decryptFailed.has(name),
+    }));
   }
 
   private async loadStored(): Promise<Record<string, string>> {
     const client = this.redis.getClient();
     if (!client) return {};
-    const raw = await client.get(REDIS_KEY);
+    const raw = await client.get(LLM_CREDENTIALS_REDIS_KEY);
     if (!raw) return {};
     try {
       return JSON.parse(raw) as Record<string, string>;
     } catch {
       return {};
     }
-  }
-
-  private async decryptStored(stored: Record<string, string>): Promise<Record<string, string>> {
-    const result: Record<string, string> = {};
-    for (const [name, encrypted] of Object.entries(stored)) {
-      try {
-        result[name] = this.crypto.decrypt(encrypted);
-      } catch {
-        this.logger.warn(`Failed to decrypt credential for ${name}`);
-      }
-    }
-    return result;
-  }
-
-  private async loadStoredDecrypted(): Promise<Record<string, string>> {
-    const raw = await this.loadStored();
-    const decrypted = await this.decryptStored(raw);
-    this.storedInRedis = new Set(Object.keys(raw));
-    return decrypted;
   }
 }

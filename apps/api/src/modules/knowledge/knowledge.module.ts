@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
@@ -14,9 +14,11 @@ import { IndexingPipelineService } from './services/indexing-pipeline.service';
 import { CrawlSiteProcessor } from './processors/crawl-site.processor';
 import { IngestDocumentProcessor } from './processors/ingest-document.processor';
 import { QUEUE_CRAWL_SITE, QUEUE_INGEST_DOCUMENT } from './constants';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
+    forwardRef(() => AiModule),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({

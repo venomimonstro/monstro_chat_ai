@@ -1,17 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { EMBEDDING_DIMENSIONS } from '../constants';
+import { ProviderCredentialsService } from '../../ai/services/provider-credentials.service';
 
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Inject(forwardRef(() => ProviderCredentialsService))
+    private readonly llmCredentials: ProviderCredentialsService,
+  ) {}
 
   async embedBatch(texts: string[]): Promise<number[][]> {
-    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    const apiKey =
+      this.llmCredentials.getEffectiveKey('openai') ??
+      this.config.get<string>('OPENAI_API_KEY');
     if (!apiKey) {
+      this.logger.warn(
+        'OPENAI_API_KEY не задан (ни в админке, ни в env) — mock embeddings для RAG',
+      );
       return texts.map((text) => this.mockEmbedding(text));
     }
 

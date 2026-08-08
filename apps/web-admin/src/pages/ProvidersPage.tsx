@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  auditAllProviders,
   clearProviderCredentials,
   extractApiError,
   fetchAdminProviders,
@@ -17,6 +18,8 @@ function keySourceLabel(source: LlmProviderInfo['keySource']) {
       return 'Ключ в админке';
     case 'env':
       return 'Ключ из env';
+    case 'corrupt':
+      return 'Ключ в Redis повреждён — сохраните заново';
     default:
       return 'Ключ не задан';
   }
@@ -149,7 +152,24 @@ export function ProvidersPage() {
     }
   };
 
-  if (loading) return <LoadingState message="Загрузка провайдеров…" />;
+  const [auditRunning, setAuditRunning] = useState(false);
+
+  const runAuditAll = async () => {
+    setAuditRunning(true);
+    notify(null);
+    try {
+      const results = await auditAllProviders();
+      const map: Record<string, ProviderTestResult> = {};
+      for (const r of results) map[r.provider] = r;
+      setTestResults(map);
+      const ok = results.filter((r) => r.ok).length;
+      notify(`Аудит: ${ok}/${results.length} провайдеров отвечают`, ok ? 'ok' : 'error');
+    } catch (err) {
+      notify(extractApiError(err, 'Не удалось выполнить аудит'), 'error');
+    } finally {
+      setAuditRunning(false);
+    }
+  };
   if (error) return <ErrorState message={error} onRetry={load} />;
 
   return (
@@ -158,8 +178,16 @@ export function ProvidersPage() {
         <h1 className="text-2xl font-bold text-slate-100">LLM-провайдеры</h1>
         <p className="mt-1 text-sm text-slate-400">
           Приоритет fallback-цепочки, ключи API и включение провайдеров.
-          OpenRouter — бесплатные модели (например google/gemini-2.0-flash-exp:free).
+          После сохранения ключа нажмите «Проверить». Цепочка из админки применяется и в виджете.
         </p>
+        <button
+          type="button"
+          disabled={auditRunning || saving}
+          onClick={runAuditAll}
+          className="mt-3 rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+        >
+          {auditRunning ? 'Проверка всех…' : 'Проверить все провайдеры'}
+        </button>
         {message && (
           <p
             className={`mt-2 text-sm ${
@@ -200,6 +228,11 @@ export function ProvidersPage() {
                   <p className="mt-1 text-xs text-slate-500">
                     Источник: {keySourceLabel(provider.keySource)}
                   </p>
+                  {provider.keySource === 'corrupt' && (
+                    <p className="mt-1 text-xs text-amber-400">
+                      Ключ не расшифровался — проверьте INTEGRATION_ENCRYPTION_KEY в .env и сохраните ключ заново.
+                    </p>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Pill

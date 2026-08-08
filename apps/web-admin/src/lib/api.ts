@@ -197,7 +197,7 @@ export interface LlmProviderInfo {
   enabled: boolean;
   priority: number;
   apiKeyMasked: string | null;
-  keySource: 'redis' | 'env' | 'none';
+  keySource: 'redis' | 'env' | 'none' | 'corrupt';
 }
 
 export interface ProviderTestResult {
@@ -271,6 +271,11 @@ export async function testProviderCredentials(name: string, apiKey?: string) {
     `/admin/providers/${name}/test`,
     apiKey ? { apiKey } : {},
   );
+  return res.data;
+}
+
+export async function auditAllProviders() {
+  const res = await api.post<ProviderTestResult[]>('/admin/providers/audit', {});
   return res.data;
 }
 

@@ -30,7 +30,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
-    KnowledgeModule,
+    forwardRef(() => KnowledgeModule),
     forwardRef(() => CrmModule),
     BillingModule,
     RedisModule,
@@ -65,6 +65,7 @@ import { AnalyticsModule } from '../analytics/analytics.module';
     DialogService,
     WidgetRateLimitService,
     ProviderRegistryService,
+    ProviderCredentialsService,
     MockLLMProvider,
     RetrievalService,
     PromptAssemblyService,
