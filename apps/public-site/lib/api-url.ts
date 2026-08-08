@@ -21,7 +21,8 @@ export function getBrowserApiBase(fallback?: string): string {
   if (publicUrl?.startsWith('http')) return publicUrl.replace(/\/$/, '');
 
   if (typeof window !== 'undefined') {
-    return `http://${window.location.hostname}:3000/api`;
+    if (publicUrl?.startsWith('/')) return publicUrl.replace(/\/$/, '');
+    return `${window.location.origin}/api`;
   }
 
   return (fallback ?? '/api').replace(/\/$/, '');

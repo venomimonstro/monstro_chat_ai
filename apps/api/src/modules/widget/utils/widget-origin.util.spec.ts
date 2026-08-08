@@ -96,4 +96,21 @@ describe('isWidgetOriginAllowed', () => {
       isWidgetOriginAllowed(svc as never, source, 'https://evil.com'),
     ).toBe(false);
   });
+
+  it('matches www and apex in allowlist', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.WIDGET_URL = 'https://redflow.ru';
+    const svc = {
+      getAllowedOrigins: () => ['https://www.redflow.ru'],
+    };
+    expect(
+      isWidgetOriginAllowed(
+        svc as never,
+        source,
+        'https://redflow.ru',
+        undefined,
+        'https://redflow.ru',
+      ),
+    ).toBe(true);
+  });
 });

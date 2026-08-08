@@ -85,7 +85,8 @@ export function useWidgetSocket({
     clearJoinRetry();
     joinRetryTimerRef.current = window.setTimeout(() => {
       const socket = socketRef.current;
-      if (!socket?.connected || joinedRef.current || joinSentRef.current) return;
+      if (!socket?.connected || joinedRef.current) return;
+      joinSentRef.current = false;
       joinSentRef.current = true;
       socket.emit('join', callbacksRef.current.buildJoinPayload());
       setPhase('joining');
@@ -198,14 +199,25 @@ export function useWidgetSocket({
         connectingRef.current = false;
         joinedRef.current = false;
         joinSentRef.current = false;
-        setPhase(socket.active ? 'reconnecting' : 'error');
-        setStatusText(
-          socket.active ? 'Переподключение…' : 'Нет соединения с сервером чата',
-        );
+        if (socket.active) {
+          clearErrorTimer();
+          setPhase('reconnecting');
+          setStatusText('Переподключение…');
+          return;
+        }
+        setPhase('error');
+        setStatusText('Нет соединения с сервером чата');
       });
 
       socket.on('reconnect_attempt', () => {
         fatalErrorRef.current = null;
+        clearErrorTimer();
+        errorTimerRef.current = window.setTimeout(() => {
+          if (!joinedRef.current && !fatalErrorRef.current) {
+            setPhase('error');
+            setStatusText('Нет соединения с сервером чата');
+          }
+        }, ERROR_AFTER_MS);
         setPhase('reconnecting');
         setStatusText('Переподключение…');
       });
@@ -282,10 +294,11 @@ export function useWidgetSocket({
     }
     void connectRef.current();
     return () => {
-      clearJoinRetry();
-      clearErrorTimer();
+      teardownSocket();
+      setPhase('idle');
+      setStatusText(null);
     };
-  }, [enabled, widgetKey, apiUrl, teardownSocket, clearJoinRetry, clearErrorTimer]);
+  }, [enabled, widgetKey, apiUrl, teardownSocket]);
 
   useEffect(() => {
     return () => {

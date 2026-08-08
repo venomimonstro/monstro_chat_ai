@@ -25,7 +25,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
-  const skipBootstrap = location.pathname === '/impersonate';
+  const skipBootstrap =
+    location.pathname === '/impersonate' ||
+    location.pathname.endsWith('/impersonate');
 
   const refreshSession = useCallback(async () => {
     try {

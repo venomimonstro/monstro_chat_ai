@@ -107,7 +107,14 @@ interface AicwApi {
   function deriveApiUrl(src: string): string {
     try {
       const url = new URL(src);
-      return `${url.protocol}//${url.hostname}:3000/api`;
+      const host = url.hostname;
+      const isLocal =
+        host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+      if (isLocal) {
+        return `${url.protocol}//${host}:3000/api`;
+      }
+      // Production: API is behind nginx on the same host (no :3000 in browser).
+      return `${url.protocol}//${host}/api`;
     } catch {
       return '/api';
     }

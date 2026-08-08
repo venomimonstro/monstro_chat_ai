@@ -9,6 +9,7 @@ import {
   NotFoundException,
   Req,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { SourcesService } from '../sources/sources.service';
 import { DialogService } from '../ai/services/dialog.service';
@@ -20,6 +21,7 @@ import { WidgetSessionService } from './services/widget-session.service';
 
 @Controller('widget')
 @Public()
+@SkipThrottle()
 export class WidgetController {
   constructor(
     private readonly sourcesService: SourcesService,

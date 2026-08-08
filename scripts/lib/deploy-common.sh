@@ -266,6 +266,34 @@ deploy_check_port() {
 }
 
 # Проверка портов после деплоя (502 = nginx без upstream).
+deploy_verify_spa_assets() {
+  local failed=0
+  local client_html="${INSTALL_DIR}/apps/web-client/dist/index.html"
+  local admin_html="${INSTALL_DIR}/apps/web-admin/dist/index.html"
+
+  if [[ -f "${client_html}" ]] && ! grep -q '/app/assets/' "${client_html}"; then
+    deploy_warn "web-client dist: index.html не содержит /app/assets/ — пересоберите с VITE_BASE_PATH=/app/"
+    failed=1
+  fi
+  if [[ -f "${admin_html}" ]] && ! grep -q '/admin/assets/' "${admin_html}"; then
+    deploy_warn "web-admin dist: index.html не содержит /admin/assets/ — пересоберите с VITE_BASE_PATH=/admin/"
+    failed=1
+  fi
+  return "${failed}"
+}
+
+deploy_check_redis() {
+  local code
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/api/health/redis 2>/dev/null || true)"
+  code="${code:-000}"
+  if [[ "${code}" != "200" ]]; then
+    deploy_warn "Redis недоступен (HTTP ${code} @ /api/health/redis) — сессии и имперсонация не работают"
+    return 1
+  fi
+  deploy_log "Redis OK"
+  return 0
+}
+
 deploy_verify_frontends() {
   local failed=0
   deploy_check_port 5173 monstro-web-client /app/ || failed=1
@@ -273,6 +301,9 @@ deploy_verify_frontends() {
   deploy_check_port 4321 monstro-public-site / || failed=1
   deploy_check_port 5175 monstro-widget /health.txt || failed=1
   deploy_check_port 5175 monstro-widget /iframe/ || failed=1
+  deploy_check_port 5175 monstro-widget /embed.js || failed=1
+  deploy_verify_spa_assets || failed=1
+  deploy_check_redis || failed=1
   return "${failed}"
 }
 

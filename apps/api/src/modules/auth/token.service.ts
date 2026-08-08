@@ -78,20 +78,36 @@ export class TokenService {
     allowed: boolean;
     retryAfterSeconds?: number;
   }> {
+    return this.peekLoginRateLimit(email);
+  }
+
+  async peekLoginRateLimit(email: string): Promise<{
+    allowed: boolean;
+    retryAfterSeconds?: number;
+  }> {
     const client = this.redis.getClient();
     if (!client) return { allowed: true };
+
+    const key = `${LOGIN_ATTEMPTS_PREFIX}${email.toLowerCase()}`;
+    const raw = await client.get(key);
+    const attempts = raw ? parseInt(raw, 10) : 0;
+
+    if (attempts >= MAX_LOGIN_ATTEMPTS) {
+      const ttl = await client.ttl(key);
+      return { allowed: false, retryAfterSeconds: ttl > 0 ? ttl : LOGIN_WINDOW_SECONDS };
+    }
+    return { allowed: true };
+  }
+
+  private async incrementLoginAttempts(email: string): Promise<void> {
+    const client = this.redis.getClient();
+    if (!client) return;
 
     const key = `${LOGIN_ATTEMPTS_PREFIX}${email.toLowerCase()}`;
     const attempts = await client.incr(key);
     if (attempts === 1) {
       await client.expire(key, LOGIN_WINDOW_SECONDS);
     }
-
-    if (attempts > MAX_LOGIN_ATTEMPTS) {
-      const ttl = await client.ttl(key);
-      return { allowed: false, retryAfterSeconds: ttl > 0 ? ttl : LOGIN_WINDOW_SECONDS };
-    }
-    return { allowed: true };
   }
 
   async resetLoginAttempts(email: string): Promise<void> {
@@ -101,7 +117,7 @@ export class TokenService {
   }
 
   async recordLoginFailure(email: string): Promise<void> {
-    await this.checkLoginRateLimit(email);
+    await this.incrementLoginAttempts(email);
   }
 
   async checkTwoFaRateLimit(userId: string): Promise<{

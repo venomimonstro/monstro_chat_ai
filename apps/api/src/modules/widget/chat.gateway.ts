@@ -122,71 +122,101 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     @MessageBody() data: WidgetJoinPayload,
     @ConnectedSocket() client: Socket,
   ) {
-    if (!data?.widgetKey || !data?.visitorId) return;
-
-    const joinKey = `${data.widgetKey}:${data.visitorId}`;
-    if (client.data.joinKey === joinKey && client.data.joinInFlight) {
-      return;
-    }
-
-    const source = await this.sourcesService.findByWidgetKey(data.widgetKey);
-    if (!source || source.status !== 'active') {
-      client.emit('error', { code: 'invalid_widget' });
-      return;
-    }
-
-    if (!this.isOriginAllowed(client, source, data.parentOrigin)) {
-      client.emit('error', {
-        code: 'origin_not_allowed',
-        message: 'Домен не разрешён для виджета. Проверьте настройки источников.',
-      });
-      return;
-    }
-
-    const alreadyJoined =
-      client.data.widgetKey === data.widgetKey &&
-      client.data.visitorId === data.visitorId;
-
-    if (alreadyJoined) {
-      this.emitJoined(client, data, client.data.dialogId as string | undefined);
-      return;
-    }
-
-    const ip = this.clientIp(client);
-    const hasValidSession = this.widgetSession.isValidToken(data.sessionToken, {
-      widgetKey: data.widgetKey,
-      visitorId: data.visitorId,
-    });
-
-    if (!hasValidSession) {
-      const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
-      if (!joinAllowed) {
+    try {
+      if (!data?.widgetKey || !data?.visitorId) {
         client.emit('error', {
-          code: 'rate_limited',
-          message: 'Слишком много подключений. Подождите немного и обновите страницу.',
+          code: 'invalid_join',
+          message: 'Некорректные параметры подключения',
         });
         return;
       }
-    }
 
-    client.data.widgetKey = data.widgetKey;
-    client.data.visitorId = data.visitorId;
-    client.data.parentOrigin = data.parentOrigin;
-    client.data.attribution = normalizeAttribution(data.attribution);
-    client.data.joinKey = joinKey;
-    client.data.joinInFlight = true;
-    client.join(`visitor:${data.visitorId}`);
+      const joinKey = `${data.widgetKey}:${data.visitorId}`;
+      if (client.data.joinKey === joinKey && client.data.joinInFlight) {
+        this.emitJoined(client, data, client.data.dialogId as string | undefined);
+        return;
+      }
 
-    const provisionalDialogId = data.dialogId;
-    if (provisionalDialogId) {
-      client.data.dialogId = provisionalDialogId;
-    }
+      const source = await this.sourcesService.findByWidgetKey(data.widgetKey);
+      if (!source || source.status !== 'active') {
+        client.emit('error', { code: 'invalid_widget' });
+        return;
+      }
 
-    this.emitJoined(client, data, provisionalDialogId);
+      if (!this.isOriginAllowed(client, source, data.parentOrigin)) {
+        client.emit('error', {
+          code: 'origin_not_allowed',
+          message: 'Домен не разрешён для виджета. Проверьте настройки источников.',
+        });
+        return;
+      }
 
-    void this.hydrateJoinHistory(client, source, data).finally(() => {
+      const sameVisitor =
+        client.data.widgetKey === data.widgetKey &&
+        client.data.visitorId === data.visitorId;
+      const dialogUnchanged =
+        !data.dialogId || data.dialogId === client.data.dialogId;
+
+      if (sameVisitor && dialogUnchanged && client.data.dialogId && !client.data.joinInFlight) {
+        this.emitJoined(client, data, client.data.dialogId as string);
+        return;
+      }
+
+      const ip = this.clientIp(client);
+      const hasValidSession = this.widgetSession.isValidToken(data.sessionToken, {
+        widgetKey: data.widgetKey,
+        visitorId: data.visitorId,
+      });
+
+      if (!hasValidSession) {
+        const joinAllowed = await this.rateLimit.checkJoinLimit(data.visitorId, ip);
+        if (!joinAllowed) {
+          client.emit('error', {
+            code: 'rate_limited',
+            message: 'Слишком много подключений. Подождите немного и обновите страницу.',
+          });
+          return;
+        }
+      }
+
+      client.data.widgetKey = data.widgetKey;
+      client.data.visitorId = data.visitorId;
+      client.data.parentOrigin = data.parentOrigin ?? client.data.parentOrigin;
+      client.data.attribution =
+        normalizeAttribution(data.attribution) ?? client.data.attribution;
+      client.data.joinKey = joinKey;
+      client.data.joinInFlight = true;
+      client.join(`visitor:${data.visitorId}`);
+
+      const resolvedDialogId = await this.resolveJoinDialog(client, source, data);
+      if (resolvedDialogId) {
+        client.data.dialogId = resolvedDialogId;
+        if (resolvedDialogId !== data.dialogId) {
+          this.emitSessionToken(
+            client,
+            data.widgetKey,
+            data.visitorId,
+            resolvedDialogId,
+          );
+        }
+      } else if (data.dialogId) {
+        client.data.dialogId = data.dialogId;
+      }
+
       client.data.joinInFlight = false;
-    });
+      this.emitJoined(
+        client,
+        data,
+        (client.data.dialogId as string | undefined) ?? data.dialogId,
+      );
+    } catch (error) {
+      client.data.joinInFlight = false;
+      this.logger.error(`Widget join failed: ${String(error)}`);
+      client.emit('error', {
+        code: 'server_error',
+        message: 'Не удалось подключиться к чату. Попробуйте обновить страницу.',
+      });
+    }
   }
 
   private emitJoined(
@@ -204,29 +234,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
       dialogId: dialogId ?? null,
       sessionToken,
     });
-  }
-
-  private async hydrateJoinHistory(
-    client: Socket,
-    source: Source,
-    data: WidgetJoinPayload,
-  ): Promise<void> {
-    try {
-      const resolvedDialogId = await this.resolveJoinDialog(client, source, data);
-      if (!resolvedDialogId) return;
-
-      client.data.dialogId = resolvedDialogId;
-      if (resolvedDialogId !== data.dialogId) {
-        this.emitSessionToken(
-          client,
-          data.widgetKey,
-          data.visitorId,
-          resolvedDialogId,
-        );
-      }
-    } catch (error) {
-      this.logger.warn(`Join history hydrate failed: ${String(error)}`);
-    }
   }
 
   private async resolveJoinDialog(

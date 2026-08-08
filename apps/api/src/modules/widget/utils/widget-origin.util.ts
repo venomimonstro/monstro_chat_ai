@@ -21,7 +21,11 @@ function normalizeOrigin(value: string): string {
 function originsMatch(candidate: string, allowedEntry: string): boolean {
   const origin = normalizeOrigin(candidate);
   const entry = normalizeOrigin(allowedEntry);
-  return origin === entry || origin.startsWith(`${entry}/`);
+  if (origin === entry || origin.startsWith(`${entry}/`)) return true;
+  // www ↔ apex
+  const stripWww = (value: string) =>
+    value.replace(/^(https?:\/\/)www\./i, '$1');
+  return stripWww(origin) === stripWww(entry);
 }
 
 function getWidgetHostOrigins(): string[] {

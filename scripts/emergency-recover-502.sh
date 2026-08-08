@@ -48,7 +48,7 @@ npm run build -w @ai-consultant/shared-types
 VITE_BASE_PATH=/app/ VITE_API_URL="${VITE_API_URL:-/api}" npm run build -w @ai-consultant/web-client
 VITE_BASE_PATH=/admin/ VITE_API_URL="${VITE_API_URL:-/api}" npm run build -w @ai-consultant/web-admin
 NODE_ENV=production npm run build -w @ai-consultant/public-site
-npm run build -w @ai-consultant/widget 2>/dev/null || true
+npm run build -w @ai-consultant/widget || deploy_fail "Сборка widget не удалась"
 
 for d in apps/web-admin/dist apps/web-client/dist apps/public-site/.next; do
   [[ -d "${INSTALL_DIR}/${d}" ]] || deploy_fail "Сборка не создала ${d}"

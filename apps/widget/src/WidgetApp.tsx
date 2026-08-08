@@ -310,7 +310,11 @@ export function WidgetApp() {
         window.parent !== window &&
         event.source === window.parent
       ) {
+        const prev = parentOriginRef.current;
         parentOriginRef.current = event.data.parentOrigin;
+        if (prev !== event.data.parentOrigin) {
+          requestJoinRef.current();
+        }
         return;
       }
       if (!isTrustedParentMessage(event, preview)) return;
@@ -615,8 +619,8 @@ export function WidgetApp() {
     [preview, widgetKey],
   );
 
-  // Connect as soon as the iframe is mounted — do not wait for panel open.
-  const socketEnabled = Boolean(widgetKey);
+  const socketEnabled =
+    Boolean(widgetKey) && (!deferSocket || open || preview);
 
   const {
     socketRef,
