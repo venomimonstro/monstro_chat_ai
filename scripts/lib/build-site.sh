@@ -18,8 +18,17 @@ if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
   npm run build -w @ai-consultant/shared-types
 fi
 
-NEXT_STAGING="$(deploy_prepare_staging_next)"
-NEXT_DIST_DIR="${NEXT_STAGING}" NODE_ENV=production npm run build -w @ai-consultant/public-site
+deploy_prepare_staging_next >/dev/null
+NEXT_STAGING_ABS="$(deploy_staging_next_dir)"
+NEXT_DIST_REL="$(deploy_staging_next_dist_rel)"
+
+deploy_log "Next.js distDir (relative): ${NEXT_DIST_REL}"
+NEXT_DIST_DIR="${NEXT_DIST_REL}" NODE_ENV=production npm run build -w @ai-consultant/public-site
+
+if [[ ! -d "${NEXT_STAGING_ABS}" ]]; then
+  deploy_fail "Next.js build не создал staging .next: ${NEXT_STAGING_ABS}"
+fi
+
 deploy_atomic_swap_next
 
 if ! deploy_ensure_service monstro-public-site; then
