@@ -9,7 +9,135 @@ NPM_CACHE_DIR="${NPM_CACHE_DIR:-/var/cache/aicw/npm}"
 LOCK_STAMP_DIR="${DEPLOY_STATE_DIR}/lock-stamps"
 STOPPED_UNITS_FILE="${DEPLOY_STATE_DIR}/stopped-units.txt"
 
-FRONTEND_UNITS=(monstro-widget monstro-web-client monstro-web-admin monstro-public-site)
+KEEPALIVE_PID_FILE="${DEPLOY_STATE_DIR}/keepalive.pid"
+STAGING_ROOT="${DEPLOY_STATE_DIR}/staging"
+
+# npm ci: deprecated-предупреждения от транзитивных зависимостей — это норма, не ошибка.
+deploy_npm_ci() {
+  NPM_CONFIG_LOGLEVEL="${NPM_CONFIG_LOGLEVEL:-error}" \
+    npm ci --include-workspace-root "$@"
+}
+
+deploy_npm_install_root() {
+  NPM_CONFIG_LOGLEVEL="${NPM_CONFIG_LOGLEVEL:-error}" \
+    npm install --include-workspace-root "$@"
+}
+
+deploy_staging_path() {
+  local app="$1"
+  echo "${STAGING_ROOT}/${app}"
+}
+
+deploy_staging_dist_dir() {
+  local app="$1"
+  echo "${STAGING_ROOT}/${app}/dist"
+}
+
+deploy_prepare_staging_dist() {
+  local app="$1"
+  local dir
+  dir="$(deploy_staging_dist_dir "${app}")"
+  rm -rf "${dir}"
+  mkdir -p "${dir}"
+  echo "${dir}"
+}
+
+deploy_staging_next_dir() {
+  echo "${STAGING_ROOT}/public-site/.next"
+}
+
+deploy_prepare_staging_next() {
+  local dir
+  dir="$(deploy_staging_next_dir)"
+  rm -rf "${dir}"
+  mkdir -p "$(dirname "${dir}")"
+  echo "${dir}"
+}
+
+# Атомарная подмена dist: старый dist обслуживается до mv, затем быстрый restart.
+deploy_atomic_swap_dist() {
+  local app="$1"
+  local target="${INSTALL_DIR}/apps/${app}/dist"
+  local staging="${STAGING_ROOT}/${app}/dist"
+
+  if [[ ! -d "${staging}" ]]; then
+    deploy_fail "staging dist не найден: ${staging}"
+  fi
+
+  mkdir -p "$(dirname "${target}")"
+  local old="${target}.deploy-old.$$"
+  rm -rf "${old}"
+  if [[ -d "${target}" ]]; then
+    mv "${target}" "${old}"
+  fi
+  mv "${staging}" "${target}"
+  rm -rf "${old}" 2>/dev/null &
+  deploy_log "dist обновлён: ${app}"
+}
+
+deploy_atomic_swap_next() {
+  local target="${INSTALL_DIR}/apps/public-site/.next"
+  local staging="${STAGING_ROOT}/public-site/.next"
+
+  if [[ ! -d "${staging}" ]]; then
+    deploy_fail "staging .next не найден: ${staging}"
+  fi
+
+  local old="${target}.deploy-old.$$"
+  rm -rf "${old}"
+  if [[ -d "${target}" ]]; then
+    mv "${target}" "${old}"
+  fi
+  mv "${staging}" "${target}"
+  rm -rf "${old}" 2>/dev/null &
+  deploy_log "dist обновлён: public-site (.next)"
+}
+
+# Если фронт упал во время деплоя — поднять с текущим dist (против 502).
+deploy_keepalive_frontends() {
+  local unit port path
+  local checks=(
+    "monstro-web-client:5173:/app/"
+    "monstro-web-admin:5174:/admin/"
+    "monstro-public-site:4321:/"
+    "monstro-widget:5175:/health.txt"
+  )
+  for entry in "${checks[@]}"; do
+    IFS=':' read -r unit port path <<< "${entry}"
+    [[ -z "${unit}" ]] && continue
+    if ! deploy_unit_exists "${unit}"; then
+      continue
+    fi
+    if systemctl is-active --quiet "${unit}" 2>/dev/null; then
+      continue
+    fi
+    deploy_warn "${unit} не active во время деплоя — поднимаю (старый dist)"
+    deploy_ensure_service "${unit}" || true
+  done
+}
+
+deploy_keepalive_start() {
+  mkdir -p "${DEPLOY_STATE_DIR}"
+  rm -f "${KEEPALIVE_PID_FILE}"
+  (
+    while [[ -f "${KEEPALIVE_PID_FILE}" ]]; do
+      deploy_keepalive_frontends
+      sleep 4
+    done
+  ) &
+  echo $! > "${KEEPALIVE_PID_FILE}.loop"
+  touch "${KEEPALIVE_PID_FILE}"
+}
+
+deploy_keepalive_stop() {
+  rm -f "${KEEPALIVE_PID_FILE}"
+  if [[ -f "${KEEPALIVE_PID_FILE}.loop" ]]; then
+    local pid
+    pid="$(cat "${KEEPALIVE_PID_FILE}.loop" 2>/dev/null || true)"
+    [[ -n "${pid}" ]] && kill "${pid}" 2>/dev/null || true
+    rm -f "${KEEPALIVE_PID_FILE}.loop"
+  fi
+}
 
 deploy_log()  { echo -e "\n\033[1;32m==>\033[0m $*"; }
 deploy_warn() { echo -e "\033[1;33m!!\033[0m $*"; }
@@ -148,7 +276,14 @@ deploy_remember_stopped() {
   fi
 }
 
+FRONTEND_UNITS=(monstro-widget monstro-web-client monstro-web-admin monstro-public-site)
+
+# Legacy: остановка всех фронтов — только по явному DEPLOY_STOP_SERVICES=1 (иначе 502 на весь npm ci).
 deploy_stop_node_services() {
+  if [[ "${DEPLOY_STOP_SERVICES:-0}" != "1" ]]; then
+    deploy_log "Фронт-сервисы остаются запущенными (zero-downtime deploy)"
+    return 0
+  fi
   local unit
   mkdir -p "${DEPLOY_STATE_DIR}"
   : > "${STOPPED_UNITS_FILE}"
@@ -166,9 +301,9 @@ deploy_stop_node_services() {
 }
 
 deploy_remove_node_modules() {
-  deploy_stop_node_services
   cd "${INSTALL_DIR}"
   deploy_log "Удаление повреждённого node_modules..."
+  deploy_log "(npm warn deprecated — норма для транзитивных зависимостей, не ошибка)"
   rm -rf node_modules
   find "${INSTALL_DIR}/apps" "${INSTALL_DIR}/packages" -name node_modules -type d -prune -exec rm -rf {} + 2>/dev/null || true
 }
@@ -333,23 +468,24 @@ deploy_install_all_deps() {
     return 0
   fi
 
-  # Любая переустановка ломает running vite/next → stop заранее, restore после сборки
+  # Zero-downtime: статические сервисы читают dist/, npm ci не требует их останавливать.
   if ! deploy_npm_deps_healthy; then
     deploy_warn "node_modules повреждён — полная переустановка зависимостей"
     deploy_remove_node_modules
   else
-    deploy_log "npm install (все workspaces)..."
-    deploy_stop_node_services
+    deploy_log "npm install (все workspaces, сервисы остаются online)..."
   fi
 
+  deploy_keepalive_frontends
+
   if [[ -f package-lock.json ]]; then
-    if ! npm ci --include-workspace-root; then
+    if ! deploy_npm_ci; then
       deploy_warn "npm ci не удался — чистая переустановка"
       deploy_remove_node_modules
-      npm ci --include-workspace-root
+      deploy_npm_ci
     fi
   else
-    npm install --include-workspace-root
+    deploy_npm_install_root
   fi
 
   bash "${INSTALL_DIR}/scripts/lib/npm-fix-bins.sh"
@@ -360,6 +496,7 @@ deploy_install_all_deps() {
 
   deploy_lock_mark_ok "deps"
   export DEPLOY_NPM_INSTALL_DONE=1
+  deploy_keepalive_frontends
   deploy_npm_release_lock
   trap - EXIT
 }
