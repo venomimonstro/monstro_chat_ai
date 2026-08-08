@@ -119,6 +119,12 @@ export class AdminController {
     return this.providers.testProvider(name, dto.apiKey);
   }
 
+  @Post('providers/audit')
+  @RequirePermission(PERMISSIONS.ADMIN_TENANTS_MANAGE)
+  auditProviders() {
+    return this.providers.auditAllProviders();
+  }
+
   @Get('platform-workspace')
   @RequirePermission(PERMISSIONS.ADMIN_TENANTS_VIEW)
   getPlatformWorkspace() {

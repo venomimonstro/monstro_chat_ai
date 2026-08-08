@@ -77,6 +77,14 @@ else
   log "RELEASE_DEPLOY_TOKEN сохранён (не менялся)"
 fi
 
+existing_enc="$(env_get INTEGRATION_ENCRYPTION_KEY || true)"
+if [[ -z "${existing_enc}" ]]; then
+  env_set INTEGRATION_ENCRYPTION_KEY "$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | base64 | tr -dc 'a-f0-9' | head -c 64)"
+  log "INTEGRATION_ENCRYPTION_KEY сгенерирован (нужен для ключей LLM в админке)"
+else
+  log "INTEGRATION_ENCRYPTION_KEY сохранён (не менялся)"
+fi
+
 log "Готово. Ключевые переменные:"
 grep -E '^(COOKIE_SECURE|APP_NAME|HOST_INSTALL_DIR|PUBLIC_SITE_URL|WEB_CLIENT_URL|WEB_ADMIN_URL|WIDGET_URL|API_PUBLIC_URL|RELEASE_DEPLOY_TOKEN)=' "${ENV_FILE}" \
   | sed 's/RELEASE_DEPLOY_TOKEN=.*/RELEASE_DEPLOY_TOKEN=***/'

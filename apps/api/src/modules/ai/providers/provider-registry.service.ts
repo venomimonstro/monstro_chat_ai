@@ -9,7 +9,7 @@ import { MockLLMProvider } from './mock.provider';
 import { parseLlmProviderError } from './llm-provider-errors';
 import type { ModelTier } from '../services/model-router.service';
 import { ProviderConfigService } from '../services/provider-config.service';
-import { ProviderCredentialsService } from '../services/provider-credentials.service';
+import { ProviderCredentialsService, type LlmKeySource } from '../services/provider-credentials.service';
 
 export interface ProviderTestResultDto {
   ok: boolean;
@@ -29,7 +29,7 @@ export interface AdminProviderDto {
   inChain: boolean;
   priority: number;
   apiKeyMasked: string | null;
-  keySource: 'redis' | 'env' | 'none';
+  keySource: LlmKeySource;
 }
 
 @Injectable()
@@ -73,25 +73,28 @@ export class ProviderRegistryService implements OnModuleInit {
 
   async onModuleInit() {
     await this.providerConfig.refresh();
-  }
-
-  getChain(): LLMProviderAdapter[] {
-    const { chain, disabled } = this.providerConfig.getConfigSync();
-    const activeChain = chain.filter((name) => !disabled.includes(name));
-    return this.resolveChain(activeChain.length ? activeChain : chain);
+    await this.credentials.loadAndApply();
   }
 
   getChainForTier(
     tier: ModelTier,
     allowedProviders?: string[],
   ): LLMProviderAdapter[] {
-    const order = tier === 'cheap' ? this.cheapOrder : this.premiumOrder;
-    const { disabled } = this.providerConfig.getConfigSync();
-    const filtered = allowedProviders?.length
-      ? order.filter((name) => allowedProviders.includes(name))
-      : order;
-    const active = filtered.filter((name) => !disabled.includes(name));
-    return this.resolveChain(active.length ? active : filtered);
+    const { chain, disabled } = this.providerConfig.getConfigSync();
+    const tierPriority = tier === 'cheap' ? this.cheapOrder : this.premiumOrder;
+
+    const activeAdminChain = chain.filter((name) => !disabled.includes(name));
+    const base = allowedProviders?.length
+      ? activeAdminChain.filter((name) => allowedProviders.includes(name))
+      : activeAdminChain;
+
+    const ordered = [
+      ...tierPriority.filter((name) => base.includes(name)),
+      ...base.filter((name) => !tierPriority.includes(name)),
+    ].filter((name) => name !== 'mock');
+
+    const names = ordered.length ? ordered : tierPriority.filter((n) => n !== 'mock');
+    return this.resolveChain(names);
   }
 
   private resolveChain(names: string[]): LLMProviderAdapter[] {
@@ -107,8 +110,35 @@ export class ProviderRegistryService implements OnModuleInit {
     return result.length ? result : [mock];
   }
 
+  getChain(): LLMProviderAdapter[] {
+    const { chain, disabled } = this.providerConfig.getConfigSync();
+    const activeChain = chain.filter((name) => !disabled.includes(name));
+    return this.resolveChain(activeChain.length ? activeChain : chain);
+  }
+
   getAvailableProviders(): LLMProviderAdapter[] {
     return this.getChain();
+  }
+
+  async auditAllProviders(): Promise<ProviderTestResultDto[]> {
+    const names = Object.keys(this.byName).filter((n) => n !== 'mock');
+    const results: ProviderTestResultDto[] = [];
+    for (const name of names) {
+      if (!this.byName[name]?.isAvailable()) {
+        results.push({
+          ok: false,
+          provider: name,
+          model: this.byName[name]?.defaultModel ?? '',
+          latencyMs: 0,
+          error: 'API-ключ не задан',
+          errorCode: 'invalid_key',
+          hint: 'Сохраните ключ в админке или пропишите в .env',
+        });
+        continue;
+      }
+      results.push(await this.testProvider(name));
+    }
+    return results;
   }
 
   listForAdmin(): AdminProviderDto[] {

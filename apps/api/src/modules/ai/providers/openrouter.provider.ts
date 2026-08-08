@@ -15,7 +15,7 @@ export class OpenRouterProvider extends BaseOpenAiCompatibleProvider {
     this._apiKey = config.get<string>('OPENROUTER_API_KEY');
     this.defaultModel = config.get<string>(
       'OPENROUTER_MODEL',
-      'google/gemini-2.0-flash-exp:free',
+      'google/gemini-2.0-flash-001',
     );
     this.siteUrl = config.get<string>(
       'API_PUBLIC_URL',
