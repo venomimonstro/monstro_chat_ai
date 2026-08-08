@@ -6,7 +6,6 @@ import {
   DEFAULT_RAG_CANDIDATE_K,
   DEFAULT_RAG_SIMILARITY_THRESHOLD,
   DEFAULT_RAG_TOP_K,
-  INSUFFICIENT_RAG_CONTEXT,
   RAG_TOP_K,
 } from '../constants';
 
@@ -145,18 +144,21 @@ export class RetrievalService {
   }
 
   formatRagContext(result: RetrievalResult): string {
-    if (!result.sufficient || result.chunks.length === 0) {
-      return INSUFFICIENT_RAG_CONTEXT;
+    const chunks =
+      result.chunks.length > 0
+        ? result.chunks
+        : result.candidates.slice(0, 2);
+
+    if (chunks.length === 0) {
+      return '';
     }
-    return result.chunks
+
+    return chunks
       .map((c, i) => {
-        const src =
-          c.documentTitle || c.documentUrl
-            ? ` (источник: ${c.documentTitle ?? c.documentUrl})`
-            : '';
-        return `[${i + 1}]${src}\n${c.content}`;
+        const label = c.documentTitle ?? c.documentUrl ?? `фрагмент ${i + 1}`;
+        return `${label}: ${c.content.replace(/\s+/g, ' ').trim()}`;
       })
-      .join('\n\n');
+      .join('\n');
   }
 
   toDiagnostic(result: RetrievalResult) {

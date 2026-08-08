@@ -259,8 +259,6 @@ export class AiOrchestratorService {
       clientPromptOverride: experimentPrompt,
       antiInjectionInstruction: injection.instruction,
       leadGoalInstruction: leadState.instruction,
-      personaConfig: input.sourceConfig.ai,
-      insufficientContext: !retrieval.sufficient,
     });
 
     const history = await this.dialogService.getMessages(

@@ -4,13 +4,9 @@ import { CrawlerService } from './crawler.service';
 
 function mockRobots(rules: { allowRoot: boolean }) {
   return {
-    isAllowed: (url: string) => {
-      if (!rules.allowRoot) return false;
-      return true;
-    },
-  } as ReturnType<CrawlerService['fetchRobots']> extends Promise<infer R>
-    ? R
-    : never;
+    isAllowed: () => rules.allowRoot,
+    getSitemaps: () => [],
+  };
 }
 
 describe('CrawlerService', () => {
@@ -50,5 +46,31 @@ describe('CrawlerService', () => {
     expect(result.title).toBe('Test Page');
     expect(result.text).toContain('Hello');
     expect(result.text).not.toContain('bad()');
+  });
+
+  it('maps public site URL to internal origin for self-crawl', async () => {
+    const module = await Test.createTestingModule({
+      providers: [
+        CrawlerService,
+        {
+          provide: ConfigService,
+          useValue: {
+            get: (key: string) => {
+              if (key === 'PUBLIC_SITE_URL') return 'https://redflow.ru';
+              if (key === 'CRAWL_INTERNAL_ORIGIN')
+                return 'http://host.docker.internal:4321';
+              return undefined;
+            },
+          },
+        },
+      ],
+    }).compile();
+    const svc = module.get(CrawlerService);
+    const internal = (
+      svc as unknown as {
+        getInternalFallbackUrl: (u: string) => string | null;
+      }
+    ).getInternalFallbackUrl('https://redflow.ru/pricing');
+    expect(internal).toBe('http://host.docker.internal:4321/pricing');
   });
 });

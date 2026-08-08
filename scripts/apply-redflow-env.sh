@@ -61,7 +61,7 @@ env_set STABILITY_ADMIN_URL "http://host.docker.internal:5174"
 env_set STABILITY_WIDGET_URL "http://host.docker.internal:5175"
 
 env_set API_INTERNAL_URL "http://127.0.0.1:3000"
-env_set CRAWL_INTERNAL_ORIGIN "http://127.0.0.1:4321"
+env_set CRAWL_INTERNAL_ORIGIN "http://host.docker.internal:4321"
 env_set WIDGET_CORS_ORIGINS "${BASE},${BASE}/app,${BASE}/admin,http://127.0.0.1:4321"
 
 # NODE_ENV=production требует все YooKassa-секреты — не переключаем автоматически

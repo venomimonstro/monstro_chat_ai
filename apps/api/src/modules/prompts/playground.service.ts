@@ -11,10 +11,6 @@ import { ProviderRegistryService } from '../ai/providers/provider-registry.servi
 import { PromptAssemblyService } from '../ai/services/prompt-assembly.service';
 import { AntiInjectionService } from '../ai/services/anti-injection.service';
 import type { ChatMessage } from '../ai/providers/llm-provider.interface';
-import {
-  mergeSourceConfig,
-  type SourceConfig,
-} from '@ai-consultant/shared-types';
 
 @Injectable()
 export class PlaygroundService {
@@ -62,10 +58,6 @@ export class PlaygroundService {
       ragContext: contextBlock,
       fallbackClientPrompt: params.clientPrompt,
       antiInjectionInstruction: instruction,
-      personaConfig: mergeSourceConfig(
-        source.configJson as unknown as SourceConfig,
-      ).ai,
-      insufficientContext: !retrieval.sufficient,
     });
 
     const historyMessages: ChatMessage[] = (params.history ?? []).map((m) => ({

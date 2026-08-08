@@ -68,20 +68,12 @@ export class FollowUpOrchestratorService {
       sourceConfig: params.sourceConfig,
     });
 
-    const personaConfig = {
-      ...params.sourceConfig.ai,
-      personaStyle: 'sales_closer' as const,
-    };
-
     const assembled = await this.promptAssembly.assemble({
       tenantId: params.tenantId,
-      dialogId: params.dialogId,
       ragContext: '',
       dialogSummary: dialog.summary,
       fallbackClientPrompt: params.sourceConfig.ai?.clientPrompt,
       leadGoalInstruction: leadState.instruction,
-      personaConfig,
-      insufficientContext: false,
     });
 
     const followUpInstruction = [

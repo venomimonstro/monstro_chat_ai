@@ -1,7 +1,10 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cheerio from 'cheerio';
-import robotsParser from 'robots-parser';
+import {
+  parseRobots,
+  type RobotsParserInstance,
+} from '../utils/robots-parser.util';
 import {
   normalizeCrawlUrl,
   resolveMaxDepth,
@@ -35,25 +38,31 @@ export class CrawlerService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async fetchRobots(rootUrl: string): Promise<ReturnType<typeof robotsParser>> {
+  async fetchRobots(rootUrl: string): Promise<RobotsParserInstance> {
     const origin = new URL(rootUrl).origin;
     const robotsUrl = `${origin}/robots.txt`;
 
     try {
-      const response = await this.fetchWithTimeout(robotsUrl);
+      const response = await this.fetchWithTimeout(
+        this.preferInternalIfOwnSite(robotsUrl),
+        robotsUrl,
+      );
       if (!response.ok) {
-        return robotsParser(robotsUrl, '');
+        return parseRobots(robotsUrl, '');
       }
       const body = await response.text();
-      return robotsParser(robotsUrl, body);
+      return parseRobots(robotsUrl, body);
     } catch {
-      return robotsParser(robotsUrl, '');
+      return parseRobots(robotsUrl, '');
     }
   }
 
-  isRootDisallowed(robots: ReturnType<typeof robotsParser>, rootUrl: string): boolean {
+  isRootDisallowed(robots: RobotsParserInstance, rootUrl: string): boolean {
     const path = new URL(rootUrl).pathname || '/';
-    return !robots.isAllowed(rootUrl, '*') && !robots.isAllowed(path, '*');
+    const allowed =
+      robots.isAllowed(rootUrl, '*') !== false ||
+      robots.isAllowed(path, '*') !== false;
+    return !allowed;
   }
 
   async crawlSite(
@@ -111,7 +120,10 @@ export class CrawlerService {
       visited.add(canonical);
 
       const path = new URL(canonical).pathname || '/';
-      if (!robots.isAllowed(canonical, '*') && !robots.isAllowed(path, '*')) {
+      if (
+        robots.isAllowed(canonical, '*') === false &&
+        robots.isAllowed(path, '*') === false
+      ) {
         continue;
       }
 
@@ -148,7 +160,7 @@ export class CrawlerService {
     if (pages.length === 0) {
       const hint =
         this.getInternalFallbackUrl(normalizedRoot) != null
-          ? ' API в Docker: попробуйте тот же путь через внутренний адрес или проверьте CRAWL_INTERNAL_ORIGIN.'
+          ? ' Проверьте CRAWL_INTERNAL_ORIGIN (для Docker: http://host.docker.internal:4321).'
           : '';
       throw new Error(
         (lastError
@@ -163,7 +175,7 @@ export class CrawlerService {
 
   private async discoverSitemapUrls(
     rootUrl: string,
-    robots: ReturnType<typeof robotsParser>,
+    robots: RobotsParserInstance,
   ): Promise<string[]> {
     const origin = new URL(rootUrl).origin;
     const candidates = new Set<string>([`${origin}/sitemap.xml`]);
@@ -178,7 +190,10 @@ export class CrawlerService {
     const urls: string[] = [];
     for (const sitemapUrl of candidates) {
       try {
-        const response = await this.fetchWithTimeout(sitemapUrl);
+        const response = await this.fetchWithTimeout(
+          this.preferInternalIfOwnSite(sitemapUrl),
+          sitemapUrl,
+        );
         if (!response.ok) continue;
         const xml = await response.text();
         const matches = xml.matchAll(/<loc>([^<]+)<\/loc>/gi);
@@ -215,7 +230,8 @@ export class CrawlerService {
   }
 
   private async fetchPage(url: string): Promise<CrawledPage & { html: string }> {
-    const response = await this.fetchWithTimeout(url);
+    const fetchUrl = this.preferInternalIfOwnSite(url);
+    const response = await this.fetchWithTimeout(fetchUrl, url);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
@@ -251,13 +267,26 @@ export class CrawlerService {
     return [...links];
   }
 
-  private normalizeUrl(url: string): string {
-    return normalizeCrawlUrl(url);
-  }
-
   private isSameOrigin(url: string, origin: string): boolean {
     try {
       return new URL(url).origin === origin;
+    } catch {
+      return false;
+    }
+  }
+
+  private getConfiguredInternalOrigin(): string | null {
+    return (
+      this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
+      'http://host.docker.internal:4321'
+    );
+  }
+
+  private isConfiguredInternalUrl(url: string): boolean {
+    const internal = this.getConfiguredInternalOrigin();
+    if (!internal) return false;
+    try {
+      return new URL(url).host === new URL(internal).host;
     } catch {
       return false;
     }
@@ -267,10 +296,8 @@ export class CrawlerService {
     const publicSite =
       this.config.get<string>('PUBLIC_SITE_URL') ??
       this.config.get<string>('STABILITY_PUBLIC_URL');
-    const internal =
-      this.config.get<string>('CRAWL_INTERNAL_ORIGIN') ??
-      'http://host.docker.internal:4321';
-    if (!publicSite) return null;
+    const internal = this.getConfiguredInternalOrigin();
+    if (!publicSite || !internal) return null;
 
     try {
       const target = new URL(url);
@@ -285,7 +312,12 @@ export class CrawlerService {
     }
   }
 
+  private preferInternalIfOwnSite(url: string): string {
+    return this.getInternalFallbackUrl(url) ?? url;
+  }
+
   private isPrivateAddress(url: string): boolean {
+    if (this.isConfiguredInternalUrl(url)) return false;
     try {
       const parsed = new URL(url);
       const hostname = parsed.hostname.toLowerCase();
@@ -305,14 +337,20 @@ export class CrawlerService {
     }
   }
 
-  private async fetchWithTimeout(url: string): Promise<Response> {
+  private async fetchWithTimeout(
+    url: string,
+    originalUrl?: string,
+  ): Promise<Response> {
     if (this.isPrivateAddress(url)) {
-      throw new BadRequestException('Crawling private/internal addresses is not allowed');
+      throw new BadRequestException(
+        'Crawling private/internal addresses is not allowed',
+      );
     }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
-    const headers = { 'User-Agent': 'AI-Consultant-Crawler/1.0' };
+    const headers = { 'User-Agent': 'RedFlow-Crawler/2.0' };
+    const publicUrl = originalUrl ?? url;
 
     try {
       const response = await fetch(url, {
@@ -322,7 +360,7 @@ export class CrawlerService {
       });
       if (response.ok) return response;
 
-      const fallback = this.getInternalFallbackUrl(url);
+      const fallback = this.getInternalFallbackUrl(publicUrl);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin: ${fallback}`);
         return await fetch(fallback, {
@@ -333,7 +371,7 @@ export class CrawlerService {
       }
       return response;
     } catch (error) {
-      const fallback = this.getInternalFallbackUrl(url);
+      const fallback = this.getInternalFallbackUrl(publicUrl);
       if (fallback && fallback !== url) {
         this.logger.log(`Retry crawl via internal origin after error: ${fallback}`);
         return await fetch(fallback, {
