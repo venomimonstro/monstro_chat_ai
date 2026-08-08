@@ -46,6 +46,11 @@ deploy_staging_next_dir() {
   echo "${STAGING_ROOT}/public-site/.next"
 }
 
+# Next.js distDir is relative to apps/public-site — absolute paths break (output under apps/public-site/).
+deploy_staging_next_dist_rel() {
+  echo "../../.deploy/staging/public-site/.next"
+}
+
 deploy_prepare_staging_next() {
   local dir
   dir="$(deploy_staging_next_dir)"
