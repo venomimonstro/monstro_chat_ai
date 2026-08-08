@@ -66,24 +66,41 @@ rebuild_local() {
 
 up_api() {
   deploy_log "Перезапуск API (migrate + api)..."
-  # force-recreate иногда падает с «No such container» на одноразовом aicw-migrate
-  docker rm -f aicw-api aicw-migrate 2>/dev/null || true
+
+  # Сохраняем текущий образ до замены — для отката без 502
+  if docker ps -a --format '{{.Names}}' 2>/dev/null | grep -qx 'aicw-api'; then
+    local img_id
+    img_id="$(docker inspect -f '{{.Image}}' aicw-api 2>/dev/null || true)"
+    if [[ -n "${img_id}" ]]; then
+      docker tag "${img_id}" monstro_chat_ai-api:deploy-pre 2>/dev/null || true
+    fi
+  fi
+
+  docker rm -f aicw-migrate 2>/dev/null || true
 
   local attempt=1
   while [[ "${attempt}" -le 3 ]]; do
     if [[ -n "${API_IMAGE:-}" ]]; then
       if docker compose up -d --no-build --remove-orphans api; then
-        return 0
+        break
       fi
     elif docker compose up -d --remove-orphans api; then
-      return 0
+      break
     fi
     deploy_warn "docker compose up api — попытка ${attempt}/3 не удалась, повтор..."
-    docker rm -f aicw-api aicw-migrate 2>/dev/null || true
+    docker rm -f aicw-migrate 2>/dev/null || true
     sleep 2
     attempt=$((attempt + 1))
+    if [[ "${attempt}" -gt 3 ]]; then
+      deploy_warn "compose up не удался — откат образа API"
+      if docker image inspect monstro_chat_ai-api:deploy-pre >/dev/null 2>&1; then
+        docker tag monstro_chat_ai-api:deploy-pre monstro_chat_ai-api
+        export API_IMAGE="monstro_chat_ai-api"
+        docker compose up -d --no-build --remove-orphans api || true
+      fi
+      deploy_fail "docker compose up api не удался после 3 попыток"
+    fi
   done
-  deploy_fail "docker compose up api не удался после 3 попыток"
 }
 
 if try_ghcr_pull; then
@@ -103,5 +120,19 @@ for i in $(seq 1 24); do
   fi
   sleep 3
 done
+
+deploy_warn "Новый API не прошёл health — откат на deploy-pre"
+if docker image inspect monstro_chat_ai-api:deploy-pre >/dev/null 2>&1; then
+  docker tag monstro_chat_ai-api:deploy-pre monstro_chat_ai-api
+  export API_IMAGE="monstro_chat_ai-api"
+  docker rm -f aicw-migrate 2>/dev/null || true
+  docker compose up -d --no-build --remove-orphans api || true
+  for i in $(seq 1 12); do
+    if curl -sf http://127.0.0.1:3000/api/health >/dev/null 2>&1; then
+      deploy_fail "Новый API не поднялся; восстановлен предыдущий образ (откат)"
+    fi
+    sleep 2
+  done
+fi
 
 deploy_fail "API не поднялся после обновления"

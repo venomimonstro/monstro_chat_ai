@@ -156,6 +156,22 @@ ensure_disk_space() {
   fi
 }
 
+DEPLOY_SUCCEEDED=0
+DEPLOY_CHECKPOINT_ACTIVE=0
+
+deploy_on_failure() {
+  local code=$?
+  deploy_keepalive_stop 2>/dev/null || true
+  if [[ "${DEPLOY_SUCCEEDED}" -eq 1 ]] || [[ "${DEPLOY_CHECKPOINT_ACTIVE}" -ne 1 ]]; then
+    deploy_restore_node_services 2>/dev/null || true
+    exit "${code}"
+  fi
+  # shellcheck source=lib/deploy-checkpoint.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-checkpoint.sh"
+  deploy_checkpoint_rollback "ошибка деплоя (exit ${code})" || deploy_restore_node_services || true
+  exit "${code}"
+}
+
 main() {
   deploy_log "Monstro — fast update (режим: ${MODE})"
   deploy_setup_npm_cache
@@ -164,6 +180,13 @@ main() {
 
   local prev_sha=""
   prev_sha="$(deploy_load_sha 2>/dev/null || true)"
+
+  # Checkpoint ДО pull/build — снимок последней рабочей версии на диске
+  # shellcheck source=lib/deploy-checkpoint.sh
+  source "${INSTALL_DIR}/scripts/lib/deploy-checkpoint.sh"
+  deploy_checkpoint_begin "${MODE}"
+  DEPLOY_CHECKPOINT_ACTIVE=1
+  trap deploy_on_failure EXIT
 
   pull_code
 
@@ -182,6 +205,9 @@ main() {
 
   if [[ -z "${components// }" ]]; then
     deploy_log "Нечего обновлять"
+    deploy_checkpoint_clear
+    DEPLOY_CHECKPOINT_ACTIVE=0
+    trap - EXIT
     deploy_save_sha "${new_sha}"
     exit 0
   fi
@@ -195,9 +221,6 @@ main() {
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
-  # При любом fail/exit — keepalive off + поднять сервисы, иначе nginx 502
-  trap 'deploy_keepalive_stop; deploy_restore_node_services' EXIT
-
   if needs_frontend_builds "${components}"; then
     deploy_keepalive_start
   fi
@@ -209,12 +232,16 @@ main() {
   fi
 
   deploy_keepalive_stop
-  trap - EXIT
-  deploy_restore_node_services
 
   if needs_frontend_builds "${components}"; then
     sleep 2
-    deploy_verify_frontends || deploy_warn "Фронты подняты не полностью — sudo bash scripts/recover-frontends.sh"
+    if ! deploy_verify_frontends; then
+      deploy_warn "Фронты не прошли проверку — откат checkpoint"
+      deploy_checkpoint_rollback "verify frontends failed"
+      DEPLOY_CHECKPOINT_ACTIVE=0
+      trap - EXIT
+      exit 1
+    fi
   fi
 
   # Записываем отчёт диагностического агента (quick) — чтобы видеть проблемы сразу
@@ -225,10 +252,21 @@ main() {
   fi
 
   if [[ "${MODE}" == "full" ]]; then
-    bash "${INSTALL_DIR}/scripts/verify-release.sh" post 2>/dev/null || deploy_warn "verify-release post пропущен"
+    if ! bash "${INSTALL_DIR}/scripts/verify-release.sh" post 2>/dev/null; then
+      deploy_warn "verify-release post не прошёл — откат checkpoint"
+      deploy_checkpoint_rollback "verify-release post failed"
+      DEPLOY_CHECKPOINT_ACTIVE=0
+      trap - EXIT
+      exit 1
+    fi
   fi
 
   deploy_save_sha "${new_sha}"
+  deploy_checkpoint_promote
+  DEPLOY_SUCCEEDED=1
+  DEPLOY_CHECKPOINT_ACTIVE=0
+  trap - EXIT
+  deploy_restore_node_services
 
   local elapsed=$(( $(date +%s) - START_TS ))
   local ip
