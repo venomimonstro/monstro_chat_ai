@@ -68,7 +68,7 @@ export class ReportBuilderService {
       createdAt: { gte: range.from, lte: range.to },
     };
 
-    const [dialogs, leads, messages, dialogsByDay, leadsByDay, wonLeads] =
+    const [dialogs, leads, messages, dialogsByDay, leadsByDay, wonLeads, visitsByDay, leadsByStatus] =
       await Promise.all([
         this.prisma.dialog.count({ where }),
         this.prisma.lead.count({ where: { ...where, archived: false } }),
@@ -76,7 +76,11 @@ export class ReportBuilderService {
         this.countDialogsByDay(tenantId, range),
         this.countLeadsByDay(tenantId, range),
         this.countWonLeads(tenantId, range),
+        this.countVisitsByDay(tenantId, range),
+        this.countLeadsByStatus(tenantId, range),
       ]);
+
+    const visits = visitsByDay.reduce((sum, row) => sum + row.value, 0);
 
     const conversionRate =
       dialogs > 0 ? Math.round((leads / dialogs) * 1000) / 10 : 0;
@@ -87,6 +91,7 @@ export class ReportBuilderService {
       dialogs,
       leads,
       messages,
+      visits,
       conversionRate,
       funnel: [
         { stage: 'Диалоги', count: dialogs },
@@ -95,6 +100,8 @@ export class ReportBuilderService {
       ],
       dialogsByDay: this.fillDaySeries(dialogsByDay, range),
       leadsByDay: this.fillDaySeries(leadsByDay, range),
+      visitsByDay: this.fillDaySeries(visitsByDay, range),
+      leadsByStatus,
     };
 
     await this.cache.set(cacheKey, result);
@@ -516,6 +523,46 @@ export class ReportBuilderService {
     return rows.map((row) => ({
       label: row.label,
       value: Number(row.value),
+    }));
+  }
+
+  private async countVisitsByDay(tenantId: string | undefined, range: DateRange) {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ label: string; value: bigint }>
+    >`
+      SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD') as label,
+             COUNT(DISTINCT visitor_id)::bigint as value
+      FROM dialogs
+      WHERE created_at >= ${range.from}
+        AND created_at <= ${range.to}
+        ${tenantId ? Prisma.sql`AND tenant_id = ${tenantId}::uuid` : Prisma.empty}
+      GROUP BY 1
+      ORDER BY 1
+    `;
+    return rows.map((row) => ({
+      label: row.label,
+      value: Number(row.value),
+    }));
+  }
+
+  private async countLeadsByStatus(tenantId: string, range: DateRange) {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ status: string; count: bigint }>
+    >`
+      SELECT COALESCE(ps.name, 'Без статуса') as status,
+             COUNT(*)::bigint as count
+      FROM leads l
+      LEFT JOIN pipeline_statuses ps ON ps.id = l.status_id
+      WHERE l.archived = false
+        AND l.tenant_id = ${tenantId}::uuid
+        AND l.created_at >= ${range.from}
+        AND l.created_at <= ${range.to}
+      GROUP BY ps.name
+      ORDER BY count DESC
+    `;
+    return rows.map((row) => ({
+      status: row.status,
+      count: Number(row.count),
     }));
   }
 

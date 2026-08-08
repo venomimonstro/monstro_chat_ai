@@ -199,16 +199,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
             resolvedDialogId,
           );
         }
-      } else if (data.dialogId) {
-        client.data.dialogId = data.dialogId;
+      } else {
+        delete client.data.dialogId;
       }
 
       client.data.joinInFlight = false;
-      this.emitJoined(
-        client,
-        data,
-        (client.data.dialogId as string | undefined) ?? data.dialogId,
-      );
+      this.emitJoined(client, data, resolvedDialogId ?? null);
     } catch (error) {
       client.data.joinInFlight = false;
       this.logger.error(`Widget join failed: ${String(error)}`);
@@ -329,6 +325,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
     @ConnectedSocket() client: Socket,
   ) {
     if (!data?.widgetKey || !data?.visitorId || !data?.content?.trim()) {
+      client.emit('stream:error', {
+        error: 'Некорректное сообщение',
+        code: 'invalid_message',
+      });
       return;
     }
 

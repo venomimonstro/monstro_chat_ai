@@ -17,6 +17,7 @@ export class AnalyticsExportService {
         `summary,dialogs,${stats.dialogs}`,
         `summary,leads,${stats.leads}`,
         `summary,messages,${stats.messages}`,
+        `summary,visits,${stats.visits}`,
         `summary,conversionRate,${stats.conversionRate}`,
       ];
       for (const row of stats.dialogsByDay) {
@@ -24,6 +25,12 @@ export class AnalyticsExportService {
       }
       for (const row of stats.leadsByDay) {
         lines.push(`leadsByDay,${row.label},${row.value}`);
+      }
+      for (const row of stats.visitsByDay) {
+        lines.push(`visitsByDay,${row.label},${row.value}`);
+      }
+      for (const row of stats.leadsByStatus) {
+        lines.push(`leadsByStatus,${this.escape(row.status)},${row.count}`);
       }
       for (const row of stats.funnel) {
         lines.push(`funnel,${row.stage},${row.count}`);

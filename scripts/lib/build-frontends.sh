@@ -20,11 +20,15 @@ if [[ "${DEPLOY_SHARED_TYPES_SKIP:-0}" != "1" ]]; then
 fi
 
 # ЛК на /app/ (production domain)
-VITE_BASE_PATH="${VITE_CLIENT_BASE_PATH:-/app/}" VITE_API_URL="${VITE_API_URL}" \
+VITE_BASE_PATH="${VITE_CLIENT_BASE_PATH:-/app/}" \
+  VITE_API_URL="${VITE_API_URL}" \
+  VITE_WIDGET_URL="${VITE_WIDGET_URL}" \
+  VITE_WIDGET_SCRIPT_URL="${VITE_WIDGET_SCRIPT_URL}" \
   npm run build -w @ai-consultant/web-client
 
-# Админка на /admin/ (production domain)
-VITE_BASE_PATH="${VITE_ADMIN_BASE_PATH:-/admin/}" VITE_API_URL="${VITE_API_URL}" \
+VITE_BASE_PATH="${VITE_ADMIN_BASE_PATH:-/admin/}" \
+  VITE_API_URL="${VITE_API_URL}" \
+  VITE_WIDGET_URL="${VITE_WIDGET_URL}" \
   npm run build -w @ai-consultant/web-admin
 
 deploy_verify_spa_assets || deploy_fail "SPA dist собран без корректного VITE_BASE_PATH"

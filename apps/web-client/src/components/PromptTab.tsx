@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptDto } from '@ai-consultant/shared-types';
 import { PromptAbTestSection } from './PromptAbTestSection';
 import {
@@ -34,6 +34,9 @@ export function PromptTab({
   const [sandboxMessages, setSandboxMessages] = useState<SandboxMessage[]>([]);
   const [sandboxLoading, setSandboxLoading] = useState(false);
 
+  const onPromptChangeRef = useRef(onPromptChange);
+  onPromptChangeRef.current = onPromptChange;
+
   const reload = useCallback(async () => {
     const [active, versions, limit] = await Promise.all([
       fetchActivePrompt('tenant'),
@@ -44,9 +47,9 @@ export function PromptTab({
     setCharLimit(limit);
     if (active?.content) {
       setContent(active.content);
-      onPromptChange(active.content);
+      onPromptChangeRef.current(active.content);
     }
-  }, [onPromptChange]);
+  }, []);
 
   useEffect(() => {
     setContent(initialPrompt);

@@ -22,7 +22,7 @@ export function SiteFooter() {
           <div className="md:col-span-2">
             <Link href="/" className="flex items-center gap-2.5 text-lg font-bold text-ink-900">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500 text-sm font-bold text-white">
-                M
+                R
               </span>
               {siteConfig.name}
             </Link>

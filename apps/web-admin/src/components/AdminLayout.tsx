@@ -51,7 +51,7 @@ export function AdminLayout() {
         }`}
       >
         <div className="border-b border-slate-800 px-6 py-5">
-          <p className="text-lg font-bold text-brand-500">AI-Консультант</p>
+          <p className="text-lg font-bold text-brand-500">RedFlow</p>
           <p className="text-xs text-slate-400">Админ-панель</p>
         </div>
         <nav className="space-y-1 p-4">
@@ -121,7 +121,7 @@ export function AdminLayout() {
               )}
             </svg>
           </button>
-          <p className="font-bold text-brand-500">AI-Консультант</p>
+          <p className="font-bold text-brand-500">RedFlow</p>
           <div className="w-10" />
         </header>
 

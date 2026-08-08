@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { SourceConfig, SourceDto, LeadProfileMode } from '@ai-consultant/shared-types';
 import { DEFAULT_SOURCE_CONFIG, mergeSourceConfig } from '@ai-consultant/shared-types';
@@ -13,9 +13,23 @@ import { WidgetCustomizationSettings } from '../components/WidgetCustomizationSe
 import { SkeletonCard } from '../components/Skeleton';
 
 const WIDGET_PREVIEW_BASE = (() => {
-  const raw = (import.meta.env.VITE_WIDGET_URL ?? 'http://localhost:5175').replace(/\/$/, '');
-  return raw.endsWith('/iframe') ? raw : `${raw}/iframe`;
+  const env = import.meta.env.VITE_WIDGET_URL;
+  if (typeof env === 'string' && env.startsWith('http')) {
+    const raw = env.replace(/\/$/, '');
+    return raw.endsWith('/iframe') ? raw : `${raw}/iframe`;
+  }
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/iframe`;
+  }
+  return 'http://localhost:5175/iframe';
 })();
+
+function postPreviewConfig(
+  iframe: HTMLIFrameElement | null,
+  config: SourceConfig,
+) {
+  iframe?.contentWindow?.postMessage({ type: 'aicw:config', config }, '*');
+}
 
 function getPreviewApiUrl(): string {
   const envUrl = import.meta.env.VITE_API_URL;
@@ -34,6 +48,7 @@ export function SourceSettingsPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [source, setSource] = useState<SourceDto | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [tab, setTab] = useState<
     'appearance' | 'conversion' | 'general' | 'training' | 'prompt' | 'persona'
@@ -44,6 +59,7 @@ export function SourceSettingsPage() {
 
   useEffect(() => {
     if (!id) return;
+    setLoading(true);
     setLoadError(null);
     api
       .get<SourceDto>(`/sources/${id}`)
@@ -51,16 +67,14 @@ export function SourceSettingsPage() {
         setSource(res.data);
         setConfig(mergeSourceConfig(res.data.config));
       })
-      .catch(() => {
-        setLoadError('Источник не найден или нет доступа');
-      });
+      .catch((err) => {
+        setLoadError(extractErrorMessage(err, 'Источник не найден или нет доступа'));
+      })
+      .finally(() => setLoading(false));
   }, [id]);
 
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage(
-      { type: 'aicw:config', config },
-      '*',
-    );
+    postPreviewConfig(iframeRef.current, config);
   }, [config]);
 
   const patchAppearance = (patch: Partial<SourceConfig['appearance']>) => {
@@ -137,6 +151,16 @@ export function SourceSettingsPage() {
       setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <p className="text-slate-500">Загрузка настроек…</p>
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
 
   if (loadError) {
     return (
@@ -238,7 +262,10 @@ export function SourceSettingsPage() {
                 src={previewSrc}
                 title="Widget preview"
                 sandbox="allow-scripts allow-same-origin allow-forms"
-                onLoad={() => setPreviewLoaded(true)}
+                onLoad={() => {
+                  setPreviewLoaded(true);
+                  postPreviewConfig(iframeRef.current, config);
+                }}
                 className="h-full w-full border-0"
               />
             </div>
@@ -601,7 +628,10 @@ export function SourceSettingsPage() {
               src={previewSrc}
               title="Widget preview"
               sandbox="allow-scripts allow-same-origin allow-forms"
-              onLoad={() => setPreviewLoaded(true)}
+              onLoad={() => {
+                setPreviewLoaded(true);
+                postPreviewConfig(iframeRef.current, config);
+              }}
               className="h-full w-full border-0"
             />
           </div>

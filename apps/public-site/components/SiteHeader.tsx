@@ -19,7 +19,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
         <Link href="/" className="group flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white shadow-cta transition group-hover:shadow-lg">
-            M
+            R
           </span>
           <span className="text-lg font-bold text-ink-900">{siteConfig.name}</span>
         </Link>

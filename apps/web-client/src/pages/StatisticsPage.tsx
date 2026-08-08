@@ -12,67 +12,16 @@ import { hasPermission, PERMISSIONS } from '../lib/permissions';
 import { PageHeader } from '../components/PageHeader';
 import { SkeletonGrid } from '../components/Skeleton';
 import { ErrorState } from '../components/EmptyState';
+import { AnalyticsLineChart } from '../components/AnalyticsLineChart';
 
 type Preset = '7d' | '30d' | '90d' | 'custom';
+type ChartMetric = 'dialogs' | 'leads' | 'visits';
+type Granularity = 'day' | 'week';
 
 function rangeForPreset(preset: Preset) {
   if (preset === '7d') return localDateRange(7);
   if (preset === '30d') return localDateRange(30);
   return localDateRange(90);
-}
-
-function BarChart({
-  title,
-  series,
-  color,
-  empty,
-  selectedDay,
-  onSelectDay,
-}: {
-  title: string;
-  series: TenantStatisticsDto['dialogsByDay'];
-  color: string;
-  empty?: boolean;
-  selectedDay: string | null;
-  onSelectDay: (day: string) => void;
-}) {
-  if (empty || series.length === 0) {
-    return (
-      <div className="lk-card">
-        <h3 className="font-medium text-slate-900">{title}</h3>
-        <div className="mt-8 flex h-40 items-center justify-center text-sm text-slate-400">
-          Нет данных за выбранный период
-        </div>
-      </div>
-    );
-  }
-  const max = Math.max(...series.map((row) => row.value), 1);
-  return (
-    <div className="lk-card">
-      <h3 className="font-medium text-slate-900">{title}</h3>
-      <div className="mt-4 flex h-40 items-end gap-1">
-        {series.map((row) => (
-          <button
-            key={row.label}
-            type="button"
-            onClick={() => onSelectDay(row.label)}
-            className="flex flex-1 flex-col items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-500"
-            title={`${row.label}: ${row.value}`}
-          >
-            <div
-              className={`w-full rounded-t transition-opacity ${color} ${
-                selectedDay === row.label ? 'opacity-100 ring-2 ring-brand-400' : 'opacity-80 hover:opacity-100'
-              }`}
-              style={{ height: `${(row.value / max) * 100}%`, minHeight: 2 }}
-            />
-            <span className="truncate text-[10px] text-slate-400">
-              {row.label.slice(5)}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 export function StatisticsPage() {
@@ -82,7 +31,8 @@ export function StatisticsPage() {
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
   const [stats, setStats] = useState<TenantStatisticsDto | null>(null);
-  const [chartView, setChartView] = useState<'dialogs' | 'leads'>('dialogs');
+  const [chartView, setChartView] = useState<ChartMetric>('dialogs');
+  const [granularity, setGranularity] = useState<Granularity>('day');
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,7 +84,8 @@ export function StatisticsPage() {
     if (!stats || !selectedDay) return null;
     const dialogs = stats.dialogsByDay.find((d) => d.label === selectedDay)?.value ?? 0;
     const leads = stats.leadsByDay.find((d) => d.label === selectedDay)?.value ?? 0;
-    return { dialogs, leads };
+    const visits = stats.visitsByDay.find((d) => d.label === selectedDay)?.value ?? 0;
+    return { dialogs, leads, visits };
   }, [stats, selectedDay]);
 
   if (!canView) {
@@ -153,7 +104,24 @@ export function StatisticsPage() {
   if (!stats) return null;
 
   const isEmpty =
-    stats.dialogs === 0 && stats.leads === 0 && stats.messages === 0;
+    stats.dialogs === 0 && stats.leads === 0 && stats.messages === 0 && stats.visits === 0;
+
+  const chartSeries =
+    chartView === 'dialogs'
+      ? stats.dialogsByDay
+      : chartView === 'leads'
+        ? stats.leadsByDay
+        : stats.visitsByDay;
+
+  const chartTitle =
+    chartView === 'dialogs'
+      ? 'Открытые диалоги'
+      : chartView === 'leads'
+        ? 'Лиды'
+        : 'Уникальные посетители';
+
+  const chartColor =
+    chartView === 'dialogs' ? '#2563eb' : chartView === 'leads' ? '#059669' : '#7c3aed';
 
   return (
     <div>
@@ -209,7 +177,8 @@ export function StatisticsPage() {
         </div>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <StatCard label="Посетители" value={stats.visits} />
         <StatCard label="Диалоги" value={stats.dialogs} />
         <StatCard label="Лиды" value={stats.leads} />
         <StatCard label="Сообщения" value={stats.messages} />
@@ -230,7 +199,8 @@ export function StatisticsPage() {
               Закрыть
             </button>
           </div>
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <StatCard label="Посетители" value={dayDetail.visits} />
             <StatCard label="Диалоги" value={dayDetail.dialogs} />
             <StatCard label="Лиды" value={dayDetail.leads} />
           </div>
@@ -269,52 +239,77 @@ export function StatisticsPage() {
         )}
       </div>
 
-      <div className="mt-6 flex gap-2">
+      <div className="mt-6 flex flex-wrap gap-2">
+        {(
+          [
+            ['dialogs', 'Диалоги'],
+            ['leads', 'Лиды'],
+            ['visits', 'Посетители'],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setChartView(key)}
+            className={`rounded-lg px-4 py-2 text-sm ${
+              chartView === key
+                ? 'bg-brand-600 text-white'
+                : 'border border-slate-300 text-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <span className="mx-1 w-px self-stretch bg-slate-200" />
         <button
           type="button"
-          onClick={() => setChartView('dialogs')}
-          className={`rounded-lg px-4 py-2 text-sm ${
-            chartView === 'dialogs'
-              ? 'bg-brand-600 text-white'
+          onClick={() => setGranularity('day')}
+          className={`rounded-lg px-3 py-2 text-sm ${
+            granularity === 'day'
+              ? 'bg-slate-800 text-white'
               : 'border border-slate-300 text-slate-700'
           }`}
         >
-          Диалоги по дням
+          По дням
         </button>
         <button
           type="button"
-          onClick={() => setChartView('leads')}
-          className={`rounded-lg px-4 py-2 text-sm ${
-            chartView === 'leads'
-              ? 'bg-brand-600 text-white'
+          onClick={() => setGranularity('week')}
+          className={`rounded-lg px-3 py-2 text-sm ${
+            granularity === 'week'
+              ? 'bg-slate-800 text-white'
               : 'border border-slate-300 text-slate-700'
           }`}
         >
-          Лиды по дням
+          По неделям
         </button>
       </div>
 
       <div className="mt-4">
-        {chartView === 'dialogs' ? (
-          <BarChart
-            title="Диалоги по дням"
-            series={stats.dialogsByDay}
-            color="bg-brand-600"
-            empty={isEmpty}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-          />
-        ) : (
-          <BarChart
-            title="Лиды по дням"
-            series={stats.leadsByDay}
-            color="bg-emerald-500"
-            empty={isEmpty}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-          />
-        )}
+        <AnalyticsLineChart
+          title={chartTitle}
+          series={chartSeries}
+          color={chartColor}
+          empty={isEmpty}
+          selectedDay={selectedDay}
+          onSelectDay={setSelectedDay}
+          granularity={granularity}
+        />
       </div>
+
+      {stats.leadsByStatus.length > 0 && (
+        <div className="mt-8 lk-card">
+          <h3 className="font-medium text-slate-900">Лиды по статусам</h3>
+          <div className="mt-4 space-y-2">
+            {stats.leadsByStatus.map((row) => (
+              <div key={row.status} className="flex items-center justify-between text-sm">
+                <span className="text-slate-700">{row.status}</span>
+                <span className="font-medium text-slate-900">{row.count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

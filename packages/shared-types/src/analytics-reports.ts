@@ -87,10 +87,13 @@ export interface TenantStatisticsDto {
   dialogs: number;
   leads: number;
   messages: number;
+  visits: number;
   conversionRate: number;
   funnel: Array<{ stage: string; count: number }>;
   dialogsByDay: AnalyticsSeriesPoint[];
   leadsByDay: AnalyticsSeriesPoint[];
+  visitsByDay: AnalyticsSeriesPoint[];
+  leadsByStatus: Array<{ status: string; count: number }>;
 }
 
 export interface PlatformAnalyticsSummaryDto {

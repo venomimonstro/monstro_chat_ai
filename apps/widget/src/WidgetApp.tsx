@@ -11,7 +11,7 @@ import { useSwipeToClose } from './hooks/useSwipeToClose';
 import { useViewport, useVisualViewport } from './hooks/useViewport';
 import { useWidgetSocket } from './hooks/useWidgetSocket';
 import { MessageBubble } from './components/MessageBubble';
-import { dedupeMessages } from './utils/messages';
+import { dedupeMessages, mergeChatHistory } from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
 
@@ -187,6 +187,7 @@ export function WidgetApp() {
 
   const [config, setConfig] = useState<SourceConfig>(DEFAULT_SOURCE_CONFIG);
   const [open, setOpen] = useState(preview || autoOpen);
+  const [panelEverOpened, setPanelEverOpened] = useState(open || preview);
   const [pdConsent, setPdConsent] = useState(() =>
     widgetKey ? safeStorageGet(`aicw_pd_consent_${widgetKey}`) === '1' : false,
   );
@@ -255,8 +256,9 @@ export function WidgetApp() {
 
   useEffect(() => {
     openRef.current = open;
+    if (open || preview) setPanelEverOpened(true);
     notifyParent(open ? 'aicw:panel-open' : 'aicw:panel-close');
-  }, [open, notifyParent]);
+  }, [open, notifyParent, preview]);
 
   useEffect(() => {
     dialogIdRef.current = dialogId;
@@ -401,6 +403,11 @@ export function WidgetApp() {
     (socket: Socket) => {
       socket.on('disconnect', (reason) => {
         sendingRef.current = false;
+        setIsTyping(false);
+        if (streamFlushRafRef.current !== null) {
+          cancelAnimationFrame(streamFlushRafRef.current);
+          streamFlushRafRef.current = null;
+        }
         if (reason === 'io client disconnect') return;
         if (streamingRef.current) {
           const partial = streamingRef.current;
@@ -440,10 +447,9 @@ export function WidgetApp() {
           historyLoadedRef.current === data.dialogId &&
           messagesLengthRef.current > 0
         ) {
-          setMessages((prev) => {
-            const streaming = prev.filter((p) => p.streaming);
-            return dedupeMessages([...normalized, ...streaming]);
-          });
+          setMessages((prev) =>
+            mergeChatHistory(prev, normalized),
+          );
           return;
         }
 
@@ -454,20 +460,19 @@ export function WidgetApp() {
         setDialogId(data.dialogId);
         dialogIdRef.current = data.dialogId;
         storeDialogId(widgetKey, data.dialogId);
-        setMessages(dedupeMessages(normalized));
+        const baseMessages = dedupeMessages(normalized);
         if (data.resumed && normalized.length > 0) {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === '__resume_hint__')) return prev;
-            return [
-              {
-                id: '__resume_hint__',
-                role: 'assistant',
-                content: 'Продолжаем предыдущий диалог.',
-                createdAt: new Date().toISOString(),
-              },
-              ...prev,
-            ];
-          });
+          setMessages([
+            {
+              id: '__resume_hint__',
+              role: 'assistant',
+              content: 'Продолжаем предыдущий диалог.',
+              createdAt: new Date().toISOString(),
+            },
+            ...baseMessages,
+          ]);
+        } else {
+          setMessages(baseMessages);
         }
       });
 
@@ -478,7 +483,6 @@ export function WidgetApp() {
       });
 
       socket.on('stream:start', () => {
-        setIsTyping(true);
         streamingRef.current = '';
       });
 
@@ -620,7 +624,7 @@ export function WidgetApp() {
   );
 
   const socketEnabled =
-    Boolean(widgetKey) && (!deferSocket || open || preview);
+    Boolean(widgetKey) && (!deferSocket || panelEverOpened);
 
   const {
     socketRef,
@@ -642,7 +646,7 @@ export function WidgetApp() {
         sessionTokenRef.current = data.sessionToken;
         storeSessionToken(widgetKey, data.sessionToken);
       }
-      if (data.dialogId) {
+      if (data.dialogId && !rejoinAfterDialogClearRef.current) {
         setDialogId(data.dialogId);
         dialogIdRef.current = data.dialogId;
         storeDialogId(widgetKey, data.dialogId);
@@ -654,6 +658,9 @@ export function WidgetApp() {
       }
     },
     onSocketError: (data) => {
+      sendingRef.current = false;
+      setIsTyping(false);
+      streamingRef.current = '';
       if (data.code === 'dialog_not_found' && widgetKey) {
         clearStoredDialogId(widgetKey);
         clearSessionToken(widgetKey);

@@ -76,9 +76,11 @@ function previousRange(from: string, to: string) {
 function WidgetChart({
   data,
   error,
+  chartType = 'bar',
 }: {
   data: AnalyticsQueryResponse | null;
   error?: string | null;
+  chartType?: 'line' | 'bar' | 'table';
 }) {
   if (error) {
     return <p className="text-sm text-red-400">{error}</p>;
@@ -89,6 +91,34 @@ function WidgetChart({
   if (data.series.length === 0) {
     return <p className="text-sm text-slate-500">Нет данных</p>;
   }
+
+  if (chartType === 'line' && data.dimension === 'date') {
+    const width = 320;
+    const height = 120;
+    const pad = 8;
+    const max = Math.max(...data.series.map((row) => row.value), 1);
+    const step =
+      data.series.length > 1 ? (width - pad * 2) / (data.series.length - 1) : 0;
+    const points = data.series.map((row, index) => {
+      const x = pad + index * step;
+      const y = height - pad - (row.value / max) * (height - pad * 2);
+      return `${x},${y}`;
+    });
+    return (
+      <div className="space-y-2">
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-28 w-full">
+          <polyline
+            points={points.join(' ')}
+            fill="none"
+            stroke="#3b82f6"
+            strokeWidth="2"
+          />
+        </svg>
+        <p className="text-xs text-slate-500">Итого: {data.total}</p>
+      </div>
+    );
+  }
+
   const max = Math.max(...data.series.map((row) => row.value), 1);
   return (
     <div className="space-y-2">
@@ -429,11 +459,15 @@ export function AnalyticsPage() {
                 <WidgetChart
                   data={widgetData[widget.id] ?? null}
                   error={widgetErrors[widget.id]}
+                  chartType={widget.chartType}
                 />
                 {compare && compareData[widget.id] && (
                   <div className="mt-3 border-t border-slate-800 pt-3">
                     <p className="mb-2 text-xs text-slate-500">Предыдущий период</p>
-                    <WidgetChart data={compareData[widget.id] ?? null} />
+                    <WidgetChart
+                      data={compareData[widget.id] ?? null}
+                      chartType={widget.chartType}
+                    />
                   </div>
                 )}
               </div>

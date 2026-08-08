@@ -1,7 +1,7 @@
 {
-  "name": "AI-Консультант",
-  "short_name": "AI-Консультант",
-  "description": "Личный кабинет AI-Консультант для менеджеров",
+  "name": "RedFlow",
+  "short_name": "RedFlow",
+  "description": "Личный кабинет RedFlow для менеджеров",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
