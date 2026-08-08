@@ -3,7 +3,7 @@ import {
   dedupeMessages,
   mergeChatHistory,
   shouldMergeChatHistory,
-} from './messages.ts';
+} from './messages';
 
 assert.deepEqual(
   dedupeMessages([
