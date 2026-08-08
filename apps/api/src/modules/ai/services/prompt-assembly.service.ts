@@ -21,8 +21,6 @@ export interface AssembledPrompt {
  * 3. RAG context (truncated)
  * 4. Dialog summary / lead (compact)
  * 5. API security note (1 line, only if injection suspected)
- *
- * No hidden persona/rules in code — admin controls restrictions via global prompt.
  */
 @Injectable()
 export class PromptAssemblyService {
@@ -66,7 +64,7 @@ export class PromptAssemblyService {
 
     const dbGlobal = await this.getActivePrompt('global');
     const envFallback = this.config.get<string>('GLOBAL_SYSTEM_PROMPT', '');
-    const globalPrompt = (dbGlobal?.trim() || envFallback.trim());
+    const globalPrompt = dbGlobal?.trim() || envFallback.trim();
 
     const parts: string[] = [];
 

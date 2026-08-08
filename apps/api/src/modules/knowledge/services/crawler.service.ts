@@ -312,6 +312,7 @@ export class CrawlerService {
     }
   }
 
+  /** For own public site — crawl via Docker-internal origin first (avoids hairpin NAT). */
   private preferInternalIfOwnSite(url: string): string {
     return this.getInternalFallbackUrl(url) ?? url;
   }

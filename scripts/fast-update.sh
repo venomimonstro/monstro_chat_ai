@@ -126,6 +126,7 @@ run_parallel_builds() {
       failed_names+=("${names[$i]}")
     fi
   done
+
   if [[ "${failed}" -ne 0 ]]; then
     deploy_fail "Сборка провалена: ${failed_names[*]}"
   fi
@@ -194,8 +195,12 @@ main() {
     bash "${INSTALL_DIR}/scripts/lib/build-api.sh"
   fi
 
-  # При любом fail/exit — поднять сервисы, иначе nginx 502
-  trap 'deploy_restore_node_services' EXIT
+  # При любом fail/exit — keepalive off + поднять сервисы, иначе nginx 502
+  trap 'deploy_keepalive_stop; deploy_restore_node_services' EXIT
+
+  if needs_frontend_builds "${components}"; then
+    deploy_keepalive_start
+  fi
 
   if [[ "${PARALLEL_BUILDS}" == "1" ]]; then
     run_parallel_builds "${components}"
@@ -203,6 +208,7 @@ main() {
     run_sequential_builds "${components}"
   fi
 
+  deploy_keepalive_stop
   trap - EXIT
   deploy_restore_node_services
 

@@ -5,7 +5,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const outfile = join(root, 'dist/embed.js');
+const distRoot = process.env.WIDGET_DIST_ROOT
+  ? join(process.env.WIDGET_DIST_ROOT)
+  : join(root, 'dist');
+const outfile = join(distRoot, 'embed.js');
 
 const watch = process.argv.includes('--watch');
 

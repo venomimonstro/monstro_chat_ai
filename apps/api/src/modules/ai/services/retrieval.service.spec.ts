@@ -31,7 +31,8 @@ describe('RetrievalService', () => {
       get: (key: string, def?: unknown) => {
         if (key === 'RAG_TOP_K') return 2;
         if (key === 'RAG_CANDIDATE_K') return 5;
-        if (key === 'RAG_SIMILARITY_THRESHOLD') return 0.72;
+        if (key === 'RAG_SIMILARITY_THRESHOLD') return 0.58;
+        if (key === 'RAG_SOFT_THRESHOLD') return 0.42;
         return def;
       },
     } as never);
@@ -69,7 +70,7 @@ describe('RetrievalService', () => {
 
     expect(result.sufficient).toBe(true);
     expect(result.chunks).toHaveLength(2);
-    expect(result.chunks.every((c) => c.similarity >= 0.72)).toBe(true);
+    expect(result.chunks.every((c) => c.similarity >= 0.58)).toBe(true);
     expect(result.chunks[0].id).toBe('high');
     expect(result.maxSimilarity).toBeCloseTo(0.85);
   });
@@ -117,6 +118,44 @@ describe('RetrievalService', () => {
     const diag = service.toDiagnostic(result);
     expect(diag.sufficient).toBe(true);
     expect(diag.chunks[0].content.length).toBeLessThanOrEqual(400);
-    expect(diag.threshold).toBe(0.72);
+    expect(diag.threshold).toBe(0.58);
+  });
+
+  it('includes soft chunks when nothing passes threshold (hybrid mode)', async () => {
+    mockPrisma.$queryRawUnsafe.mockResolvedValue([
+      {
+        id: 'soft',
+        content: 'тарифы и подключение',
+        metadata_json: {},
+        similarity: 0.5,
+        document_title: 'Тарифы',
+        document_url: null,
+      },
+    ]);
+
+    const result = await service.search('t1', 's1', 'цена');
+    expect(result.sufficient).toBe(false);
+    expect(result.softChunks).toHaveLength(1);
+    const ctx = service.formatRagContext(result, { knowledgeMode: 'hybrid' });
+    expect(ctx).toContain('Тарифы');
+    expect(ctx).toContain('тарифы');
+  });
+
+  it('strict_kb mode ignores soft chunks', async () => {
+    mockPrisma.$queryRawUnsafe.mockResolvedValue([
+      {
+        id: 'soft',
+        content: 'тарифы',
+        metadata_json: {},
+        similarity: 0.5,
+        document_title: null,
+        document_url: null,
+      },
+    ]);
+
+    const result = await service.search('t1', 's1', 'цена');
+    expect(service.formatRagContext(result, { knowledgeMode: 'strict_kb' })).toBe(
+      '',
+    );
   });
 });
