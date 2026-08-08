@@ -30,4 +30,10 @@ describe('AntiInjectionService', () => {
     const result = service.classify('Сколько стоит доставка в Москву?');
     expect(result.isSuspicious).toBe(false);
   });
+
+  it('blocks XSS-style payloads', () => {
+    const result = service.classify('<script>alert(1)</script>');
+    expect(result.shouldBlock).toBe(true);
+    expect(result.blockedReply).toBeTruthy();
+  });
 });

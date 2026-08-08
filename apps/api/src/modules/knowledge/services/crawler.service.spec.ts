@@ -4,13 +4,9 @@ import { CrawlerService } from './crawler.service';
 
 function mockRobots(rules: { allowRoot: boolean }) {
   return {
-    isAllowed: (url: string) => {
-      if (!rules.allowRoot) return false;
-      return true;
-    },
-  } as ReturnType<CrawlerService['fetchRobots']> extends Promise<infer R>
-    ? R
-    : never;
+    isAllowed: () => rules.allowRoot,
+    getSitemaps: () => [],
+  };
 }
 
 describe('CrawlerService', () => {

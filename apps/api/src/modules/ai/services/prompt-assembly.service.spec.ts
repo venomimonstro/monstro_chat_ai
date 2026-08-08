@@ -12,87 +12,55 @@ describe('PromptAssemblyService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     service = new PromptAssemblyService(mockPrisma as never, {
-      get: () => 'GLOBAL RULES',
+      get: () => '',
     } as never);
   });
 
-  it('places global prompt after client prompt with priority label', async () => {
-    mockPrisma.prompt.findFirst.mockResolvedValue(null);
+  it('stacks platform → client → RAG (no hidden persona rules)', async () => {
+    mockPrisma.prompt.findFirst
+      .mockResolvedValueOnce({ content: 'Правила платформы' })
+      .mockResolvedValueOnce({ content: 'Правила клиента' });
 
     const result = await service.assemble({
       tenantId: 't1',
-      ragContext: 'Test context',
-      fallbackClientPrompt: 'Client rules',
+      ragContext: 'Факт из KB',
+      fallbackClientPrompt: 'fallback',
     });
 
-    const personaIdx = result.systemContent.indexOf('[Стиль общения]');
-    const clientIdx = result.systemContent.indexOf('[Инструкции клиента]');
-    const ragIdx = result.systemContent.indexOf('[Контекст из базы знаний]');
-    const globalIdx = result.systemContent.indexOf('[ПРИОРИТЕТ');
+    const platformIdx = result.systemContent.indexOf('[Платформа]');
+    const clientIdx = result.systemContent.indexOf('[Клиент]');
+    const ragIdx = result.systemContent.indexOf('[База знаний]');
 
-    expect(personaIdx).toBeGreaterThanOrEqual(0);
-    expect(personaIdx).toBeLessThan(clientIdx);
+    expect(platformIdx).toBeGreaterThanOrEqual(0);
+    expect(platformIdx).toBeLessThan(clientIdx);
     expect(clientIdx).toBeLessThan(ragIdx);
-    expect(ragIdx).toBeLessThan(globalIdx);
-    expect(result.systemContent).toContain('наивысший приоритет');
-    expect(result.systemContent).toContain('GLOBAL RULES');
-    expect(result.systemContent).toContain('не предлагай «передать менеджеру»');
+    expect(result.systemContent).toContain('Правила платформы');
+    expect(result.systemContent).toContain('Правила клиента');
+    expect(result.systemContent).not.toContain('[Стиль общения]');
+    expect(result.systemContent).not.toContain('[ПРИОРИТЕТ');
   });
 
-  it('applies persona config from source', async () => {
+  it('omits empty sections to save tokens', async () => {
     mockPrisma.prompt.findFirst.mockResolvedValue(null);
 
     const result = await service.assemble({
       tenantId: 't1',
-      ragContext: 'Test context',
-      personaConfig: {
-        personaStyle: 'expert',
-        objectionHandling: 'empathy_first',
-      },
+      ragContext: '',
     });
 
-    expect(result.systemContent).toContain('эксперт');
-    expect(result.systemContent).toContain('понимание');
+    expect(result.systemContent).toBe('');
+    expect(result.estimatedChars).toBe(0);
   });
 
-  it('adds hybrid AI manager instruction by default', async () => {
+  it('truncates long RAG context', async () => {
     mockPrisma.prompt.findFirst.mockResolvedValue(null);
 
     const result = await service.assemble({
       tenantId: 't1',
-      ragContext: 'Test context',
-      knowledgeMode: 'hybrid',
+      ragContext: 'x'.repeat(5000),
     });
 
-    expect(result.systemContent).toContain('[Режим AI-менеджера]');
-    expect(result.systemContent).toContain('не скрипт');
-  });
-
-  it('adds insufficient-context instruction when flagged in strict mode', async () => {
-    mockPrisma.prompt.findFirst.mockResolvedValue(null);
-
-    const result = await service.assemble({
-      tenantId: 't1',
-      ragContext: 'empty',
-      insufficientContext: true,
-      knowledgeMode: 'strict_kb',
-    });
-
-    expect(result.systemContent).toContain('[Недостаточно знаний]');
-    expect(result.systemContent).toContain('Не выдумывай');
-  });
-
-  it('adds soft insufficient instruction in hybrid mode', async () => {
-    mockPrisma.prompt.findFirst.mockResolvedValue(null);
-
-    const result = await service.assemble({
-      tenantId: 't1',
-      ragContext: 'empty',
-      insufficientContext: true,
-      knowledgeMode: 'hybrid',
-    });
-
-    expect(result.systemContent).toContain('[Мало данных в базе]');
-    expect(result.systemContent).toContain('уточняющих');
+    expect(result.systemContent.length).toBeLessThan(5000);
+    expect(result.systemContent.endsWith('…')).toBe(true);
   });
 });

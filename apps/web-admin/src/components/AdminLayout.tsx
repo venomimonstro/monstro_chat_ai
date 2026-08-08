@@ -8,6 +8,7 @@ const navItems = [
   { to: '/tenants', label: 'Клиенты' },
   { to: '/tariffs', label: 'Тарифы' },
   { to: '/providers', label: 'LLM-провайдеры' },
+  { to: '/platform-prompt', label: 'Супер-промпт' },
   { to: '/site-settings', label: 'Настройки сайта' },
   { to: '/analytics', label: 'Аналитика' },
   { to: '/updates', label: 'Обновления' },

@@ -20,6 +20,7 @@ import { SiteSettingsPage } from './pages/SiteSettingsPage';
 import { SiteCodePage } from './pages/SiteCodePage';
 import { SiteDiagnosticsPage } from './pages/SiteDiagnosticsPage';
 import { StabilityPage } from './pages/StabilityPage';
+import { PlatformPromptPage } from './pages/PlatformPromptPage';
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/tenants/:id" element={<TenantDetailPage />} />
               <Route path="/tariffs" element={<TariffsPage />} />
               <Route path="/providers" element={<ProvidersPage />} />
+              <Route path="/platform-prompt" element={<PlatformPromptPage />} />
               <Route path="/site-settings" element={<SiteSettingsLayout />}>
                 <Route index element={<SiteSettingsPage />} />
                 <Route path="code" element={<SiteCodePage />} />

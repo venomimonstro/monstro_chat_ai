@@ -7,7 +7,6 @@ import {
   DEFAULT_RAG_SIMILARITY_THRESHOLD,
   DEFAULT_RAG_SOFT_THRESHOLD,
   DEFAULT_RAG_TOP_K,
-  INSUFFICIENT_RAG_CONTEXT,
   RAG_TOP_K,
 } from '../constants';
 
@@ -174,28 +173,20 @@ export class RetrievalService {
         ? result.chunks
         : result.chunks.length > 0
           ? result.chunks
-          : result.softChunks;
+          : result.softChunks.length > 0
+            ? result.softChunks
+            : result.candidates.slice(0, 2);
 
     if (activeChunks.length === 0) {
-      return INSUFFICIENT_RAG_CONTEXT;
+      return '';
     }
 
-    const header =
-      result.chunks.length > 0
-        ? '[Материалы из базы знаний — используй как основной источник фактов]'
-        : '[Возможно релевантные материалы — проверь применимость, не выдумывай цифры]';
-
-    const body = activeChunks
+    return activeChunks
       .map((c, i) => {
-        const src =
-          c.documentTitle || c.documentUrl
-            ? ` (источник: ${c.documentTitle ?? c.documentUrl})`
-            : '';
-        return `[${i + 1}]${src}\n${c.content}`;
+        const label = c.documentTitle ?? c.documentUrl ?? `фрагмент ${i + 1}`;
+        return `${label}: ${c.content.replace(/\s+/g, ' ').trim()}`;
       })
-      .join('\n\n');
-
-    return `${header}\n${body}`;
+      .join('\n');
   }
 
   toDiagnostic(result: RetrievalResult) {

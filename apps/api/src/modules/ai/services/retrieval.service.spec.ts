@@ -2,7 +2,6 @@ import {
   lexicalOverlapScore,
   RetrievalService,
 } from './retrieval.service';
-import { INSUFFICIENT_RAG_CONTEXT } from '../constants';
 
 describe('lexicalOverlapScore', () => {
   it('scores overlapping tokens', () => {
@@ -76,22 +75,31 @@ describe('RetrievalService', () => {
     expect(result.maxSimilarity).toBeCloseTo(0.85);
   });
 
-  it('marks insufficient when all below threshold', async () => {
+  it('returns empty context when no candidates', async () => {
+    mockPrisma.$queryRawUnsafe.mockResolvedValue([]);
+
+    const result = await service.search('t1', 's1', 'цена');
+    expect(result.sufficient).toBe(false);
+    expect(result.chunks).toHaveLength(0);
+    expect(service.formatRagContext(result)).toBe('');
+  });
+
+  it('uses best candidates when below threshold', async () => {
     mockPrisma.$queryRawUnsafe.mockResolvedValue([
       {
-        id: 'a',
-        content: 'что-то',
+        id: 'soft',
+        content: 'тарифы и цены',
         metadata_json: {},
-        similarity: 0.3,
-        document_title: null,
+        similarity: 0.5,
+        document_title: 'Цены',
         document_url: null,
       },
     ]);
 
     const result = await service.search('t1', 's1', 'цена');
-    expect(result.sufficient).toBe(false);
-    expect(result.chunks).toHaveLength(0);
-    expect(service.formatRagContext(result)).toBe(INSUFFICIENT_RAG_CONTEXT);
+    const ctx = service.formatRagContext(result);
+    expect(ctx).toContain('Цены');
+    expect(ctx).toContain('тарифы');
   });
 
   it('builds diagnostic payload', async () => {
@@ -129,7 +137,7 @@ describe('RetrievalService', () => {
     expect(result.sufficient).toBe(false);
     expect(result.softChunks).toHaveLength(1);
     const ctx = service.formatRagContext(result, { knowledgeMode: 'hybrid' });
-    expect(ctx).toContain('Возможно релевантные');
+    expect(ctx).toContain('Тарифы');
     expect(ctx).toContain('тарифы');
   });
 
@@ -147,7 +155,7 @@ describe('RetrievalService', () => {
 
     const result = await service.search('t1', 's1', 'цена');
     expect(service.formatRagContext(result, { knowledgeMode: 'strict_kb' })).toBe(
-      INSUFFICIENT_RAG_CONTEXT,
+      '',
     );
   });
 });

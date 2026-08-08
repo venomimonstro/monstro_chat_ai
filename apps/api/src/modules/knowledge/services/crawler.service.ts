@@ -1,7 +1,10 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as cheerio from 'cheerio';
-import robotsParser from 'robots-parser';
+import {
+  parseRobots,
+  type RobotsParserInstance,
+} from '../utils/robots-parser.util';
 import {
   normalizeCrawlUrl,
   resolveMaxDepth,
@@ -35,7 +38,7 @@ export class CrawlerService {
 
   constructor(private readonly config: ConfigService) {}
 
-  async fetchRobots(rootUrl: string): Promise<ReturnType<typeof robotsParser>> {
+  async fetchRobots(rootUrl: string): Promise<RobotsParserInstance> {
     const origin = new URL(rootUrl).origin;
     const robotsUrl = `${origin}/robots.txt`;
 
@@ -45,18 +48,21 @@ export class CrawlerService {
         robotsUrl,
       );
       if (!response.ok) {
-        return robotsParser(robotsUrl, '');
+        return parseRobots(robotsUrl, '');
       }
       const body = await response.text();
-      return robotsParser(robotsUrl, body);
+      return parseRobots(robotsUrl, body);
     } catch {
-      return robotsParser(robotsUrl, '');
+      return parseRobots(robotsUrl, '');
     }
   }
 
-  isRootDisallowed(robots: ReturnType<typeof robotsParser>, rootUrl: string): boolean {
+  isRootDisallowed(robots: RobotsParserInstance, rootUrl: string): boolean {
     const path = new URL(rootUrl).pathname || '/';
-    return !robots.isAllowed(rootUrl, '*') && !robots.isAllowed(path, '*');
+    const allowed =
+      robots.isAllowed(rootUrl, '*') !== false ||
+      robots.isAllowed(path, '*') !== false;
+    return !allowed;
   }
 
   async crawlSite(
@@ -114,7 +120,10 @@ export class CrawlerService {
       visited.add(canonical);
 
       const path = new URL(canonical).pathname || '/';
-      if (!robots.isAllowed(canonical, '*') && !robots.isAllowed(path, '*')) {
+      if (
+        robots.isAllowed(canonical, '*') === false &&
+        robots.isAllowed(path, '*') === false
+      ) {
         continue;
       }
 
@@ -151,7 +160,7 @@ export class CrawlerService {
     if (pages.length === 0) {
       const hint =
         this.getInternalFallbackUrl(normalizedRoot) != null
-          ? ' API в Docker: попробуйте тот же путь через внутренний адрес или проверьте CRAWL_INTERNAL_ORIGIN.'
+          ? ' Проверьте CRAWL_INTERNAL_ORIGIN (для Docker: http://host.docker.internal:4321).'
           : '';
       throw new Error(
         (lastError
@@ -166,7 +175,7 @@ export class CrawlerService {
 
   private async discoverSitemapUrls(
     rootUrl: string,
-    robots: ReturnType<typeof robotsParser>,
+    robots: RobotsParserInstance,
   ): Promise<string[]> {
     const origin = new URL(rootUrl).origin;
     const candidates = new Set<string>([`${origin}/sitemap.xml`]);
@@ -258,10 +267,6 @@ export class CrawlerService {
     return [...links];
   }
 
-  private normalizeUrl(url: string): string {
-    return normalizeCrawlUrl(url);
-  }
-
   private isSameOrigin(url: string, origin: string): boolean {
     try {
       return new URL(url).origin === origin;
@@ -338,12 +343,14 @@ export class CrawlerService {
     originalUrl?: string,
   ): Promise<Response> {
     if (this.isPrivateAddress(url)) {
-      throw new BadRequestException('Crawling private/internal addresses is not allowed');
+      throw new BadRequestException(
+        'Crawling private/internal addresses is not allowed',
+      );
     }
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.fetchTimeoutMs);
-    const headers = { 'User-Agent': 'AI-Consultant-Crawler/1.0' };
+    const headers = { 'User-Agent': 'RedFlow-Crawler/2.0' };
     const publicUrl = originalUrl ?? url;
 
     try {
