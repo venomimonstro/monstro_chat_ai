@@ -2,6 +2,10 @@ import { NotFoundException } from '@nestjs/common';
 import { DialogsService } from './dialogs.service';
 
 describe('DialogsService', () => {
+  const mockDialogService = {
+    resolveEffectiveDialogId: jest.fn(async (_tenantId: string, dialogId: string) => dialogId),
+  };
+
   const mockPrisma = {
     dialog: {
       findMany: jest.fn(),
@@ -18,7 +22,7 @@ describe('DialogsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new DialogsService(mockPrisma as never);
+    service = new DialogsService(mockPrisma as never, mockDialogService as never);
   });
 
   it('lists dialogs with pagination cursor', async () => {
@@ -92,9 +96,11 @@ describe('DialogsService', () => {
 
     const messages = await service.getTranscript('t1', 'd1');
     expect(messages).toHaveLength(1);
+    expect(mockDialogService.resolveEffectiveDialogId).toHaveBeenCalledWith('t1', 'd1');
     expect(mockPrisma.message.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
+          dialogId: 'd1',
           NOT: { content: { startsWith: '__DEDUP_LINK__:' } },
         }),
       }),

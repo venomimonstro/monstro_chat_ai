@@ -1,12 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { DialogService } from './dialog.service';
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 
 @Injectable()
 export class DialogsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dialogService: DialogService,
+  ) {}
 
   async listDialogs(
     tenantId: string,
@@ -153,9 +157,13 @@ export class DialogsService {
 
   async getTranscript(tenantId: string, dialogId: string) {
     await this.getDialog(tenantId, dialogId);
+    const effectiveDialogId = await this.dialogService.resolveEffectiveDialogId(
+      tenantId,
+      dialogId,
+    );
     const messages = await this.prisma.message.findMany({
       where: {
-        dialogId,
+        dialogId: effectiveDialogId,
         tenantId,
         role: { in: ['user', 'assistant', 'manager'] },
         NOT: { content: { startsWith: '__DEDUP_LINK__:' } },

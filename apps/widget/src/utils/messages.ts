@@ -10,9 +10,12 @@ function normalizeContent(content: string): string {
   return content.trim().replace(/\s+/g, ' ');
 }
 
+export function normalizeChatRole(role: string): 'user' | 'assistant' {
+  return role?.toLowerCase?.() === 'user' ? 'user' : 'assistant';
+}
+
 export function dedupeMessages<T extends ChatMessageLike>(messages: T[]): T[] {
   const seenIds = new Set<string>();
-  const seenUserContent = new Set<string>();
   const result: T[] = [];
 
   for (const msg of messages) {
@@ -21,28 +24,23 @@ export function dedupeMessages<T extends ChatMessageLike>(messages: T[]): T[] {
       continue;
     }
 
-    if (msg.id && !msg.id.startsWith('local-') && !msg.id.startsWith('__')) {
-      if (seenIds.has(msg.id)) continue;
-      if (msg.role === 'user' && seenUserContent.has(normalizeContent(msg.content))) {
-        continue;
-      }
-      seenIds.add(msg.id);
-      if (msg.role === 'user') {
-        seenUserContent.add(normalizeContent(msg.content));
-      }
-      result.push(msg);
-      continue;
-    }
-
-    if (msg.role === 'user') {
-      const contentKey = normalizeContent(msg.content);
-      if (seenUserContent.has(contentKey)) continue;
-      seenUserContent.add(contentKey);
-    }
-
     if (msg.id && seenIds.has(msg.id)) continue;
-    if (msg.id) seenIds.add(msg.id);
 
+    if (msg.id?.startsWith('local-') && msg.role === 'user') {
+      const contentKey = normalizeContent(msg.content);
+      const hasServerTwin = messages.some(
+        (other) =>
+          other !== msg &&
+          other.role === 'user' &&
+          other.id &&
+          !other.id.startsWith('local-') &&
+          !other.id.startsWith('__') &&
+          normalizeContent(other.content) === contentKey,
+      );
+      if (hasServerTwin) continue;
+    }
+
+    if (msg.id) seenIds.add(msg.id);
     result.push(msg);
   }
 
@@ -52,12 +50,9 @@ export function dedupeMessages<T extends ChatMessageLike>(messages: T[]): T[] {
 /** Keep optimistic user sends when server history arrives late or during streaming. */
 export function shouldMergeChatHistory<T extends ChatMessageLike>(
   local: T[],
-  options: { sameDialogReload: boolean },
+  _options: { sameDialogReload: boolean },
 ): boolean {
-  if (options.sameDialogReload) return true;
-  return local.some(
-    (msg) => msg.streaming || (msg.id?.startsWith('local-') ?? false),
-  );
+  return local.length > 0;
 }
 
 /** Merge server history with local optimistic messages on reconnect. */
@@ -91,4 +86,35 @@ export function mergeChatHistory<T extends ChatMessageLike>(
   });
 
   return dedupeMessages(combined);
+}
+
+/** Replace optimistic local user bubble with persisted server message. */
+export function upsertUserMessage<T extends ChatMessageLike>(
+  messages: T[],
+  incoming: T,
+): T[] {
+  const contentKey = normalizeContent(incoming.content);
+  let replaced = false;
+
+  const mapped = messages.map((msg) => {
+    if (
+      !replaced &&
+      msg.role === 'user' &&
+      msg.id?.startsWith('local-') &&
+      normalizeContent(msg.content) === contentKey
+    ) {
+      replaced = true;
+      return { ...msg, ...incoming, role: 'user' as const };
+    }
+    return msg;
+  });
+
+  if (
+    replaced ||
+    mapped.some((msg) => msg.id && msg.id === incoming.id)
+  ) {
+    return dedupeMessages(mapped);
+  }
+
+  return dedupeMessages([...mapped, { ...incoming, role: 'user' as const }]);
 }

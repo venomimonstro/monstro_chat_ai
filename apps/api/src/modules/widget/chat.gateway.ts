@@ -428,6 +428,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayInit {
           }
         }
 
+        if (chunk.type === 'user_message' && chunk.messageId && chunk.content) {
+          client.emit('message:user', {
+            dialogId: activeDialogId,
+            messageId: chunk.messageId,
+            content: chunk.content,
+            createdAt: chunk.createdAt,
+          });
+        }
+
         if (chunk.type === 'token' && chunk.token) {
           if (!streamStarted) {
             client.emit('stream:start', { dialogId: activeDialogId });

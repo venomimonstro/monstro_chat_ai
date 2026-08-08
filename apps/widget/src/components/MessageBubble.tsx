@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { parseAssistantMessage } from '../utils/messageContent';
 
 interface MessageBubbleProps {
@@ -10,7 +10,7 @@ interface MessageBubbleProps {
   textColor: string;
 }
 
-export function MessageBubble({
+function MessageBubbleInner({
   content,
   streaming,
   isUser,
@@ -27,7 +27,7 @@ export function MessageBubble({
     return (
       <div
         className="aicw-bubble aicw-bubble-user"
-        style={{ background: primaryColor, color: textColor }}
+        style={{ background: primaryColor, color: textColor || '#ffffff' }}
       >
         {content}
       </div>
@@ -80,3 +80,5 @@ export function MessageBubble({
     </>
   );
 }
+
+export const MessageBubble = memo(MessageBubbleInner);

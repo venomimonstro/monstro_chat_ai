@@ -3,7 +3,8 @@ import {
   dedupeMessages,
   mergeChatHistory,
   shouldMergeChatHistory,
-} from './messages';
+  upsertUserMessage,
+} from './messages.ts';
 
 assert.deepEqual(
   dedupeMessages([
@@ -14,8 +15,25 @@ assert.deepEqual(
 );
 
 assert.equal(
+  dedupeMessages([
+    { role: 'user', content: 'Сколько стоит?', id: 'uuid-1' },
+    { role: 'assistant', content: '990 руб', id: 'uuid-2' },
+    { role: 'user', content: 'Сколько стоит?', id: 'uuid-3' },
+  ]).length,
+  3,
+);
+
+assert.equal(
   shouldMergeChatHistory(
     [{ role: 'user', content: 'Вопрос', id: 'local-1' }],
+    { sameDialogReload: false },
+  ),
+  true,
+);
+
+assert.equal(
+  shouldMergeChatHistory(
+    [{ role: 'assistant', content: 'Ответ', id: 'uuid-1' }],
     { sameDialogReload: false },
   ),
   true,
@@ -46,6 +64,14 @@ assert.deepEqual(
     ],
   ).map((m) => m.role),
   ['user', 'assistant'],
+);
+
+assert.equal(
+  upsertUserMessage(
+    [{ role: 'user', content: 'Привет', id: 'local-1' }],
+    { role: 'user', content: 'Привет', id: 'uuid-1', createdAt: '2026-01-01T00:00:00Z' },
+  )[0]?.id,
+  'uuid-1',
 );
 
 console.log('messages.test.mts: ok');

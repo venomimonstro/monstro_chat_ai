@@ -384,8 +384,9 @@
 .aicw-messages-flow {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-height: min-content;
+  width: 100%;
 }
 
 .aicw-body.dark {
@@ -435,20 +436,35 @@
 .aicw-message {
   display: flex;
   gap: 8px;
-  max-width: 88%;
-}
-
-.aicw-message.aicw-new {
-  animation: aicw-fade-in 0.22s ease;
+  max-width: 92%;
+  width: fit-content;
 }
 
 .aicw-message.user {
   align-self: flex-end;
   flex-direction: row-reverse;
+  margin-left: auto;
 }
 
 .aicw-message.assistant {
   align-self: flex-start;
+  margin-right: auto;
+}
+
+.aicw-message-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-align: right;
+  margin-bottom: 2px;
+}
+
+.aicw-message.user.dark .aicw-message-sender {
+  color: #94a3b8;
+}
+
+.aicw-message.user .aicw-message-time {
+  align-self: flex-end;
 }
 
 .aicw-message-avatar {
@@ -545,8 +561,14 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.aicw-message.user .aicw-bubble {
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+.aicw-message.aicw-new {
+  animation: aicw-fade-in 0.22s ease;
+}
+
+.aicw-message.user .aicw-bubble-user {
+  background: var(--aicw-primary, #ef2b34);
+  color: #ffffff;
+  min-width: 48px;
 }
 
 .aicw-message.user .aicw-bubble {

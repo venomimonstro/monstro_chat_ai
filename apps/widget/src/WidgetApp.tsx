@@ -14,7 +14,9 @@ import { MessageBubble } from './components/MessageBubble';
 import {
   dedupeMessages,
   mergeChatHistory,
+  normalizeChatRole,
   shouldMergeChatHistory,
+  upsertUserMessage,
 } from './utils/messages';
 import { generateUuid } from './utils/uuid';
 import './widget-styles.css';
@@ -439,6 +441,7 @@ export function WidgetApp() {
         setHistorySlow(false);
         const normalized = data.messages.map((msg) => ({
           ...msg,
+          role: normalizeChatRole(msg.role),
           createdAt: msg.createdAt ?? new Date().toISOString(),
         }));
 
@@ -474,6 +477,27 @@ export function WidgetApp() {
         setDialogId(data.dialogId);
         dialogIdRef.current = data.dialogId;
         storeDialogId(widgetKey, data.dialogId);
+      });
+
+      socket.on('message:user', (data: {
+        messageId: string;
+        content: string;
+        createdAt?: string;
+        dialogId?: string;
+      }) => {
+        if (data.dialogId) {
+          setDialogId(data.dialogId);
+          dialogIdRef.current = data.dialogId;
+          storeDialogId(widgetKey, data.dialogId);
+        }
+        setMessages((prev) =>
+          upsertUserMessage(prev, {
+            role: 'user',
+            content: data.content,
+            id: data.messageId,
+            createdAt: data.createdAt ?? new Date().toISOString(),
+          }),
+        );
       });
 
       socket.on('dialog:created', (data: { dialogId: string }) => {
@@ -594,14 +618,8 @@ export function WidgetApp() {
       });
 
       socket.on('rate_limited', (data: { message: string }) => {
-        setMessages((m) => {
-          const copy = m.filter((msg) => !msg.streaming);
-          const last = copy[copy.length - 1];
-          if (last?.role === 'user' && last.id?.startsWith('local-')) {
-            copy.pop();
-          }
-          return copy;
-        });
+        sendingRef.current = false;
+        setIsTyping(false);
         appendError(data.message);
       });
 
@@ -896,15 +914,18 @@ export function WidgetApp() {
         </div>
         {messages.length === 0 && quickReplyChips}
         {messages.map((msg, i) => {
-          const isUser = msg.role === 'user';
-          const showAvatar = !isUser && (i === 0 || messages[i - 1]?.role === 'user');
+          const isUser = normalizeChatRole(msg.role) === 'user';
+          const showAvatar =
+            !isUser &&
+            (i === 0 || normalizeChatRole(messages[i - 1]?.role) === 'user');
           const time = msg.createdAt ? formatTime(new Date(msg.createdAt)) : '';
           const isNewMessage =
             msg.id !== '__resume_hint__' &&
             (!msg.id || !historyMessageIdsRef.current.has(msg.id));
+          const stableKey = msg.id ?? `msg-${msg.createdAt ?? i}-${msg.role}`;
           return (
             <div
-              key={msg.id ?? `msg-${i}`}
+              key={stableKey}
               className={`aicw-message ${isUser ? 'user' : 'assistant'} ${isDark ? 'dark' : ''}${isNewMessage ? ' aicw-new' : ''}`}
               role="listitem"
             >
@@ -920,6 +941,11 @@ export function WidgetApp() {
                 </div>
               )}
               <div className="aicw-message-content">
+                {isUser && (
+                  <div className="aicw-message-sender" aria-hidden>
+                    Вы
+                  </div>
+                )}
                 <MessageBubble
                   content={msg.content}
                   streaming={msg.streaming}

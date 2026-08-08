@@ -35,11 +35,12 @@ export interface OrchestratorInput {
 }
 
 export interface StreamChunk {
-  type: 'dialog' | 'token' | 'done' | 'error';
+  type: 'dialog' | 'user_message' | 'token' | 'done' | 'error';
   dialogId?: string;
   messageId?: string;
   token?: string;
   content?: string;
+  createdAt?: string;
   provider?: string;
   model?: string;
   error?: string;
@@ -126,12 +127,20 @@ export class AiOrchestratorService {
 
     yield { type: 'dialog', dialogId: activeDialogId };
 
-    await this.dialogService.addMessage({
+    const userMessage = await this.dialogService.addMessage({
       dialogId: activeDialogId,
       tenantId: input.tenantId,
       role: 'user',
       content: input.content,
     });
+
+    yield {
+      type: 'user_message',
+      dialogId: activeDialogId,
+      messageId: userMessage.id,
+      content: userMessage.content,
+      createdAt: userMessage.createdAt.toISOString(),
+    };
 
     await this.leadExtraction.processMessage({
       tenantId: input.tenantId,
